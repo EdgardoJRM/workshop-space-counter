@@ -6,7 +6,9 @@ Aplicación **Next.js 14** (App Router) + **TypeScript** + **Tailwind CSS** para
 
 ```
 ├── app/
-│   ├── admin/page.tsx          # Panel de administración (/admin)
+│   ├── admin/
+│   │   ├── layout.tsx          # Metadata del panel
+│   │   └── page.tsx            # Pestañas por taller + SpacesForm
 │   ├── api/
 │   │   ├── spaces/route.ts     # GET público + OPTIONS (CORS)
 │   │   └── admin/spaces/route.ts  # POST privado (token)
@@ -27,16 +29,18 @@ Aplicación **Next.js 14** (App Router) + **TypeScript** + **Tailwind CSS** para
 └── README.md
 ```
 
-### Keys en Redis (escalable)
+### Keys en Redis (multi-taller)
 
-Por defecto se usan:
+Cada taller tiene su par de keys:
 
-| Key | Contenido |
-|-----|-----------|
-| `workshop:general:available` | Entero ≥ 0 |
-| `workshop:general:updatedAt` | ISO 8601 (`toISOString()`) |
+| Slug | Keys |
+|------|------|
+| `duplica-ventas` | `workshop:duplica-ventas:available` / `workshop:duplica-ventas:updatedAt` |
+| `canva` | `workshop:canva:available` / `workshop:canva:updatedAt` |
 
-Para futuros talleres puedes duplicar el patrón `workshop:<slug>:available` / `workshop:<slug>:updatedAt` (el código ya centraliza slugs en `lib/workshop-keys.ts`).
+**Migración:** los datos antiguos estaban en `workshop:general:*`. Para **Duplica Tus Ventas**, si la key nueva aún no existe, la API lee `workshop:general:*` como respaldo. Tras guardar una vez desde `/admin` en esa pestaña, queda persistido en `workshop:duplica-ventas:*`.
+
+Los slugs y etiquetas viven en `lib/workshop-keys.ts` (`WORKSHOPS`).
 
 ## Requisitos
 
@@ -89,12 +93,18 @@ npm run dev
 
    `https://<tu-dominio>/api/spaces`
 
+   Por taller, usa el query param **`?w=<slug>`** (p. ej. `?w=canva`). Si omites `w`, el valor por defecto es **`duplica-ventas`** (compatible con enlaces antiguos sin query).
+
 ## Probar los endpoints
 
 ### GET `/api/spaces` (público)
 
 ```bash
+# Duplica Tus Ventas (por defecto; equivale a ?w=duplica-ventas)
 curl -sS -D - "https://<tu-dominio>/api/spaces"
+
+# Taller de Canva
+curl -sS -D - "https://<tu-dominio>/api/spaces?w=canva"
 ```
 
 Respuesta JSON:
@@ -112,10 +122,12 @@ Cabeceras relevantes: CORS (`Access-Control-Allow-Origin: *`) y `Cache-Control: 
 
 ### POST `/api/admin/spaces` (privado)
 
+Body JSON: `available` (entero ≥ 0), `token` (igual que `ADMIN_TOKEN`), y opcionalmente **`workshop`** (`"duplica-ventas"` o `"canva"`). Si no envías `workshop`, se asume **`duplica-ventas`**.
+
 ```bash
 curl -sS -X POST "https://<tu-dominio>/api/admin/spaces" \
   -H "Content-Type: application/json" \
-  -d '{"available":17,"token":"TU_ADMIN_TOKEN"}'
+  -d '{"available":17,"token":"TU_ADMIN_TOKEN","workshop":"canva"}'
 ```
 
 Respuesta exitosa (ejemplo):
@@ -124,11 +136,12 @@ Respuesta exitosa (ejemplo):
 {
   "ok": true,
   "available": 17,
-  "updatedAt": "2026-04-06T12:00:00.000Z"
+  "updatedAt": "2026-04-06T12:00:00.000Z",
+  "workshop": "canva"
 }
 ```
 
-Errores habituales: `401` (token), `400` (JSON o `available` inválido), `503` (Redis / configuración).
+Errores habituales: `401` (token), `400` (JSON, `available` o `workshop` inválido), `503` (Redis / configuración).
 
 ## Bloque HTML para ClickFunnels
 
@@ -137,8 +150,9 @@ Diseño compacto con la paleta de marca: fondo oscuro semitransparente, label pe
 ### Cómo usarlo
 
 1. Reemplaza `https://TU-DOMINIO.vercel.app` con tu URL de Vercel (sin barra al final).
-2. Pega el bloque en un elemento **Custom JS/HTML** de ClickFunnels.
-3. Ajusta `MAX_SPACES` (total de cupos) y `POLL_MS` (intervalo en ms, default 10 s) si hace falta.
+2. En cada funnel, define **`WORKSHOP`**: `"duplica-ventas"` (Duplica Tus Ventas) o `"canva"` (Taller de Canva). El `fetch` usa `/api/spaces?w=` + ese valor.
+3. Pega el bloque en un elemento **Custom JS/HTML** de ClickFunnels.
+4. Ajusta `MAX_SPACES` (total de cupos) y `POLL_MS` (intervalo en ms, default 10 s) si hace falta.
 
 **Dos wrappers (solo móvil / solo escritorio):** puedes pegar el **mismo bloque completo** en cada uno. Cada copia usa su propio contenedor (sin `id` globales duplicados), así no se pisan. Nota: habrá **dos peticiones** al API cada `POLL_MS` si ambos están en la página; si quieres una sola petición, usa un único bloque responsive.
 
@@ -236,6 +250,7 @@ Diseño compacto con la paleta de marca: fondo oscuro semitransparente, label pe
     if (!root) return;
 
     var API_URL = "https://TU-DOMINIO.vercel.app";
+    var WORKSHOP = "duplica-ventas"; // o "canva"
     var MAX_SPACES = 20;
     var POLL_MS = 10000;
 
@@ -244,7 +259,11 @@ Diseño compacto con la paleta de marca: fondo oscuro semitransparente, label pe
     if (!elDots || !elLine) return;
 
     function endpoint(base) {
-      return String(base).trim().replace(/\/+$/, "") + "/api/spaces";
+      return (
+        String(base).trim().replace(/\/+$/, "") +
+        "/api/spaces?w=" +
+        encodeURIComponent(WORKSHOP)
+      );
     }
 
     function renderDots(available) {
@@ -360,7 +379,8 @@ Solo las **dos líneas** de copy: total tachado y cupos que quedan. **Sin ícono
       document.currentScript.closest(".workshop-spaces-alert");
     if (!root) return;
 
-    var API_URL = "https://TU-DOMINIO.vercel.app";
+    var API_URL = "https://workshop-space-counter.vercel.app";
+    var WORKSHOP = "duplica-ventas"; // o "canva"
     var MAX_SPACES = 20;
     var POLL_MS = 10000;
 
@@ -371,7 +391,117 @@ Solo las **dos líneas** de copy: total tachado y cupos que quedan. **Sin ícono
     elTotal.textContent = MAX_SPACES + " Exclusivos Espacios";
 
     function endpoint(base) {
-      return String(base).trim().replace(/\/+$/, "") + "/api/spaces";
+      return (
+        String(base).trim().replace(/\/+$/, "") +
+        "/api/spaces?w=" +
+        encodeURIComponent(WORKSHOP)
+      );
+    }
+
+    function render(available) {
+      var n = Math.max(0, Math.min(available, MAX_SPACES));
+      elRemaining.textContent = "Queda " + n + " espacios disponibles.";
+    }
+
+    function fetchSpaces() {
+      fetch(endpoint(API_URL), { cache: "no-store", credentials: "omit" })
+        .then(function (r) {
+          if (!r.ok) throw r;
+          return r.json();
+        })
+        .then(function (d) {
+          render(typeof d.available === "number" ? d.available : 0);
+        })
+        .catch(function () {
+          elRemaining.textContent = "No disponible en este momento.";
+        });
+    }
+
+    fetchSpaces();
+    setInterval(fetchSpaces, POLL_MS);
+  })();
+  </script>
+</div>
+```
+
+---
+
+## Widget 2b — Solo texto, letra blanca (móvil / escritorio)
+
+Misma lógica que el Widget 2 (dos líneas, sin caja), pero **tipografía Barlow Semi Condensed**, **25px**, **letter-spacing 0.01em**, **line-height 130%**, **color blanco**. Puedes pegar **el mismo bloque** en el wrapper solo móvil y en el solo escritorio; el contenedor es `workshop-spaces-alert-light` (no choca con el Widget 2).
+
+```html
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<div class="workshop-spaces-alert-light">
+  <style>
+    .workshop-spaces-alert-light {
+      font-family: "Barlow Semi Condensed", system-ui, sans-serif;
+      width: 100%;
+      max-width: 100%;
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+    }
+    .workshop-spaces-alert-light * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    .workshop-spaces-alert-light .wsa-plain {
+      text-align: center;
+      background: transparent;
+      border: none;
+      padding: 0;
+    }
+    .workshop-spaces-alert-light .wsa-total,
+    .workshop-spaces-alert-light .wsa-remaining {
+      font-family: "Barlow Semi Condensed", system-ui, sans-serif;
+      font-size: 25px;
+      letter-spacing: 0.01em;
+      line-height: 1.3;
+      color: #ffffff;
+      font-weight: 300;
+    }
+    .workshop-spaces-alert-light .wsa-total {
+      opacity: 0.5;
+      text-decoration: line-through;
+      /* Menos espacio entre la línea tachada y “Queda…” — baja el valor si quieres aún más junto */
+      margin-bottom: 0.2rem;
+    }
+  </style>
+
+  <div class="wsa-plain">
+    <p class="wsa-total" data-wsa-total>20 Exclusivos Espacios</p>
+    <p class="wsa-remaining" data-wsa-remaining>Cargando…</p>
+  </div>
+  <script>
+  (function () {
+    var root =
+      document.currentScript &&
+      document.currentScript.closest(".workshop-spaces-alert-light");
+    if (!root) return;
+
+    var API_URL = "https://workshop-space-counter.vercel.app";
+    var WORKSHOP = "duplica-ventas"; // o "canva"
+    var MAX_SPACES = 20;
+    var POLL_MS = 10000;
+
+    var elTotal = root.querySelector("[data-wsa-total]");
+    var elRemaining = root.querySelector("[data-wsa-remaining]");
+    if (!elTotal || !elRemaining) return;
+
+    elTotal.textContent = MAX_SPACES + " Exclusivos Espacios";
+
+    function endpoint(base) {
+      return (
+        String(base).trim().replace(/\/+$/, "") +
+        "/api/spaces?w=" +
+        encodeURIComponent(WORKSHOP)
+      );
     }
 
     function render(available) {

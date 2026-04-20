@@ -1,6 +1,7 @@
 import { Redis } from "@upstash/redis";
 import {
-  WORKSHOP_SLUGS,
+  DEFAULT_WORKSHOP,
+  WORKSHOPS,
   type WorkshopSlug,
   workshopAvailableKey,
   workshopUpdatedAtKey,
@@ -24,15 +25,40 @@ export type SpacesSnapshot = {
 
 /**
  * Reads current spaces count and last update timestamp for the given workshop.
+ * If the primary Redis key is missing and the workshop defines `legacySlug`, reads the legacy keys (migración desde `workshop:general:*`).
  */
 export async function getSpaces(
-  slug: WorkshopSlug = WORKSHOP_SLUGS.general
+  slug: WorkshopSlug = DEFAULT_WORKSHOP
 ): Promise<SpacesSnapshot> {
   const redis = getRedis();
-  const [availableRaw, updatedAt] = await Promise.all([
+  const meta = WORKSHOPS[slug];
+
+  const [primaryAvail, primaryUpdated] = await Promise.all([
     redis.get<string | number | null>(workshopAvailableKey(slug)),
     redis.get<string | null>(workshopUpdatedAtKey(slug)),
   ]);
+
+  let availableRaw: string | number | null =
+    primaryAvail === undefined ? null : primaryAvail;
+  let updatedAt: string | null =
+    typeof primaryUpdated === "string" ? primaryUpdated : null;
+
+  const primaryAvailableMissing =
+    primaryAvail === null || primaryAvail === undefined;
+
+  if (primaryAvailableMissing && "legacySlug" in meta && meta.legacySlug) {
+    const legacySlug = meta.legacySlug;
+    const [legacyAvail, legacyUpdated] = await Promise.all([
+      redis.get<string | number | null>(workshopAvailableKey(legacySlug)),
+      redis.get<string | null>(workshopUpdatedAtKey(legacySlug)),
+    ]);
+    if (legacyAvail !== null && legacyAvail !== undefined) {
+      availableRaw = legacyAvail;
+    }
+    if (updatedAt === null && typeof legacyUpdated === "string") {
+      updatedAt = legacyUpdated;
+    }
+  }
 
   let available = 0;
   if (availableRaw !== null && availableRaw !== undefined) {
@@ -42,17 +68,17 @@ export async function getSpaces(
 
   return {
     available,
-    updatedAt: typeof updatedAt === "string" ? updatedAt : null,
+    updatedAt,
   };
 }
 
 /**
- * Persists spaces count and sets updatedAt to the provided ISO string.
+ * Persists spaces count and sets updatedAt to the provided ISO string (solo keys del slug actual, nunca el legacy).
  */
 export async function setSpaces(
   available: number,
   updatedAtIso: string,
-  slug: WorkshopSlug = WORKSHOP_SLUGS.general
+  slug: WorkshopSlug = DEFAULT_WORKSHOP
 ): Promise<void> {
   const redis = getRedis();
   await redis.set(workshopAvailableKey(slug), available);

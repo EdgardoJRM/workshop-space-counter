@@ -1,5 +1,10 @@
 import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
+import {
+  DEFAULT_WORKSHOP,
+  isWorkshopSlug,
+  type WorkshopSlug,
+} from "@/lib/workshop-keys";
 import { setSpaces } from "@/lib/redis";
 
 export const dynamic = "force-dynamic";
@@ -7,6 +12,7 @@ export const dynamic = "force-dynamic";
 type AdminBody = {
   available?: unknown;
   token?: unknown;
+  workshop?: unknown;
 };
 
 function isNonNegativeInteger(n: number): boolean {
@@ -24,6 +30,17 @@ function safeEqualToken(provided: string, expected: string): boolean {
   } catch {
     return false;
   }
+}
+
+function parseWorkshop(body: AdminBody): WorkshopSlug | null {
+  const w = body.workshop;
+  if (w === undefined || w === null) {
+    return DEFAULT_WORKSHOP;
+  }
+  if (typeof w !== "string" || !isWorkshopSlug(w)) {
+    return null;
+  }
+  return w;
 }
 
 export async function POST(request: Request) {
@@ -47,6 +64,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const workshop = parseWorkshop(body);
+  if (workshop === null) {
+    return NextResponse.json(
+      { error: "Invalid field `workshop`: must be a known workshop slug" },
+      { status: 400 }
+    );
+  }
+
   const raw = body.available;
   if (typeof raw !== "number" || !isNonNegativeInteger(raw)) {
     return NextResponse.json(
@@ -61,7 +86,7 @@ export async function POST(request: Request) {
   const updatedAt = new Date().toISOString();
 
   try {
-    await setSpaces(raw, updatedAt);
+    await setSpaces(raw, updatedAt, workshop);
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Failed to persist spaces";
@@ -72,5 +97,6 @@ export async function POST(request: Request) {
     ok: true,
     available: raw,
     updatedAt,
+    workshop,
   });
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { getWorkshopLabel, type WorkshopSlug } from "@/lib/workshop-keys";
 
 type SpacesResponse = {
   available: number;
@@ -21,7 +22,14 @@ function formatUpdatedAt(iso: string | null): string {
   }
 }
 
-export function SpacesForm() {
+export type SpacesFormProps = {
+  slug: WorkshopSlug;
+};
+
+export function SpacesForm({ slug }: SpacesFormProps) {
+  const title = getWorkshopLabel(slug);
+  const idPrefix = slug.replace(/[^a-z0-9-]/gi, "-");
+
   const [preview, setPreview] = useState<SpacesResponse | null>(null);
   const [availableInput, setAvailableInput] = useState<string>("");
   const [token, setToken] = useState("");
@@ -34,7 +42,10 @@ export function SpacesForm() {
   const fetchCurrent = useCallback(async () => {
     setLoadError(null);
     try {
-      const res = await fetch("/api/spaces", { cache: "no-store" });
+      const params = new URLSearchParams({ w: slug });
+      const res = await fetch(`/api/spaces?${params.toString()}`, {
+        cache: "no-store",
+      });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(data.error ?? `Error ${res.status}`);
@@ -45,7 +56,7 @@ export function SpacesForm() {
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : "No se pudo cargar el valor");
     }
-  }, []);
+  }, [slug]);
 
   useEffect(() => {
     void fetchCurrent();
@@ -80,6 +91,7 @@ export function SpacesForm() {
         body: JSON.stringify({
           available: availableNum,
           token: token.trim(),
+          workshop: slug,
         }),
       });
 
@@ -124,8 +136,11 @@ export function SpacesForm() {
           Panel
         </p>
         <h1 className="mt-2 text-center text-xl font-semibold tracking-tight text-brand-slate">
-          Actualizar Espacios Disponibles
+          {title}
         </h1>
+        <p className="mt-1 text-center text-sm text-brand-charcoal">
+          Actualizar espacios disponibles
+        </p>
 
         <div className="mt-8 rounded-xl border border-brand-grey/20 bg-gradient-to-br from-brand-off to-white p-5 text-center shadow-inner shadow-brand-slate/5">
           <p className="text-xs font-medium uppercase tracking-wide text-brand-charcoal">
@@ -151,13 +166,13 @@ export function SpacesForm() {
         <form onSubmit={handleSubmit} className="mt-8 space-y-5">
           <div>
             <label
-              htmlFor="available"
+              htmlFor={`${idPrefix}-available`}
               className="block text-sm font-medium text-brand-charcoal"
             >
               Espacios disponibles
             </label>
             <input
-              id="available"
+              id={`${idPrefix}-available`}
               type="number"
               name="available"
               min={0}
@@ -173,13 +188,13 @@ export function SpacesForm() {
 
           <div>
             <label
-              htmlFor="token"
+              htmlFor={`${idPrefix}-token`}
               className="block text-sm font-medium text-brand-charcoal"
             >
               Token de administración
             </label>
             <input
-              id="token"
+              id={`${idPrefix}-token`}
               type="password"
               name="token"
               autoComplete="current-password"

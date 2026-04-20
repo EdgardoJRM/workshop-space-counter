@@ -1,5 +1,9 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { applyPublicSpacesHeaders, publicSpacesHeaders } from "@/lib/cors";
+import {
+  DEFAULT_WORKSHOP,
+  isWorkshopSlug,
+} from "@/lib/workshop-keys";
 import { getSpaces } from "@/lib/redis";
 
 export const dynamic = "force-dynamic";
@@ -9,9 +13,19 @@ export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: publicSpacesHeaders });
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const snapshot = await getSpaces();
+    const raw = request.nextUrl.searchParams.get("w");
+    const slug = raw === null || raw === "" ? DEFAULT_WORKSHOP : raw;
+    if (!isWorkshopSlug(slug)) {
+      const res = NextResponse.json(
+        { error: "Invalid workshop slug" },
+        { status: 400 }
+      );
+      return applyPublicSpacesHeaders(res);
+    }
+
+    const snapshot = await getSpaces(slug);
     const res = NextResponse.json(
       {
         available: snapshot.available,
