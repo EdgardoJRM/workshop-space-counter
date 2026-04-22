@@ -37,6 +37,7 @@ Cada taller tiene su par de keys:
 |------|------|
 | `duplica-ventas` | `workshop:duplica-ventas:available` / `workshop:duplica-ventas:updatedAt` |
 | `canva` | `workshop:canva:available` / `workshop:canva:updatedAt` |
+| `oferta-webinar` | `workshop:oferta-webinar:available` / `workshop:oferta-webinar:updatedAt` |
 
 **Migración:** los datos antiguos estaban en `workshop:general:*`. Para **Duplica Tus Ventas**, si la key nueva aún no existe, la API lee `workshop:general:*` como respaldo. Tras guardar una vez desde `/admin` en esa pestaña, queda persistido en `workshop:duplica-ventas:*`.
 
@@ -93,7 +94,7 @@ npm run dev
 
    `https://<tu-dominio>/api/spaces`
 
-   Por taller, usa el query param **`?w=<slug>`** (p. ej. `?w=canva`). Si omites `w`, el valor por defecto es **`duplica-ventas`** (compatible con enlaces antiguos sin query).
+   Por taller, usa el query param **`?w=<slug>`** (p. ej. `?w=canva` o `?w=oferta-webinar`). Si omites `w`, el valor por defecto es **`duplica-ventas`** (compatible con enlaces antiguos sin query).
 
 ## Probar los endpoints
 
@@ -105,6 +106,9 @@ curl -sS -D - "https://<tu-dominio>/api/spaces"
 
 # Taller de Canva
 curl -sS -D - "https://<tu-dominio>/api/spaces?w=canva"
+
+# Oferta Webinar
+curl -sS -D - "https://<tu-dominio>/api/spaces?w=oferta-webinar"
 ```
 
 Respuesta JSON:
@@ -122,7 +126,7 @@ Cabeceras relevantes: CORS (`Access-Control-Allow-Origin: *`) y `Cache-Control: 
 
 ### POST `/api/admin/spaces` (privado)
 
-Body JSON: `available` (entero ≥ 0), `token` (igual que `ADMIN_TOKEN`), y opcionalmente **`workshop`** (`"duplica-ventas"` o `"canva"`). Si no envías `workshop`, se asume **`duplica-ventas`**.
+Body JSON: `available` (entero ≥ 0), `token` (igual que `ADMIN_TOKEN`), y opcionalmente **`workshop`** (slug del catálogo: `"duplica-ventas"`, `"canva"`, `"oferta-webinar"`). Si no envías `workshop`, se asume **`duplica-ventas`**.
 
 ```bash
 curl -sS -X POST "https://<tu-dominio>/api/admin/spaces" \
@@ -145,14 +149,15 @@ Errores habituales: `401` (token), `400` (JSON, `available` o `workshop` inváli
 
 ## Bloque HTML para ClickFunnels
 
-Diseño compacto con la paleta de marca: fondo oscuro semitransparente, label pequeño, fila de puntos y una sola línea de texto en dorado. Tipografía **Lato** (Google Fonts) vía `<link>` al inicio del bloque.
+Diseño compacto con la paleta de marca: fondo oscuro semitransparente, label pequeño, fila de puntos y una sola línea de texto en dorado. **Espaciado:** caja `padding: 1rem` (en pantallas ≤480px `1.5rem 1rem`), `0.75rem` entre etiqueta, puntos y línea final. Tipografía **Lato** (Google Fonts) vía `<link>` al inicio del bloque.
 
 ### Cómo usarlo
 
 1. Reemplaza `https://TU-DOMINIO.vercel.app` con tu URL de Vercel (sin barra al final).
-2. En cada funnel, define **`WORKSHOP`**: `"duplica-ventas"` (Duplica Tus Ventas) o `"canva"` (Taller de Canva). El `fetch` usa `/api/spaces?w=` + ese valor.
+2. En cada funnel, define **`WORKSHOP`**: por ejemplo `"duplica-ventas"`, `"canva"` o `"oferta-webinar"`. El `fetch` usa `/api/spaces?w=` + ese valor.
 3. Pega el bloque en un elemento **Custom JS/HTML** de ClickFunnels.
-4. Ajusta `MAX_SPACES` (total de cupos) y `POLL_MS` (intervalo en ms, default 10 s) si hace falta.
+4. Ajusta **`MAX_SPACES`** (cuántos “cupos” dibuja el widget y el texto; debe coincidir con el total que muestras en copy): **20** para Duplica Tus Ventas, **10** para Canva. Ajusta **`POLL_MS`** (intervalo en ms, default 10 s) si hace falta.
+5. **Color de acento (solo Widget 1):** el dorado `#ffc907` y el lima `#ecf000` no se eligen solo con variables sueltas: si hay **varios** bloques del widget en la misma página, el **último** `<style>` ganaba para **todos** (mismo selector `.workshop-spaces-widget`). **Solución:** en el `<div>` raíz del funnel de **Canva** añade **`data-ws-theme="canva"`**. Duplica Ventas puede ir **sin** atributo o con `data-ws-theme="duplica-ventas"`. El CSS del snippet ya define los dos acentos según ese atributo.
 
 **Dos wrappers (solo móvil / solo escritorio):** puedes pegar el **mismo bloque completo** en cada uno. Cada copia usa su propio contenedor (sin `id` globales duplicados), así no se pisan. Nota: habrá **dos peticiones** al API cada `POLL_MS` si ambos están en la página; si quieres una sola petición, usa un único bloque responsive.
 
@@ -164,7 +169,7 @@ Diseño compacto con la paleta de marca: fondo oscuro semitransparente, label pe
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet" />
-<div class="workshop-spaces-widget">
+<div class="workshop-spaces-widget" data-ws-theme="duplica-ventas">
   <style>
     .workshop-spaces-widget {
       font-family: "Lato", system-ui, sans-serif;
@@ -172,38 +177,41 @@ Diseño compacto con la paleta de marca: fondo oscuro semitransparente, label pe
       max-width: 700px;
       margin: 0 auto;
     }
+    .workshop-spaces-widget:not([data-ws-theme="canva"]) {
+      --ws-accent: #ffc907;
+      --ws-accent-glow: rgba(255, 201, 7, 0.45);
+    }
+    .workshop-spaces-widget[data-ws-theme="canva"] {
+      --ws-accent: #ecf000;
+      --ws-accent-glow: rgba(236, 240, 0, 0.45);
+    }
     .workshop-spaces-widget * { box-sizing: border-box; margin: 0; padding: 0; }
-    .ws-box {
+    .workshop-spaces-widget .ws-box {
       background: rgba(34, 32, 34, 0.72);
       border: 1px solid rgba(76, 92, 104, 0.55);
       border-radius: 14px;
-      padding: 3rem 3.5rem;
+      padding: 1rem 1rem;
       text-align: center;
     }
     @media (max-width: 480px) {
-      .ws-box {
+      .workshop-spaces-widget .ws-box {
         padding: 1.5rem 1rem;
       }
     }
-    .ws-label {
+    .workshop-spaces-widget .ws-label {
       font-size: 0.95rem;
       color: rgba(242, 242, 242, 0.62);
       letter-spacing: 0.05em;
-      margin-bottom: 2.25rem;
-    }
-    @media (max-width: 480px) {
-      .ws-label {
-        margin-bottom: 1.35rem;
-      }
+      margin-bottom: 0.75rem;
     }
     /* Una sola fila: puntos más pequeños en móvil; si no cupiera, scroll horizontal sin barra */
-    .ws-dots {
+    .workshop-spaces-widget .ws-dots {
       display: flex;
       flex-wrap: nowrap;
       justify-content: center;
       align-items: center;
       gap: clamp(2px, 1.1vw, 7px);
-      margin-bottom: 2.25rem;
+      margin-bottom: 0.75rem;
       max-width: 100%;
       margin-left: auto;
       margin-right: auto;
@@ -213,27 +221,22 @@ Diseño compacto con la paleta de marca: fondo oscuro semitransparente, label pe
       touch-action: pan-x;
       scrollbar-width: none;
     }
-    .ws-dots::-webkit-scrollbar {
+    .workshop-spaces-widget .ws-dots::-webkit-scrollbar {
       display: none;
     }
-    @media (max-width: 480px) {
-      .ws-dots {
-        margin-bottom: 1.35rem;
-      }
-    }
-    .ws-dot {
+    .workshop-spaces-widget .ws-dot {
       width: clamp(5px, 2.2vw, 11px);
       height: clamp(5px, 2.2vw, 11px);
       border-radius: 50%;
       flex-shrink: 0;
     }
-    .ws-dot-free  { background: #ffc907; box-shadow: 0 0 6px rgba(255, 201, 7, 0.45); }
-    .ws-dot-taken { background: rgba(76, 92, 104, 0.48); }
-    .ws-dot-skel  { background: rgba(76, 92, 104, 0.22); }
-    .ws-line {
+    .workshop-spaces-widget .ws-dot-free  { background: var(--ws-accent); box-shadow: 0 0 6px var(--ws-accent-glow); }
+    .workshop-spaces-widget .ws-dot-taken { background: rgba(76, 92, 104, 0.48); }
+    .workshop-spaces-widget .ws-dot-skel  { background: rgba(76, 92, 104, 0.22); }
+    .workshop-spaces-widget .ws-line {
       font-size: clamp(1rem, 4vw, 1.25rem);
       font-weight: 700;
-      color: #ffc907;
+      color: var(--ws-accent);
     }
   </style>
 
@@ -250,8 +253,8 @@ Diseño compacto con la paleta de marca: fondo oscuro semitransparente, label pe
     if (!root) return;
 
     var API_URL = "https://TU-DOMINIO.vercel.app";
-    var WORKSHOP = "duplica-ventas"; // o "canva"
-    var MAX_SPACES = 20;
+    var WORKSHOP = "duplica-ventas"; // "canva" | "oferta-webinar"
+    var MAX_SPACES = 20; // Canva: 10
     var POLL_MS = 10000;
 
     var elDots = root.querySelector("[data-ws-dots]");
@@ -380,8 +383,8 @@ Solo las **dos líneas** de copy: total tachado y cupos que quedan. **Sin ícono
     if (!root) return;
 
     var API_URL = "https://workshop-space-counter.vercel.app";
-    var WORKSHOP = "duplica-ventas"; // o "canva"
-    var MAX_SPACES = 20;
+    var WORKSHOP = "duplica-ventas"; // "canva" | "oferta-webinar"
+    var MAX_SPACES = 20; // Canva: 10
     var POLL_MS = 10000;
 
     var elTotal = root.querySelector("[data-wsa-total]");
@@ -486,8 +489,8 @@ Misma lógica que el Widget 2 (dos líneas, sin caja), pero **tipografía Barlow
     if (!root) return;
 
     var API_URL = "https://workshop-space-counter.vercel.app";
-    var WORKSHOP = "duplica-ventas"; // o "canva"
-    var MAX_SPACES = 20;
+    var WORKSHOP = "duplica-ventas"; // "canva" | "oferta-webinar"
+    var MAX_SPACES = 20; // Canva: 10
     var POLL_MS = 10000;
 
     var elTotal = root.querySelector("[data-wsa-total]");

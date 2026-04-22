@@ -12,6 +12,10 @@ export const WORKSHOPS = {
     slug: "canva",
     label: "Taller de Canva",
   },
+  "oferta-webinar": {
+    slug: "oferta-webinar",
+    label: "Oferta Webinar",
+  },
 } as const;
 
 export type WorkshopSlug = keyof typeof WORKSHOPS;

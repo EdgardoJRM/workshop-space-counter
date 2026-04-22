@@ -4,7 +4,11 @@ import { useState } from "react";
 import { SpacesForm } from "@/components/admin/SpacesForm";
 import { WORKSHOPS, type WorkshopSlug } from "@/lib/workshop-keys";
 
-const TAB_ORDER: WorkshopSlug[] = ["duplica-ventas", "canva"];
+const TAB_ORDER: WorkshopSlug[] = [
+  "duplica-ventas",
+  "canva",
+  "oferta-webinar",
+];
 
 export default function AdminPage() {
   const [active, setActive] = useState<WorkshopSlug>("duplica-ventas");
