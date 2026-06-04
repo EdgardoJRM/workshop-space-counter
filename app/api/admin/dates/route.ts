@@ -36,6 +36,7 @@ export async function GET(request: Request) {
       title: d.title,
       startsAt: d.startsAt.toISOString(),
       venue: d.venue,
+      mapsUrl: d.mapsUrl,
       capacity: d.capacity,
       soldCount: d.soldCount,
       available: Math.max(0, d.capacity - d.soldCount),
@@ -51,6 +52,7 @@ type PostBody = {
   title?: unknown;
   startsAt?: unknown;
   venue?: unknown;
+  mapsUrl?: unknown;
   capacity?: unknown;
   isActive?: unknown;
   dateId?: unknown;
@@ -107,6 +109,8 @@ export async function POST(request: Request) {
         ...(isActive !== undefined ? { isActive } : {}),
         ...(typeof body.title === "string" ? { title: body.title } : {}),
         ...(typeof body.venue === "string" ? { venue: body.venue } : {}),
+        ...(typeof body.mapsUrl === "string" ? { mapsUrl: body.mapsUrl } : {}),
+        ...(body.mapsUrl === null ? { mapsUrl: null } : {}),
         ...(typeof body.startsAt === "string"
           ? { startsAt: new Date(body.startsAt) }
           : {}),
@@ -163,6 +167,7 @@ export async function POST(request: Request) {
           : `${workshop.label} — nueva fecha`,
       startsAt,
       venue: typeof body.venue === "string" ? body.venue : null,
+      mapsUrl: typeof body.mapsUrl === "string" ? body.mapsUrl : null,
       capacity,
       isActive: body.isActive !== false,
     },

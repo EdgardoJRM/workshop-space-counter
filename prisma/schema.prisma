@@ -28,6 +28,7 @@ model WorkshopDate {
   title         String?
   startsAt      DateTime
   venue         String?
+  mapsUrl       String?
   capacity      Int            @default(25)
   soldCount     Int            @default(0)
   checkedInCount Int           @default(0)

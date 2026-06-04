@@ -21,7 +21,8 @@ Copia `.env.local.example` a `.env.local` y completa:
 | `CLICKFUNNELS_WEBHOOK_SECRET` | Validación del webhook |
 | `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `EMAIL_FROM` | Email del pase vía **Amazon SES** |
 | `ADMIN_EMAILS`, `STAFF_EMAILS`, `AUTH_JWT_SECRET` | Magic link en `/login` (admin y staff) |
-| `APP_BASE_URL` | Obligatorio para enlaces mágicos en el email |
+| `APP_BASE_URL` | Obligatorio para enlaces mágicos y QR del pase en email |
+| `GOOGLE_MAPS_API_KEY` | Opcional: imagen del mapa en el email del pase |
 
 ## Primer despliegue
 

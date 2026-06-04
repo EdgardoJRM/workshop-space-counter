@@ -10,6 +10,7 @@ type DateRow = {
   title: string;
   startsAt: string;
   venue: string | null;
+  mapsUrl: string | null;
   capacity: number;
   soldCount: number;
   available: number;
@@ -50,6 +51,7 @@ export function DatesPanel({ slug }: DatesPanelProps) {
     title: "",
     startsAt: "",
     venue: "",
+    mapsUrl: "",
     capacity: "25",
   });
 
@@ -57,6 +59,7 @@ export function DatesPanel({ slug }: DatesPanelProps) {
     title: "",
     startsAt: "",
     venue: "",
+    mapsUrl: "",
     capacity: "",
   });
 
@@ -102,11 +105,12 @@ export function DatesPanel({ slug }: DatesPanelProps) {
           ? new Date(createForm.startsAt).toISOString()
           : undefined,
         venue: createForm.venue.trim() || undefined,
+        mapsUrl: createForm.mapsUrl.trim() || undefined,
         capacity: Number.isInteger(capacity) ? capacity : 25,
         isActive: rows.length === 0,
       });
       setShowCreate(false);
-      setCreateForm({ title: "", startsAt: "", venue: "", capacity: "25" });
+      setCreateForm({ title: "", startsAt: "", venue: "", mapsUrl: "", capacity: "25" });
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al crear");
@@ -121,6 +125,7 @@ export function DatesPanel({ slug }: DatesPanelProps) {
       title: row.title,
       startsAt: toLocalInputValue(row.startsAt),
       venue: row.venue ?? "",
+      mapsUrl: row.mapsUrl ?? "",
       capacity: String(row.capacity),
     });
   }
@@ -135,6 +140,7 @@ export function DatesPanel({ slug }: DatesPanelProps) {
         title: editForm.title.trim(),
         startsAt: new Date(editForm.startsAt).toISOString(),
         venue: editForm.venue.trim() || "",
+        mapsUrl: editForm.mapsUrl.trim() || "",
         capacity: Number.isInteger(capacity) ? capacity : undefined,
       });
       setEditingId(null);
@@ -202,12 +208,23 @@ export function DatesPanel({ slug }: DatesPanelProps) {
               />
             </label>
             <label className="block text-xs font-medium text-brand-charcoal">
-              Lugar
+              Lugar (dirección o nombre del venue)
               <input
                 type="text"
                 value={createForm.venue}
                 onChange={(e) => setCreateForm((f) => ({ ...f, venue: e.target.value }))}
                 className="mt-1 w-full rounded-lg border border-brand-grey/40 px-3 py-2 text-sm"
+                placeholder="Ej. Centro de Convenciones, San Juan"
+              />
+            </label>
+            <label className="block text-xs font-medium text-brand-charcoal">
+              Enlace Google Maps (opcional)
+              <input
+                type="url"
+                value={createForm.mapsUrl}
+                onChange={(e) => setCreateForm((f) => ({ ...f, mapsUrl: e.target.value }))}
+                className="mt-1 w-full rounded-lg border border-brand-grey/40 px-3 py-2 text-sm"
+                placeholder="https://maps.google.com/..."
               />
             </label>
             <label className="block text-xs font-medium text-brand-charcoal">
@@ -259,7 +276,14 @@ export function DatesPanel({ slug }: DatesPanelProps) {
                       type="text"
                       value={editForm.venue}
                       onChange={(e) => setEditForm((f) => ({ ...f, venue: e.target.value }))}
-                      placeholder="Lugar"
+                      placeholder="Lugar / dirección"
+                      className="w-full rounded border px-2 py-1 text-sm"
+                    />
+                    <input
+                      type="url"
+                      value={editForm.mapsUrl}
+                      onChange={(e) => setEditForm((f) => ({ ...f, mapsUrl: e.target.value }))}
+                      placeholder="Enlace Google Maps"
                       className="w-full rounded border px-2 py-1 text-sm"
                     />
                     <input

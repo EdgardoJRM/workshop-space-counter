@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import QRCode from "qrcode";
 import { getRegistrationByPassToken } from "@/lib/registrations";
 import { getPassPublicUrl } from "@/lib/pass-tokens";
+import { resolveMapsLink } from "@/lib/email";
 import { isDatabaseConfigured } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +35,10 @@ export default async function PassPage({ params }: Props) {
   });
 
   const checkedIn = reg.checkins.length > 0;
+  const mapsLink = resolveMapsLink(
+    reg.workshopDate.venue,
+    reg.workshopDate.mapsUrl
+  );
 
   return (
     <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md flex-col justify-center px-4 py-12">
@@ -57,6 +62,18 @@ export default async function PassPage({ params }: Props) {
           <p className="font-medium">{formatDate(reg.workshopDate.startsAt)}</p>
           {reg.workshopDate.venue && (
             <p className="mt-1 text-brand-grey">{reg.workshopDate.venue}</p>
+          )}
+          {mapsLink && (
+            <p className="mt-3">
+              <a
+                href={mapsLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-semibold text-brand-blue underline"
+              >
+                Cómo llegar (mapa)
+              </a>
+            </p>
           )}
         </div>
 

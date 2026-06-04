@@ -161,6 +161,7 @@ export async function registerAttendee(
       workshopLabel: registration.workshopDate.workshop.label,
       eventDate: formatEventDate(registration.workshopDate.startsAt),
       venue: registration.workshopDate.venue,
+      mapsUrl: registration.workshopDate.mapsUrl,
       passUrl,
       checkinToken: passToken,
     });
@@ -312,6 +313,7 @@ export async function resendPassEmail(registrationId: string): Promise<{
     workshopLabel: registration.workshopDate.workshop.label,
     eventDate: formatEventDate(registration.workshopDate.startsAt),
     venue: registration.workshopDate.venue,
+    mapsUrl: registration.workshopDate.mapsUrl,
     passUrl,
     checkinToken: passToken,
   });
