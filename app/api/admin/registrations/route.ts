@@ -45,6 +45,7 @@ export async function GET(request: Request) {
       id: r.id,
       attendeeName: r.attendee.name,
       attendeeEmail: r.attendee.email,
+      attendeePhone: r.attendee.phone,
       workshop: r.workshopDate.workshop.label,
       workshopSlug: r.workshopDate.workshop.slug,
       eventDate: r.workshopDate.startsAt.toISOString(),

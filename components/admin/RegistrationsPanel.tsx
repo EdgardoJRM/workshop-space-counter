@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { CsvImportPanel } from "@/components/admin/CsvImportPanel";
 import type { WorkshopSlug } from "@/lib/workshop-keys";
 
 type RegistrationRow = {
   id: string;
   attendeeName: string | null;
   attendeeEmail: string;
+  attendeePhone: string | null;
   workshop: string;
   eventDate: string;
   status: string;
@@ -70,13 +72,23 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
     }
   }
 
-  if (loading) return <p className="text-sm text-brand-grey">Cargando registros…</p>;
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
-  if (!rows.length) {
-    return <p className="text-sm text-brand-grey">Sin registros aún.</p>;
-  }
-
   return (
+    <div>
+      <CsvImportPanel slug={slug} onImported={() => void load()} />
+
+      {loading && (
+        <p className="text-sm text-brand-grey">Cargando registros…</p>
+      )}
+      {error && (
+        <p className="text-sm text-red-600" role="alert">
+          {error}
+        </p>
+      )}
+      {!loading && !error && !rows.length && (
+        <p className="text-sm text-brand-grey">Sin registros aún.</p>
+      )}
+
+      {!loading && rows.length > 0 && (
     <ul className="mt-4 space-y-3">
       {rows.map((r) => (
         <li
@@ -87,6 +99,9 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
             {r.attendeeName ?? r.attendeeEmail}
           </p>
           <p className="text-xs text-brand-grey">{r.attendeeEmail}</p>
+          {r.attendeePhone && (
+            <p className="text-xs text-brand-grey">{r.attendeePhone}</p>
+          )}
           <p className="mt-1 text-brand-charcoal">
             {new Date(r.eventDate).toLocaleString("es")}
           </p>
@@ -119,5 +134,7 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
         </li>
       ))}
     </ul>
+      )}
+    </div>
   );
 }

@@ -35,7 +35,7 @@ export const ADMIN_NAV: NavItem[] = [
   {
     id: "registrations",
     label: "Registros",
-    description: "Asistentes y reenvío de pase",
+    description: "Lista, importar CSV y reenvío de pase",
     group: "workshop",
   },
   {

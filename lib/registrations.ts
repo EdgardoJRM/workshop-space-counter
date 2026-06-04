@@ -8,11 +8,23 @@ import { sendPassEmail } from "@/lib/email";
 import { incrementSoldCount, getActiveWorkshopDate } from "@/lib/capacity";
 import type { ClickFunnelsPurchase } from "@/lib/clickfunnels";
 import type { WorkshopSlug } from "@/lib/workshop-keys";
+import { isWorkshopSlug } from "@/lib/workshop-keys";
 import { RegistrationStatus } from "@prisma/client";
 
 export type ProcessPurchaseResult =
   | { ok: true; registrationId: string; passToken: string; duplicate: boolean }
   | { ok: false; error: string; code: string };
+
+export type RegisterAttendeeInput = {
+  email: string;
+  name: string | null;
+  phone: string | null;
+  workshopSlug: WorkshopSlug;
+  workshopDateId?: string | null;
+  externalOrderId: string;
+  metadata?: object;
+  sendPassEmail?: boolean;
+};
 
 function formatEventDate(d: Date): string {
   return new Intl.DateTimeFormat("es", {
@@ -21,30 +33,31 @@ function formatEventDate(d: Date): string {
   }).format(d);
 }
 
-async function resolveWorkshopDateId(
-  purchase: ClickFunnelsPurchase
+async function resolveWorkshopDateIdForSlug(
+  workshopSlug: WorkshopSlug,
+  workshopDateId?: string | null
 ): Promise<string | null> {
-  if (purchase.workshopDateId) {
+  if (workshopDateId) {
     const found = await prisma.workshopDate.findUnique({
-      where: { id: purchase.workshopDateId },
+      where: { id: workshopDateId },
     });
     if (found) return found.id;
   }
 
-  const active = await getActiveWorkshopDate(purchase.workshopSlug);
+  const active = await getActiveWorkshopDate(workshopSlug);
   return active?.id ?? null;
 }
 
-export async function processClickFunnelsPurchase(
-  purchase: ClickFunnelsPurchase
+export async function registerAttendee(
+  input: RegisterAttendeeInput
 ): Promise<ProcessPurchaseResult> {
   if (!isDatabaseConfigured()) {
     return { ok: false, error: "DATABASE_URL not configured", code: "NO_DB" };
   }
 
   const existingReg = await prisma.registration.findUnique({
-    where: { externalOrderId: purchase.externalOrderId },
-    include: { pass: true, attendee: true },
+    where: { externalOrderId: input.externalOrderId },
+    include: { pass: true },
   });
 
   if (existingReg?.pass) {
@@ -56,11 +69,14 @@ export async function processClickFunnelsPurchase(
     };
   }
 
-  const workshopDateId = await resolveWorkshopDateId(purchase);
+  const workshopDateId = await resolveWorkshopDateIdForSlug(
+    input.workshopSlug,
+    input.workshopDateId
+  );
   if (!workshopDateId) {
     return {
       ok: false,
-      error: "No active workshop date for this workshop",
+      error: "No hay fecha activa para este taller",
       code: "NO_DATE",
     };
   }
@@ -71,30 +87,49 @@ export async function processClickFunnelsPurchase(
   });
 
   if (!workshopDate) {
-    return { ok: false, error: "Workshop date not found", code: "NO_DATE" };
+    return { ok: false, error: "Fecha de taller no encontrada", code: "NO_DATE" };
+  }
+
+  const existingForDate = await prisma.registration.findFirst({
+    where: {
+      workshopDateId,
+      attendee: { email: input.email },
+      status: RegistrationStatus.CONFIRMED,
+    },
+    include: { pass: true },
+  });
+
+  if (existingForDate?.pass) {
+    return {
+      ok: true,
+      registrationId: existingForDate.id,
+      passToken: "",
+      duplicate: true,
+    };
   }
 
   const available = workshopDate.capacity - workshopDate.soldCount;
   if (available <= 0) {
-    return { ok: false, error: "Workshop is sold out", code: "SOLD_OUT" };
+    return { ok: false, error: "No hay cupos disponibles", code: "SOLD_OUT" };
   }
 
   const passToken = generatePassToken();
   const tokenHash = hashPassToken(passToken);
   const passUrl = getPassPublicUrl(passToken);
+  const sendEmail = input.sendPassEmail !== false;
 
   const attendee = await prisma.attendee.upsert({
-    where: { email: purchase.email },
+    where: { email: input.email },
     create: {
-      email: purchase.email,
-      name: purchase.name,
-      phone: purchase.phone,
-      metadata: purchase.raw as object,
+      email: input.email,
+      name: input.name,
+      phone: input.phone,
+      metadata: input.metadata,
     },
     update: {
-      name: purchase.name ?? undefined,
-      phone: purchase.phone ?? undefined,
-      metadata: purchase.raw as object,
+      name: input.name ?? undefined,
+      phone: input.phone ?? undefined,
+      ...(input.metadata ? { metadata: input.metadata } : {}),
     },
   });
 
@@ -102,7 +137,7 @@ export async function processClickFunnelsPurchase(
     data: {
       attendeeId: attendee.id,
       workshopDateId,
-      externalOrderId: purchase.externalOrderId,
+      externalOrderId: input.externalOrderId,
       status: RegistrationStatus.CONFIRMED,
       pass: {
         create: {
@@ -119,23 +154,25 @@ export async function processClickFunnelsPurchase(
 
   await incrementSoldCount(workshopDateId);
 
-  const emailResult = await sendPassEmail({
-    to: attendee.email,
-    attendeeName: attendee.name ?? attendee.email,
-    workshopLabel: registration.workshopDate.workshop.label,
-    eventDate: formatEventDate(registration.workshopDate.startsAt),
-    venue: registration.workshopDate.venue,
-    passUrl,
-    checkinToken: passToken,
-  });
+  if (sendEmail) {
+    const emailResult = await sendPassEmail({
+      to: attendee.email,
+      attendeeName: attendee.name ?? attendee.email,
+      workshopLabel: registration.workshopDate.workshop.label,
+      eventDate: formatEventDate(registration.workshopDate.startsAt),
+      venue: registration.workshopDate.venue,
+      passUrl,
+      checkinToken: passToken,
+    });
 
-  await prisma.pass.update({
-    where: { id: registration.pass!.id },
-    data: {
-      emailedAt: emailResult.ok ? new Date() : undefined,
-      emailError: emailResult.ok ? null : emailResult.error,
-    },
-  });
+    await prisma.pass.update({
+      where: { id: registration.pass!.id },
+      data: {
+        emailedAt: emailResult.ok ? new Date() : undefined,
+        emailError: emailResult.ok ? null : emailResult.error,
+      },
+    });
+  }
 
   return {
     ok: true,
@@ -143,6 +180,104 @@ export async function processClickFunnelsPurchase(
     passToken,
     duplicate: false,
   };
+}
+
+export async function processClickFunnelsPurchase(
+  purchase: ClickFunnelsPurchase
+): Promise<ProcessPurchaseResult> {
+  if (!isWorkshopSlug(purchase.workshopSlug)) {
+    return { ok: false, error: "Invalid workshop", code: "INVALID_WORKSHOP" };
+  }
+
+  return registerAttendee({
+    email: purchase.email,
+    name: purchase.name,
+    phone: purchase.phone,
+    workshopSlug: purchase.workshopSlug,
+    workshopDateId: purchase.workshopDateId,
+    externalOrderId: purchase.externalOrderId,
+    metadata: purchase.raw as object,
+    sendPassEmail: true,
+  });
+}
+
+export type CsvImportRowResult = {
+  row: number;
+  email: string;
+  ok: boolean;
+  duplicate?: boolean;
+  registrationId?: string;
+  error?: string;
+  code?: string;
+};
+
+export async function importRegistrationsFromCsv(
+  rows: { row: number; email: string; name: string | null; phone: string | null }[],
+  workshopSlug: WorkshopSlug,
+  options?: { sendPassEmail?: boolean; importBatchId?: string }
+): Promise<{
+  created: number;
+  duplicates: number;
+  failed: number;
+  results: CsvImportRowResult[];
+}> {
+  const batchId = options?.importBatchId ?? `batch-${Date.now()}`;
+  const results: CsvImportRowResult[] = [];
+  let created = 0;
+  let duplicates = 0;
+  let failed = 0;
+
+  const workshopDateId = await resolveWorkshopDateIdForSlug(workshopSlug, null);
+
+  for (const r of rows) {
+    const externalOrderId = workshopDateId
+      ? `csv:${workshopDateId}:${r.email}`
+      : `csv:${workshopSlug}:${r.email}`;
+
+    const outcome = await registerAttendee({
+      email: r.email,
+      name: r.name,
+      phone: r.phone,
+      workshopSlug,
+      externalOrderId,
+      metadata: { source: "csv-import", batchId, csvRow: r.row },
+      sendPassEmail: options?.sendPassEmail !== false,
+    });
+
+    if (!outcome.ok) {
+      failed += 1;
+      results.push({
+        row: r.row,
+        email: r.email,
+        ok: false,
+        error: outcome.error,
+        code: outcome.code,
+      });
+      continue;
+    }
+
+    if (outcome.duplicate) {
+      duplicates += 1;
+      results.push({
+        row: r.row,
+        email: r.email,
+        ok: true,
+        duplicate: true,
+        registrationId: outcome.registrationId,
+      });
+    } else {
+      created += 1;
+      results.push({
+        row: r.row,
+        email: r.email,
+        ok: true,
+        duplicate: false,
+        registrationId: outcome.registrationId,
+      });
+    }
+  }
+
+  return { created, duplicates, failed, results };
 }
 
 export async function resendPassEmail(registrationId: string): Promise<{

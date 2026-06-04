@@ -156,7 +156,7 @@ Panel con menú lateral **Centro de configuración**:
 | **Inicio** | Resumen: webhook OK, plantillas de email, fecha activa por taller |
 | **Cupos** | Contador público (Redis) por taller |
 | **Fechas** | Crear/editar/activar fecha del evento (usa el webhook y el contador) |
-| **Registros** | Asistentes y reenvío de pase |
+| **Registros** | Lista, **importar CSV** (nombre, email, teléfono) y reenvío de pase |
 | **Webhook** | URL y header para ClickFunnels |
 | **Emails** | Plantillas post-evento (delay en horas + cron diario en Vercel Hobby) |
 
