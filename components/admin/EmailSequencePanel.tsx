@@ -153,10 +153,9 @@ export function EmailSequencePanel() {
   const failedCount = logs.filter((l) => l.status === "failed").length;
 
   return (
-    <div className="mx-auto max-w-lg px-4 pb-12">
+    <div className="pb-4">
       <div className="rounded-2xl border border-brand-grey/30 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-brand-slate">Emails automáticos</h2>
           <button
             type="button"
             onClick={() => (showForm ? setShowForm(false) : startCreate())}

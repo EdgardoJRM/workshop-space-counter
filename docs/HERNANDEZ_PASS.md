@@ -147,10 +147,20 @@ Respuesta exitosa: `{ "ok": true, "registrationId": "...", "passUrl": "..." }`
 2. Escanea el QR del email o del pase (`/pass/<token>`).
 3. API `POST /api/checkins/scan` marca check-in (duplicados = “ya registrado”).
 
-## Admin
+## Admin (`/admin`)
 
-- `/admin` → **Cupos**: igual que antes; si hay Postgres, actualiza la fecha activa y Redis.
-- `/admin` → **Registros**: lista asistentes y **Reenviar pase** (genera nuevo token y email).
+Panel con menú lateral **Centro de configuración**:
+
+| Sección | Qué configuras |
+|---------|----------------|
+| **Inicio** | Resumen: webhook OK, plantillas de email, fecha activa por taller |
+| **Cupos** | Contador público (Redis) por taller |
+| **Fechas** | Crear/editar/activar fecha del evento (usa el webhook y el contador) |
+| **Registros** | Asistentes y reenvío de pase |
+| **Webhook** | URL y header para ClickFunnels |
+| **Emails** | Plantillas post-evento (delay en horas + cron horario) |
+
+Variables que **siguen solo en Vercel** (no hay UI): `CLICKFUNNELS_WEBHOOK_SECRET`, `CRON_SECRET`, claves AWS/SES, `ADMIN_EMAILS`, etc. El panel confirma si el webhook secret está configurado, pero no muestra su valor.
 
 ## Fechas de taller
 

@@ -24,9 +24,11 @@ function formatUpdatedAt(iso: string | null): string {
 
 export type SpacesFormProps = {
   slug: WorkshopSlug;
+  /** Dentro del dashboard admin (sin pantalla completa centrada) */
+  embedded?: boolean;
 };
 
-export function SpacesForm({ slug }: SpacesFormProps) {
+export function SpacesForm({ slug, embedded = false }: SpacesFormProps) {
   const title = getWorkshopLabel(slug);
   const idPrefix = slug.replace(/[^a-z0-9-]/gi, "-");
 
@@ -119,7 +121,11 @@ export function SpacesForm({ slug }: SpacesFormProps) {
   const busy = isSubmitting;
 
   return (
-    <div className="relative mx-auto flex min-h-screen max-w-lg flex-col justify-center px-4 py-12">
+    <div
+      className={`relative mx-auto flex flex-col ${
+        embedded ? "max-w-none px-0 py-0" : "min-h-screen max-w-lg justify-center px-4 py-12"
+      }`}
+    >
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.05]"
         style={{

@@ -59,9 +59,8 @@ export function WebhookPanel() {
   const headerExample = "X-Webhook-Secret: <CLICKFUNNELS_WEBHOOK_SECRET>";
 
   return (
-    <div className="mx-auto max-w-lg px-4 pb-12">
+    <div className="pb-4">
       <div className="rounded-2xl border border-brand-grey/30 bg-white p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-brand-slate">Webhook ClickFunnels</h2>
 
         {loading && <p className="mt-3 text-sm text-brand-grey">Cargando…</p>}
         {error && (
