@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { hashPassToken } from "@/lib/pass-tokens";
 import { createPrintJobForCheckin } from "@/lib/print-jobs";
+import { RegistrationStatus } from "@prisma/client";
 
 export type CheckinResult =
   | {
@@ -14,34 +15,25 @@ export type CheckinResult =
     }
   | { ok: false; error: string; code: string };
 
-export async function processCheckinScan(
-  token: string,
+type RegistrationWithRelations = {
+  id: string;
+  status: RegistrationStatus;
+  attendeeName: string | null;
+  attendeeEmail: string | null;
+  workshopDateId: string;
+  attendee: { name: string | null; email: string };
+  workshopDate: { workshop: { label: string } };
+  checkins: { createdAt: Date }[];
+};
+
+async function performCheckinOnRegistration(
+  reg: RegistrationWithRelations,
   meta: { checkedInBy?: string; userAgent?: string }
 ): Promise<CheckinResult> {
-  const normalized = token.startsWith("hp:") ? token.slice(3) : token;
-  const tokenHash = hashPassToken(normalized);
-
-  const pass = await prisma.pass.findUnique({
-    where: { tokenHash },
-    include: {
-      registration: {
-        include: {
-          attendee: true,
-          workshopDate: { include: { workshop: true } },
-          checkins: { orderBy: { createdAt: "desc" }, take: 1 },
-        },
-      },
-    },
-  });
-
-  if (!pass || pass.revoked) {
-    return { ok: false, error: "Pase no válido", code: "INVALID_PASS" };
-  }
-
-  const reg = pass.registration;
   const attendeeName =
     reg.attendeeName ?? reg.attendee.name ?? reg.attendeeEmail ?? reg.attendee.email;
-  if (reg.status !== "CONFIRMED") {
+
+  if (reg.status !== RegistrationStatus.CONFIRMED) {
     return { ok: false, error: "Registro no confirmado", code: "NOT_CONFIRMED" };
   }
 
@@ -84,4 +76,67 @@ export async function processCheckinScan(
     printJobQueued: printResult.created,
     printJobId: printResult.jobId,
   };
+}
+
+const registrationInclude = {
+  attendee: true,
+  workshopDate: { include: { workshop: true } },
+  checkins: { orderBy: { createdAt: "desc" as const }, take: 1 },
+};
+
+export async function processCheckinScan(
+  token: string,
+  meta: {
+    checkedInBy?: string;
+    userAgent?: string;
+    expectedWorkshopDateId?: string;
+  }
+): Promise<CheckinResult> {
+  const normalized = token.startsWith("hp:") ? token.slice(3) : token;
+  const tokenHash = hashPassToken(normalized);
+
+  const pass = await prisma.pass.findUnique({
+    where: { tokenHash },
+    include: {
+      registration: { include: registrationInclude },
+    },
+  });
+
+  if (!pass || pass.revoked) {
+    return { ok: false, error: "Pase no válido", code: "INVALID_PASS" };
+  }
+
+  if (
+    meta.expectedWorkshopDateId &&
+    pass.registration.workshopDateId !== meta.expectedWorkshopDateId
+  ) {
+    return {
+      ok: false,
+      error: "Este pase es para otro evento. Cambia la fecha arriba.",
+      code: "WRONG_EVENT",
+    };
+  }
+
+  return performCheckinOnRegistration(pass.registration, meta);
+}
+
+export async function processCheckinByRegistrationId(
+  registrationId: string,
+  workshopDateId: string,
+  meta: { checkedInBy?: string; userAgent?: string }
+): Promise<CheckinResult> {
+  const reg = await prisma.registration.findFirst({
+    where: { id: registrationId, workshopDateId },
+    include: registrationInclude,
+  });
+
+  if (!reg) {
+    return {
+      ok: false,
+      error: "Persona no encontrada en esta fecha",
+      code: "NOT_FOUND",
+    };
+  }
+
+  return performCheckinOnRegistration(reg, meta);
 }
