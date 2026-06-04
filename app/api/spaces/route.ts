@@ -5,6 +5,8 @@ import {
   isWorkshopSlug,
 } from "@/lib/workshop-keys";
 import { getSpaces } from "@/lib/redis";
+import { getCapacitySnapshot, syncCapacityToRedis } from "@/lib/capacity";
+import { isDatabaseConfigured } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -25,6 +27,21 @@ export async function GET(request: NextRequest) {
       return applyPublicSpacesHeaders(res);
     }
 
+    if (isDatabaseConfigured()) {
+      const fromDb = await getCapacitySnapshot(slug);
+      if (fromDb) {
+        await syncCapacityToRedis(slug);
+        const res = NextResponse.json(
+          {
+            available: fromDb.available,
+            updatedAt: fromDb.updatedAt,
+          },
+          { status: 200 }
+        );
+        return applyPublicSpacesHeaders(res);
+      }
+    }
+
     const snapshot = await getSpaces(slug);
     const res = NextResponse.json(
       {
@@ -37,10 +54,7 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Failed to read spaces from storage";
-    const res = NextResponse.json(
-      { error: message },
-      { status: 503 }
-    );
+    const res = NextResponse.json({ error: message }, { status: 503 });
     return applyPublicSpacesHeaders(res);
   }
 }

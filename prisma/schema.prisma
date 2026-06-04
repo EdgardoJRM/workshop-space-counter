@@ -1,0 +1,123 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Vercel + Supabase (integración automática) inyecta POSTGRES_PRISMA_URL y POSTGRES_URL_NON_POOLING.
+// Setup manual: usa los mismos nombres o DATABASE_URL + DIRECT_URL (ver scripts npm run db:*).
+datasource db {
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
+}
+
+model Workshop {
+  id          String         @id @default(cuid())
+  slug        String         @unique
+  label       String
+  description String?
+  active      Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  dates       WorkshopDate[]
+}
+
+model WorkshopDate {
+  id            String         @id @default(cuid())
+  workshopId    String
+  workshop      Workshop       @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  title         String?
+  startsAt      DateTime
+  venue         String?
+  capacity      Int            @default(25)
+  soldCount     Int            @default(0)
+  checkedInCount Int           @default(0)
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  registrations Registration[]
+
+  @@index([workshopId, isActive])
+  @@index([startsAt])
+}
+
+model Attendee {
+  id            String         @id @default(cuid())
+  email         String
+  name          String?
+  phone         String?
+  metadata      Json?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  registrations Registration[]
+
+  @@unique([email])
+}
+
+enum RegistrationStatus {
+  CONFIRMED
+  CANCELLED
+  REFUNDED
+}
+
+model Registration {
+  id             String             @id @default(cuid())
+  attendeeId     String
+  attendee       Attendee           @relation(fields: [attendeeId], references: [id], onDelete: Cascade)
+  workshopDateId String
+  workshopDate   WorkshopDate       @relation(fields: [workshopDateId], references: [id], onDelete: Cascade)
+  externalOrderId String?
+  status         RegistrationStatus @default(CONFIRMED)
+  registeredAt   DateTime           @default(now())
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  pass           Pass?
+  checkins       Checkin[]
+
+  @@unique([externalOrderId])
+  @@index([workshopDateId])
+  @@index([attendeeId])
+}
+
+model Pass {
+  id             String       @id @default(cuid())
+  registrationId String       @unique
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  tokenHash      String       @unique
+  emailedAt      DateTime?
+  emailError     String?
+  revoked        Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Checkin {
+  id             String       @id @default(cuid())
+  registrationId String
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  checkedInBy    String?
+  userAgent      String?
+  createdAt      DateTime     @default(now())
+
+  @@index([registrationId])
+}
+
+enum WebhookEventStatus {
+  RECEIVED
+  PROCESSED
+  FAILED
+  DUPLICATE
+}
+
+model WebhookEvent {
+  id          String             @id @default(cuid())
+  provider    String             @default("clickfunnels")
+  externalId  String
+  payload     Json
+  status      WebhookEventStatus @default(RECEIVED)
+  error       String?
+  createdAt   DateTime           @default(now())
+  processedAt DateTime?
+
+  @@unique([provider, externalId])
+  @@index([status])
+}

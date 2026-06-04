@@ -7,8 +7,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Workshop — Espacios disponibles",
-  description: "Administración del contador de espacios para talleres",
+  title: "Hernandez Pass",
+  description: "Pases, registros y contador de espacios para talleres",
 };
 
 export default function RootLayout({
@@ -31,8 +31,13 @@ export default function RootLayout({
                 className="h-8 w-auto"
               />
             </Link>
-            <div className="ml-auto text-xs font-medium text-brand-charcoal">
-              Panel de espacios
+            <div className="ml-auto flex items-center gap-4 text-xs font-medium text-brand-charcoal">
+              <a href="/login?intent=admin" className="hover:text-brand-blue">
+                Admin
+              </a>
+              <a href="/login?intent=staff" className="hover:text-brand-blue">
+                Staff
+              </a>
             </div>
           </div>
         </header>

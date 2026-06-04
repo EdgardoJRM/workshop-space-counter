@@ -1,4 +1,3 @@
-import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import {
   DEFAULT_WORKSHOP,
@@ -6,6 +5,9 @@ import {
   type WorkshopSlug,
 } from "@/lib/workshop-keys";
 import { setSpaces } from "@/lib/redis";
+import { applyManualAvailable } from "@/lib/capacity";
+import { isDatabaseConfigured } from "@/lib/prisma";
+import { assertAdminApiAccess } from "@/lib/admin-api";
 
 export const dynamic = "force-dynamic";
 
@@ -17,19 +19,6 @@ type AdminBody = {
 
 function isNonNegativeInteger(n: number): boolean {
   return Number.isInteger(n) && n >= 0;
-}
-
-function safeEqualToken(provided: string, expected: string): boolean {
-  try {
-    const a = Buffer.from(provided, "utf8");
-    const b = Buffer.from(expected, "utf8");
-    if (a.length !== b.length) {
-      return false;
-    }
-    return timingSafeEqual(a, b);
-  } catch {
-    return false;
-  }
 }
 
 function parseWorkshop(body: AdminBody): WorkshopSlug | null {
@@ -44,14 +33,6 @@ function parseWorkshop(body: AdminBody): WorkshopSlug | null {
 }
 
 export async function POST(request: Request) {
-  const adminToken = process.env.ADMIN_TOKEN;
-  if (!adminToken || adminToken.length === 0) {
-    return NextResponse.json(
-      { error: "Server misconfiguration: ADMIN_TOKEN is not set" },
-      { status: 500 }
-    );
-  }
-
   let body: AdminBody;
   try {
     body = (await request.json()) as AdminBody;
@@ -59,9 +40,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const token = typeof body.token === "string" ? body.token : "";
-  if (!safeEqualToken(token, adminToken)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const legacyToken = typeof body.token === "string" ? body.token : "";
+  const auth = await assertAdminApiAccess(legacyToken || null);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   const workshop = parseWorkshop(body);
@@ -86,6 +68,19 @@ export async function POST(request: Request) {
   const updatedAt = new Date().toISOString();
 
   try {
+    if (isDatabaseConfigured()) {
+      const snap = await applyManualAvailable(workshop, raw);
+      if (snap) {
+        return NextResponse.json({
+          ok: true,
+          available: snap.available,
+          updatedAt: snap.updatedAt,
+          workshop,
+          workshopDateId: snap.workshopDateId,
+        });
+      }
+    }
+
     await setSpaces(raw, updatedAt, workshop);
   } catch (err) {
     const message =

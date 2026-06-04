@@ -32,7 +32,6 @@ export function SpacesForm({ slug }: SpacesFormProps) {
 
   const [preview, setPreview] = useState<SpacesResponse | null>(null);
   const [availableInput, setAvailableInput] = useState<string>("");
-  const [token, setToken] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackKind>("idle");
@@ -78,10 +77,6 @@ export function SpacesForm({ slug }: SpacesFormProps) {
       setClientError("Indica un número entero mayor o igual a 0.");
       return;
     }
-    if (!token.trim()) {
-      setClientError("Introduce el token de administración.");
-      return;
-    }
 
     setIsSubmitting(true);
     try {
@@ -90,7 +85,6 @@ export function SpacesForm({ slug }: SpacesFormProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           available: availableNum,
-          token: token.trim(),
           workshop: slug,
         }),
       });
@@ -99,6 +93,11 @@ export function SpacesForm({ slug }: SpacesFormProps) {
         error?: string;
         ok?: boolean;
       };
+
+      if (res.status === 401) {
+        setClientError("Sesión expirada. Vuelve a iniciar sesión.");
+        return;
+      }
 
       if (!res.ok) {
         setFeedback("error");
@@ -186,26 +185,6 @@ export function SpacesForm({ slug }: SpacesFormProps) {
             />
           </div>
 
-          <div>
-            <label
-              htmlFor={`${idPrefix}-token`}
-              className="block text-sm font-medium text-brand-charcoal"
-            >
-              Token de administración
-            </label>
-            <input
-              id={`${idPrefix}-token`}
-              type="password"
-              name="token"
-              autoComplete="current-password"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              className="mt-1.5 block w-full rounded-lg border-brand-grey/35 bg-white text-brand-ink shadow-sm focus:border-brand-blue focus:ring-brand-blue"
-              disabled={busy}
-              placeholder="••••••••"
-            />
-          </div>
-
           {clientError && (
             <p className="text-sm text-red-600" role="alert">
               {clientError}
@@ -236,11 +215,6 @@ export function SpacesForm({ slug }: SpacesFormProps) {
             {busy ? "Guardando…" : "Guardar"}
           </button>
         </form>
-
-        <p className="mt-6 text-center text-xs leading-relaxed text-brand-grey">
-          El token no se almacena en el navegador; solo se envía al servidor para
-          validar la operación.
-        </p>
       </div>
     </div>
   );

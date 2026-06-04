@@ -1,6 +1,19 @@
-# Workshop Space Counter
+# Workshop Space Counter / Hernandez Pass
 
 Aplicación **Next.js 14** (App Router) + **TypeScript** + **Tailwind CSS** para mostrar y actualizar en vivo los **espacios disponibles** de un taller. Los datos persisten en **Upstash Redis**. Pensada para **Vercel** y consumo desde **ClickFunnels** vía un bloque HTML/JS.
+
+## Hernandez Pass (MVP)
+
+Esta misma app incluye **Hernandez Pass**: registro vía webhook de ClickFunnels, pase con QR, email al asistente, check-in staff y sincronización automática del contador de cupos. El contador público y el panel `/admin` de cupos **se mantienen sin cambios** para los funnels existentes.
+
+Guía completa de despliegue y operación: [docs/HERNANDEZ_PASS.md](docs/HERNANDEZ_PASS.md).
+
+| Ruta | Uso |
+|------|-----|
+| `/admin` | Cupos + registros |
+| `/staff/scan` | Scanner check-in |
+| `/pass/[token]` | Pase del asistente |
+| `POST /api/webhooks/clickfunnels` | Compra/registro desde CF |
 
 ## Estructura del proyecto
 
@@ -149,21 +162,23 @@ Errores habituales: `401` (token), `400` (JSON, `available` o `workshop` inváli
 
 ## Bloque HTML para ClickFunnels
 
-Diseño compacto con la paleta de marca: fondo oscuro semitransparente, label pequeño, fila de puntos y una sola línea de texto en dorado. **Espaciado:** caja `padding: 1rem` (en pantallas ≤480px `1.5rem 1rem`), `0.75rem` entre etiqueta, puntos y línea final. Tipografía **Lato** (Google Fonts) vía `<link>` al inicio del bloque.
+Diseño compacto con la paleta de marca: **Widget 1** con caja oscura semitransparente; **Widget 1b** (más abajo) es la misma lógica con **caja y fondo blanco**. En ambos: label pequeña, fila de puntos y una línea de acento (dorado o lima según `data-ws-theme`). **Espaciado:** caja `padding: 1rem` (en pantallas ≤480px `1.5rem 1rem`), `0.75rem` entre etiqueta, puntos y línea final. Tipografía **Lato** (Google Fonts) vía `<link>` al inicio del bloque.
 
 ### Cómo usarlo
 
 1. Reemplaza `https://TU-DOMINIO.vercel.app` con tu URL de Vercel (sin barra al final).
 2. En cada funnel, define **`WORKSHOP`**: por ejemplo `"duplica-ventas"`, `"canva"` o `"oferta-webinar"`. El `fetch` usa `/api/spaces?w=` + ese valor.
 3. Pega el bloque en un elemento **Custom JS/HTML** de ClickFunnels.
-4. Ajusta **`MAX_SPACES`** (cuántos “cupos” dibuja el widget y el texto; debe coincidir con el total que muestras en copy): **20** para Duplica Tus Ventas, **10** para Canva. Ajusta **`POLL_MS`** (intervalo en ms, default 10 s) si hace falta.
+4. Ajusta **`MAX_SPACES`** (cuántos “cupos” dibuja el widget y el texto; debe coincidir con el total que muestras en copy): **25** para Duplica Tus Ventas, **10** para Canva. Ajusta **`POLL_MS`** (intervalo en ms, default 10 s) si hace falta.
 5. **Color de acento (solo Widget 1):** el dorado `#ffc907` y el lima `#ecf000` no se eligen solo con variables sueltas: si hay **varios** bloques del widget en la misma página, el **último** `<style>` ganaba para **todos** (mismo selector `.workshop-spaces-widget`). **Solución:** en el `<div>` raíz del funnel de **Canva** añade **`data-ws-theme="canva"`**. Duplica Ventas puede ir **sin** atributo o con `data-ws-theme="duplica-ventas"`. El CSS del snippet ya define los dos acentos según ese atributo.
 
 **Dos wrappers (solo móvil / solo escritorio):** puedes pegar el **mismo bloque completo** en cada uno. Cada copia usa su propio contenedor (sin `id` globales duplicados), así no se pisan. Nota: habrá **dos peticiones** al API cada `POLL_MS` si ambos están en la página; si quieres una sola petición, usa un único bloque responsive.
 
-**Móvil:** la fila de puntos va en **una sola línea** (puntos más pequeños + menos padding). Si la pantalla es muy estrecha, puedes **deslizar** horizontalmente la fila. La fila de puntos aparece al instante en tono neutro hasta que llega el API.
+**Móvil:** la fila de puntos va en **una sola línea** dentro de la caja (6px fijos + gap 2px para 25 cupos). La fila aparece al instante en tono neutro hasta que llega el API.
 
 **Escritorio:** si ves “Cargando…” fijo, revisa la URL del API o la consola del navegador. Este snippet usa solo `fetch` estándar.
+
+**Si en móvil no se ven puntos (pero sí el texto):** suele ser CSS con `calc(100%)` en flex (Safari los deja en 0px) o el `<script>` fuera del `<div class="workshop-spaces-widget">`. El snippet actual usa puntos de **6px** en móvil y `findWidgetRoot()` para ClickFunnels. El `<script>` debe ser **hijo directo** del `div` raíz del widget, no en otro bloque CF.
 
 ```html
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -204,7 +219,7 @@ Diseño compacto con la paleta de marca: fondo oscuro semitransparente, label pe
       letter-spacing: 0.05em;
       margin-bottom: 0.75rem;
     }
-    /* Una sola fila: puntos más pequeños en móvil; si no cupiera, scroll horizontal sin barra */
+    /* Una fila; en escritorio scroll suave si hace falta; en móvil (abajo) escala a 25 puntos */
     .workshop-spaces-widget .ws-dots {
       display: flex;
       flex-wrap: nowrap;
@@ -238,6 +253,26 @@ Diseño compacto con la paleta de marca: fondo oscuro semitransparente, label pe
       font-weight: 700;
       color: var(--ws-accent);
     }
+    @media (max-width: 480px) {
+      .workshop-spaces-widget .ws-dots {
+        width: 100%;
+        gap: 2px;
+        overflow-x: hidden;
+        padding-inline: 2px;
+        min-height: 8px;
+      }
+      /* Tamaño fijo (evita calc(100%) en flex → 0px en Safari / ClickFunnels móvil) */
+      .workshop-spaces-widget .ws-dot {
+        flex: 0 0 6px;
+        width: 6px;
+        height: 6px;
+        min-width: 6px;
+        min-height: 6px;
+      }
+      .workshop-spaces-widget .ws-dot-free {
+        box-shadow: 0 0 4px var(--ws-accent-glow);
+      }
+    }
   </style>
 
   <div class="ws-box">
@@ -247,14 +282,223 @@ Diseño compacto con la paleta de marca: fondo oscuro semitransparente, label pe
   </div>
   <script>
   (function () {
-    var root =
-      document.currentScript &&
-      document.currentScript.closest(".workshop-spaces-widget");
+    function findWidgetRoot() {
+      var s = document.currentScript;
+      if (s) {
+        var parent = s.parentElement;
+        if (parent && parent.classList && parent.classList.contains("workshop-spaces-widget")) {
+          return parent;
+        }
+        var closest = s.closest(".workshop-spaces-widget");
+        if (closest) return closest;
+      }
+      var pending = document.querySelectorAll(
+        ".workshop-spaces-widget:not([data-ws-ready])"
+      );
+      return pending.length ? pending[0] : null;
+    }
+
+    var root = findWidgetRoot();
     if (!root) return;
+    root.setAttribute("data-ws-ready", "1");
 
     var API_URL = "https://TU-DOMINIO.vercel.app";
     var WORKSHOP = "duplica-ventas"; // "canva" | "oferta-webinar"
-    var MAX_SPACES = 20; // Canva: 10
+    var MAX_SPACES = 25; // Canva: 10
+    var POLL_MS = 10000;
+
+    var elDots = root.querySelector("[data-ws-dots]");
+    var elLine = root.querySelector("[data-ws-line]");
+    if (!elDots || !elLine) return;
+
+    function endpoint(base) {
+      return (
+        String(base).trim().replace(/\/+$/, "") +
+        "/api/spaces?w=" +
+        encodeURIComponent(WORKSHOP)
+      );
+    }
+
+    function renderDots(available) {
+      var n = Math.max(0, Math.min(available, MAX_SPACES));
+      elDots.innerHTML = "";
+      for (var i = 0; i < MAX_SPACES; i++) {
+        var d = document.createElement("div");
+        d.className = "ws-dot " + (i < n ? "ws-dot-free" : "ws-dot-taken");
+        elDots.appendChild(d);
+      }
+    }
+
+    function renderSkeleton() {
+      elDots.innerHTML = "";
+      for (var i = 0; i < MAX_SPACES; i++) {
+        var d = document.createElement("div");
+        d.className = "ws-dot ws-dot-skel";
+        elDots.appendChild(d);
+      }
+    }
+
+    renderSkeleton();
+
+    function render(available) {
+      var n = Math.max(0, Math.min(available, MAX_SPACES));
+      renderDots(n);
+      elLine.textContent = "Solo " + n + " Exclusivos Espacios Disponibles";
+    }
+
+    function fetchSpaces() {
+      try {
+        fetch(endpoint(API_URL), { cache: "no-store", credentials: "omit" })
+          .then(function (r) {
+            if (!r.ok) throw r;
+            return r.json();
+          })
+          .then(function (d) {
+            render(typeof d.available === "number" ? d.available : 0);
+          })
+          .catch(function () {
+            elLine.textContent = "No disponible en este momento.";
+          });
+      } catch (e) {
+        elLine.textContent = "No disponible en este momento.";
+      }
+    }
+
+    fetchSpaces();
+    setInterval(fetchSpaces, POLL_MS);
+  })();
+  </script>
+</div>
+```
+
+---
+
+## Widget 1b — Mismo contador, caja con **fondo blanco**
+
+Misma lógica JS y mismos `WORKSHOP` / `data-ws-theme` que el Widget 1. La raíz incluye la clase extra **`workshop-spaces-widget--light`**: caja blanca, etiqueta en gris oscuro, puntos ocupados en gris suave. El `script` sigue usando `closest(".workshop-spaces-widget")` y funciona con ambas variantes.
+
+```html
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet" />
+<div class="workshop-spaces-widget workshop-spaces-widget--light" data-ws-theme="duplica-ventas">
+  <style>
+    .workshop-spaces-widget.workshop-spaces-widget--light {
+      font-family: "Lato", system-ui, sans-serif;
+      width: 100%;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+    .workshop-spaces-widget.workshop-spaces-widget--light:not([data-ws-theme="canva"]) {
+      --ws-accent: #ffc907;
+      --ws-accent-glow: rgba(255, 201, 7, 0.4);
+    }
+    .workshop-spaces-widget.workshop-spaces-widget--light[data-ws-theme="canva"] {
+      --ws-accent: #ecf000;
+      --ws-accent-glow: rgba(236, 240, 0, 0.4);
+    }
+    .workshop-spaces-widget.workshop-spaces-widget--light * { box-sizing: border-box; margin: 0; padding: 0; }
+    .workshop-spaces-widget--light .ws-box {
+      background: #ffffff;
+      border: 1px solid rgba(15, 23, 42, 0.1);
+      border-radius: 14px;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+      padding: 1rem 1rem;
+      text-align: center;
+    }
+    @media (max-width: 480px) {
+      .workshop-spaces-widget--light .ws-box {
+        padding: 1.5rem 1rem;
+      }
+    }
+    .workshop-spaces-widget--light .ws-label {
+      font-size: 0.95rem;
+      color: #475569;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.75rem;
+    }
+    .workshop-spaces-widget--light .ws-dots {
+      display: flex;
+      flex-wrap: nowrap;
+      justify-content: center;
+      align-items: center;
+      gap: clamp(2px, 1.1vw, 7px);
+      margin-bottom: 0.75rem;
+      max-width: 100%;
+      margin-left: auto;
+      margin-right: auto;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-x;
+      scrollbar-width: none;
+    }
+    .workshop-spaces-widget--light .ws-dots::-webkit-scrollbar { display: none; }
+    .workshop-spaces-widget--light .ws-dot {
+      width: clamp(5px, 2.2vw, 11px);
+      height: clamp(5px, 2.2vw, 11px);
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .workshop-spaces-widget--light .ws-dot-free  { background: var(--ws-accent); box-shadow: 0 0 6px var(--ws-accent-glow); }
+    .workshop-spaces-widget--light .ws-dot-taken { background: rgba(15, 23, 42, 0.12); }
+    .workshop-spaces-widget--light .ws-dot-skel  { background: rgba(15, 23, 42, 0.08); }
+    .workshop-spaces-widget--light .ws-line {
+      font-size: clamp(1rem, 4vw, 1.25rem);
+      font-weight: 700;
+      color: var(--ws-accent);
+    }
+    @media (max-width: 480px) {
+      .workshop-spaces-widget--light .ws-dots {
+        width: 100%;
+        gap: 2px;
+        overflow-x: hidden;
+        padding-inline: 2px;
+        min-height: 8px;
+      }
+      .workshop-spaces-widget--light .ws-dot {
+        flex: 0 0 6px;
+        width: 6px;
+        height: 6px;
+        min-width: 6px;
+        min-height: 6px;
+      }
+      .workshop-spaces-widget--light .ws-dot-free {
+        box-shadow: 0 0 4px var(--ws-accent-glow);
+      }
+    }
+  </style>
+
+  <div class="ws-box">
+    <p class="ws-label">Exclusivos Espacios Disponibles:</p>
+    <div class="ws-dots" data-ws-dots aria-hidden="true"></div>
+    <p class="ws-line" data-ws-line>Cargando…</p>
+  </div>
+  <script>
+  (function () {
+    function findWidgetRoot() {
+      var s = document.currentScript;
+      if (s) {
+        var parent = s.parentElement;
+        if (parent && parent.classList && parent.classList.contains("workshop-spaces-widget")) {
+          return parent;
+        }
+        var closest = s.closest(".workshop-spaces-widget");
+        if (closest) return closest;
+      }
+      var pending = document.querySelectorAll(
+        ".workshop-spaces-widget:not([data-ws-ready])"
+      );
+      return pending.length ? pending[0] : null;
+    }
+
+    var root = findWidgetRoot();
+    if (!root) return;
+    root.setAttribute("data-ws-ready", "1");
+
+    var API_URL = "https://TU-DOMINIO.vercel.app";
+    var WORKSHOP = "duplica-ventas"; // "canva" | "oferta-webinar"
+    var MAX_SPACES = 25; // Canva: 10
     var POLL_MS = 10000;
 
     var elDots = root.querySelector("[data-ws-dots]");
