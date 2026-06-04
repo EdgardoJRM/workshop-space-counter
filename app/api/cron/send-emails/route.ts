@@ -6,7 +6,8 @@ import { RegistrationStatus } from "@prisma/client";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const WINDOW_MS = 60 * 60 * 1000; // 1 hour window for hourly cron
+// Hobby: cron diario en vercel.json. Ventana ~25h para no perder envíos entre ejecuciones.
+const WINDOW_MS = 25 * 60 * 60 * 1000;
 
 function authorizeCron(request: Request): boolean {
   const secret = process.env.CRON_SECRET?.trim();

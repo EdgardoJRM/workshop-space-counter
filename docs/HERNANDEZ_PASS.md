@@ -158,7 +158,7 @@ Panel con menú lateral **Centro de configuración**:
 | **Fechas** | Crear/editar/activar fecha del evento (usa el webhook y el contador) |
 | **Registros** | Asistentes y reenvío de pase |
 | **Webhook** | URL y header para ClickFunnels |
-| **Emails** | Plantillas post-evento (delay en horas + cron horario) |
+| **Emails** | Plantillas post-evento (delay en horas + cron diario en Vercel Hobby) |
 
 Variables que **siguen solo en Vercel** (no hay UI): `CLICKFUNNELS_WEBHOOK_SECRET`, `CRON_SECRET`, claves AWS/SES, `ADMIN_EMAILS`, etc. El panel confirma si el webhook secret está configurado, pero no muestra su valor.
 

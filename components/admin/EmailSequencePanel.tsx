@@ -167,7 +167,7 @@ export function EmailSequencePanel() {
 
         <p className="mt-2 text-xs text-brand-grey">
           Variables: {"{{name}}"}, {"{{email}}"}, {"{{workshop}}"}, {"{{eventDate}}"}, {"{{venue}}"}.
-          El cron envía cuando el evento terminó hace el delay configurado (ventana de 1h).
+          El cron diario envía cuando el evento pasó hace el delay configurado (ventana ~25h).
         </p>
 
         {error && (
