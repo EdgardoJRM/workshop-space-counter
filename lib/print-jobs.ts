@@ -116,7 +116,23 @@ export async function createManualReprintJob(
   return { ok: true, jobId: job.id };
 }
 
+const STALE_PROCESSING_MS = 2 * 60 * 1000;
+
+/** Jobs en PROCESSING sin confirmar (Mac apagada o crash) vuelven a PENDING. */
+export async function releaseStaleProcessingPrintJobs() {
+  const cutoff = new Date(Date.now() - STALE_PROCESSING_MS);
+  await prisma.printJob.updateMany({
+    where: {
+      status: PrintJobStatus.PROCESSING,
+      updatedAt: { lt: cutoff },
+    },
+    data: { status: PrintJobStatus.PENDING },
+  });
+}
+
 export async function claimNextPrintJob() {
+  await releaseStaleProcessingPrintJobs();
+
   const job = await prisma.printJob.findFirst({
     where: { status: PrintJobStatus.PENDING },
     orderBy: { createdAt: "asc" },
