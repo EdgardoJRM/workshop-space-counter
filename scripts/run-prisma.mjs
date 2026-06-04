@@ -32,14 +32,21 @@ function loadEnvFile(path) {
 loadEnvFile(resolve(root, ".env.vercel.production"));
 loadEnvFile(resolve(root, ".env.local"));
 
-const { buildDirectPostgresUrl, buildPooledPostgresUrl } = await import(
+const { buildDirectPostgresUrl, buildSessionPoolerUrl } = await import(
   "../lib/database-url.ts"
 );
 
+const session = buildSessionPoolerUrl();
 const direct = buildDirectPostgresUrl();
-const pooled = buildPooledPostgresUrl();
 
-if (!direct) {
+// CLI: pooler sesión (:5432) primero — muchas redes no alcanzan db.*.supabase.co:5432
+const cliUrl =
+  process.env.PRISMA_CLI_DATABASE_URL?.trim() ||
+  (process.env.PRISMA_USE_DIRECT_DB === "1" ? direct : null) ||
+  session ||
+  direct;
+
+if (!cliUrl) {
   console.error(`
 No se pudo armar la conexión a Postgres.
 
@@ -59,9 +66,16 @@ Luego:
   process.exit(1);
 }
 
-// CLI (push, seed, migrate): conexión directa — la misma que ya funcionó en db push.
-process.env.POSTGRES_PRISMA_URL = direct;
-process.env.POSTGRES_URL_NON_POOLING = direct;
+// CLI (push, seed, migrate)
+process.env.POSTGRES_PRISMA_URL = cliUrl;
+process.env.POSTGRES_URL_NON_POOLING = cliUrl;
+
+if (session && cliUrl === session) {
+  console.log(
+    "Prisma CLI: usando session pooler (aws-0-…pooler.supabase.com:5432). " +
+      "Si falla, revisa POSTGRES_PASSWORD o restaura el proyecto en Supabase."
+  );
+}
 
 const args = process.argv.slice(2);
 if (args.length === 0) {

@@ -22,6 +22,16 @@ function getPoolerRegion(): string {
   );
 }
 
+/** Session pooler :5432 — suele funcionar para `db push` cuando el host directo no responde. */
+export function buildSessionPoolerUrl(): string | null {
+  const password = process.env.POSTGRES_PASSWORD?.trim();
+  const ref = getProjectRef();
+  if (!password || !ref) return null;
+
+  const region = getPoolerRegion();
+  return `postgresql://postgres.${ref}:${encodePassword(password)}@aws-0-${region}.pooler.supabase.com:5432/postgres?sslmode=require`;
+}
+
 /** Conexión directa (migraciones, db push). */
 export function buildDirectPostgresUrl(): string | null {
   const explicit = process.env.POSTGRES_URL_NON_POOLING?.trim();
