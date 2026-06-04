@@ -10,6 +10,7 @@ import type { ClickFunnelsPurchase } from "@/lib/clickfunnels";
 import type { WorkshopSlug } from "@/lib/workshop-keys";
 import { isWorkshopSlug } from "@/lib/workshop-keys";
 import { RegistrationStatus } from "@prisma/client";
+import { formatWorkshopDateTime } from "@/lib/workshop-datetime";
 
 export type ProcessPurchaseResult =
   | { ok: true; registrationId: string; passToken: string; duplicate: boolean }
@@ -22,15 +23,13 @@ export type RegisterAttendeeInput = {
   workshopSlug: WorkshopSlug;
   workshopDateId?: string | null;
   externalOrderId: string;
+  source: string;
   metadata?: object;
   sendPassEmail?: boolean;
 };
 
 function formatEventDate(d: Date): string {
-  return new Intl.DateTimeFormat("es", {
-    dateStyle: "full",
-    timeStyle: "short",
-  }).format(d);
+  return formatWorkshopDateTime(d);
 }
 
 async function resolveWorkshopDateIdForSlug(
@@ -93,7 +92,10 @@ export async function registerAttendee(
   const existingForDate = await prisma.registration.findFirst({
     where: {
       workshopDateId,
-      attendee: { email: input.email },
+      OR: [
+        { attendeeEmail: input.email },
+        { attendee: { email: input.email } },
+      ],
       status: RegistrationStatus.CONFIRMED,
     },
     include: { pass: true },
@@ -138,6 +140,11 @@ export async function registerAttendee(
       attendeeId: attendee.id,
       workshopDateId,
       externalOrderId: input.externalOrderId,
+      attendeeName: input.name,
+      attendeeEmail: input.email,
+      attendeePhone: input.phone,
+      source: input.source,
+      metadata: input.metadata,
       status: RegistrationStatus.CONFIRMED,
       pass: {
         create: {
@@ -156,8 +163,12 @@ export async function registerAttendee(
 
   if (sendEmail) {
     const emailResult = await sendPassEmail({
-      to: attendee.email,
-      attendeeName: attendee.name ?? attendee.email,
+      to: registration.attendeeEmail ?? attendee.email,
+      attendeeName:
+        registration.attendeeName ??
+        attendee.name ??
+        registration.attendeeEmail ??
+        attendee.email,
       workshopLabel: registration.workshopDate.workshop.label,
       eventDate: formatEventDate(registration.workshopDate.startsAt),
       venue: registration.workshopDate.venue,
@@ -197,6 +208,7 @@ export async function processClickFunnelsPurchase(
     workshopSlug: purchase.workshopSlug,
     workshopDateId: purchase.workshopDateId,
     externalOrderId: purchase.externalOrderId,
+    source: "clickfunnels",
     metadata: purchase.raw as object,
     sendPassEmail: true,
   });
@@ -241,6 +253,7 @@ export async function importRegistrationsFromCsv(
       phone: r.phone,
       workshopSlug,
       externalOrderId,
+      source: "csv",
       metadata: { source: "csv-import", batchId, csvRow: r.row },
       sendPassEmail: options?.sendPassEmail !== false,
     });
@@ -308,8 +321,12 @@ export async function resendPassEmail(registrationId: string): Promise<{
   });
 
   const emailResult = await sendPassEmail({
-    to: registration.attendee.email,
-    attendeeName: registration.attendee.name ?? registration.attendee.email,
+    to: registration.attendeeEmail ?? registration.attendee.email,
+    attendeeName:
+      registration.attendeeName ??
+      registration.attendee.name ??
+      registration.attendeeEmail ??
+      registration.attendee.email,
     workshopLabel: registration.workshopDate.workshop.label,
     eventDate: formatEventDate(registration.workshopDate.startsAt),
     venue: registration.workshopDate.venue,

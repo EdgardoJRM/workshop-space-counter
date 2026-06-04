@@ -36,6 +36,8 @@ export async function processCheckinScan(
   }
 
   const reg = pass.registration;
+  const attendeeName =
+    reg.attendeeName ?? reg.attendee.name ?? reg.attendeeEmail ?? reg.attendee.email;
   if (reg.status !== "CONFIRMED") {
     return { ok: false, error: "Registro no confirmado", code: "NOT_CONFIRMED" };
   }
@@ -45,7 +47,7 @@ export async function processCheckinScan(
     return {
       ok: true,
       status: "already_checked_in",
-      attendeeName: reg.attendee.name ?? reg.attendee.email,
+      attendeeName,
       workshopLabel: reg.workshopDate.workshop.label,
       checkedInAt: existing.createdAt.toISOString(),
     };
@@ -71,7 +73,7 @@ export async function processCheckinScan(
   return {
     ok: true,
     status: "checked_in",
-    attendeeName: reg.attendee.name ?? reg.attendee.email,
+    attendeeName,
     workshopLabel: reg.workshopDate.workshop.label,
     checkedInAt: checkin.createdAt.toISOString(),
   };

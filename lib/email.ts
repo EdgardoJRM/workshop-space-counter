@@ -80,9 +80,12 @@ function getFromAddress(): string | null {
 function buildLocationHtml(venue: string | null, mapsLink: string | null, hasMapImage: boolean): string {
   if (!venue && !mapsLink) return "";
 
+  const place = venue?.trim();
   const venueHtml = venue
-    ? `<p style="color:#4c5c68;line-height:1.6;margin:0 0 12px;"><strong>Ubicación:</strong><br/>${escapeHtml(venue)}</p>`
-    : "";
+    ? `<p style="color:#222022;font-size:16px;font-weight:700;line-height:1.4;margin:4px 0 6px;">${escapeHtml(place ?? venue)}</p>
+      <p style="color:#4c5c68;font-size:14px;line-height:1.5;margin:0 0 14px;">Guarda esta ubicación para llegar directo el día del evento.</p>`
+    : `<p style="color:#222022;font-size:16px;font-weight:700;line-height:1.4;margin:4px 0 6px;">Ubicación del evento</p>
+      <p style="color:#4c5c68;font-size:14px;line-height:1.5;margin:0 0 14px;">Toca el botón para abrir la ubicación en Google Maps.</p>`;
 
   const mapImg = hasMapImage
     ? `<div style="text-align:center;margin:0 0 12px;">
@@ -91,12 +94,13 @@ function buildLocationHtml(venue: string | null, mapsLink: string | null, hasMap
     : "";
 
   const mapsBtn = mapsLink
-    ? `<p style="text-align:center;margin:0;">
-      <a href="${escapeHtml(mapsLink)}" style="display:inline-block;background:#3f5e78;color:#fff;font-weight:600;padding:12px 24px;border-radius:8px;text-decoration:none;">Cómo llegar (Google Maps)</a>
+    ? `<p style="text-align:left;margin:0;">
+      <a href="${escapeHtml(mapsLink)}" style="display:inline-block;background:#3f5e78;color:#fff;font-size:14px;font-weight:700;padding:13px 22px;border-radius:10px;text-decoration:none;">Abrir ubicación en Google Maps</a>
     </p>`
     : "";
 
-  return `<div style="margin:20px 0;padding:16px;background:#f8f9fa;border-radius:8px;border:1px solid #e8e8e8;">
+  return `<div style="margin:22px 0;padding:18px;background:#f8f9fa;border-radius:12px;border:1px solid #e1e5e8;">
+    <p style="color:#3f5e78;font-size:11px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 8px;">Ubicación</p>
     ${venueHtml}
     ${mapImg}
     ${mapsBtn}

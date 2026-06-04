@@ -3,18 +3,12 @@ import QRCode from "qrcode";
 import { getRegistrationByPassToken } from "@/lib/registrations";
 import { getPassPublicUrl } from "@/lib/pass-tokens";
 import { resolveMapsLink } from "@/lib/email";
+import { formatWorkshopDateTime } from "@/lib/workshop-datetime";
 import { isDatabaseConfigured } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
 type Props = { params: { token: string } };
-
-function formatDate(d: Date): string {
-  return new Intl.DateTimeFormat("es", {
-    dateStyle: "full",
-    timeStyle: "short",
-  }).format(d);
-}
 
 export default async function PassPage({ params }: Props) {
   if (!isDatabaseConfigured()) {
@@ -27,6 +21,8 @@ export default async function PassPage({ params }: Props) {
   }
 
   const reg = passRecord.registration;
+  const attendeeName = reg.attendeeName ?? reg.attendee.name ?? reg.attendeeEmail ?? reg.attendee.email;
+  const attendeeEmail = reg.attendeeEmail ?? reg.attendee.email;
   const passUrl = getPassPublicUrl(params.token);
   const qrDataUrl = await QRCode.toDataURL(passUrl, {
     width: 320,
@@ -52,14 +48,17 @@ export default async function PassPage({ params }: Props) {
           {reg.workshopDate.workshop.label}
         </h1>
         <p className="mt-4 text-center text-sm text-brand-charcoal">
-          {reg.attendee.name ?? reg.attendee.email}
+          {attendeeName}
         </p>
         <p className="mt-1 text-center text-xs text-brand-grey">
-          {reg.attendee.email}
+          {attendeeEmail}
         </p>
 
         <div className="mt-6 rounded-xl border border-brand-grey/20 bg-brand-off/50 p-4 text-center text-sm text-brand-charcoal">
-          <p className="font-medium">{formatDate(reg.workshopDate.startsAt)}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand-blue">
+            Fecha del evento
+          </p>
+          <p className="mt-1 font-medium">{formatWorkshopDateTime(reg.workshopDate.startsAt)}</p>
           {reg.workshopDate.venue && (
             <p className="mt-1 text-brand-grey">{reg.workshopDate.venue}</p>
           )}

@@ -3,6 +3,7 @@ import { prisma, isDatabaseConfigured } from "@/lib/prisma";
 import { isWorkshopSlug, type WorkshopSlug } from "@/lib/workshop-keys";
 import { syncCapacityToRedis } from "@/lib/capacity";
 import { assertAdminApiAccess } from "@/lib/admin-api";
+import { parseStartsAtInput } from "@/lib/workshop-datetime";
 
 export const dynamic = "force-dynamic";
 
@@ -112,7 +113,10 @@ export async function POST(request: Request) {
         ...(typeof body.mapsUrl === "string" ? { mapsUrl: body.mapsUrl } : {}),
         ...(body.mapsUrl === null ? { mapsUrl: null } : {}),
         ...(typeof body.startsAt === "string"
-          ? { startsAt: new Date(body.startsAt) }
+          ? (() => {
+              const parsed = parseStartsAtInput(body.startsAt);
+              return parsed ? { startsAt: parsed } : {};
+            })()
           : {}),
       },
       include: { workshop: true },
@@ -142,9 +146,7 @@ export async function POST(request: Request) {
   }
 
   const startsAt =
-    typeof body.startsAt === "string"
-      ? new Date(body.startsAt)
-      : new Date(Date.now() + 14 * 86400000);
+    parseStartsAtInput(body.startsAt) ?? new Date(Date.now() + 14 * 86400000);
 
   const capacity =
     typeof body.capacity === "number" && body.capacity >= 0

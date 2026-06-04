@@ -2,6 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { WorkshopSlug } from "@/lib/workshop-keys";
+import {
+  formatWorkshopDateTime,
+  parseWorkshopDatetimeLocal,
+  toWorkshopDatetimeLocalInput,
+} from "@/lib/workshop-datetime";
 
 type DateRow = {
   id: string;
@@ -24,19 +29,10 @@ export type DatesPanelProps = {
 
 function formatDateTime(iso: string): string {
   try {
-    return new Intl.DateTimeFormat("es", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(iso));
+    return formatWorkshopDateTime(new Date(iso));
   } catch {
     return iso;
   }
-}
-
-function toLocalInputValue(iso: string): string {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 export function DatesPanel({ slug }: DatesPanelProps) {
@@ -102,7 +98,7 @@ export function DatesPanel({ slug }: DatesPanelProps) {
       await postDate({
         title: createForm.title.trim() || undefined,
         startsAt: createForm.startsAt
-          ? new Date(createForm.startsAt).toISOString()
+          ? parseWorkshopDatetimeLocal(createForm.startsAt)?.toISOString()
           : undefined,
         venue: createForm.venue.trim() || undefined,
         mapsUrl: createForm.mapsUrl.trim() || undefined,
@@ -123,7 +119,7 @@ export function DatesPanel({ slug }: DatesPanelProps) {
     setEditingId(row.id);
     setEditForm({
       title: row.title,
-      startsAt: toLocalInputValue(row.startsAt),
+      startsAt: toWorkshopDatetimeLocalInput(row.startsAt),
       venue: row.venue ?? "",
       mapsUrl: row.mapsUrl ?? "",
       capacity: String(row.capacity),
@@ -138,7 +134,7 @@ export function DatesPanel({ slug }: DatesPanelProps) {
       await postDate({
         dateId,
         title: editForm.title.trim(),
-        startsAt: new Date(editForm.startsAt).toISOString(),
+        startsAt: parseWorkshopDatetimeLocal(editForm.startsAt)?.toISOString(),
         venue: editForm.venue.trim() || "",
         mapsUrl: editForm.mapsUrl.trim() || "",
         capacity: Number.isInteger(capacity) ? capacity : undefined,

@@ -67,6 +67,11 @@ model Registration {
   workshopDateId String
   workshopDate   WorkshopDate       @relation(fields: [workshopDateId], references: [id], onDelete: Cascade)
   externalOrderId String?
+  attendeeName   String?
+  attendeeEmail  String?
+  attendeePhone  String?
+  source         String?
+  metadata       Json?
   status         RegistrationStatus @default(CONFIRMED)
   registeredAt   DateTime           @default(now())
   createdAt      DateTime           @default(now())
@@ -78,6 +83,7 @@ model Registration {
   @@unique([externalOrderId])
   @@index([workshopDateId])
   @@index([attendeeId])
+  @@index([attendeeEmail])
 }
 
 model EmailTemplate {

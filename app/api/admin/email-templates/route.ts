@@ -53,8 +53,10 @@ export async function GET(request: Request) {
       templateId: l.templateId,
       templateName: l.template.name,
       registrationId: l.registrationId,
-      attendeeEmail: l.registration.attendee.email,
-      attendeeName: l.registration.attendee.name,
+      attendeeEmail:
+        l.registration.attendeeEmail ?? l.registration.attendee.email,
+      attendeeName:
+        l.registration.attendeeName ?? l.registration.attendee.name,
       workshopLabel: l.registration.workshopDate.workshop.label,
       sentAt: l.sentAt.toISOString(),
       status: l.status,

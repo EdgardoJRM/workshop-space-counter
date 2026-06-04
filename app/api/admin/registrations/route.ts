@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma, isDatabaseConfigured } from "@/lib/prisma";
 import { isWorkshopSlug, type WorkshopSlug } from "@/lib/workshop-keys";
 import { assertAdminApiAccess } from "@/lib/admin-api";
+import { registerAttendee } from "@/lib/registrations";
 
 export const dynamic = "force-dynamic";
 
@@ -41,11 +42,30 @@ export async function GET(request: Request) {
   });
 
   return NextResponse.json({
-    registrations: registrations.map((r) => ({
+    registrations: registrations.map((r) => mapRegistrationRow(r)),
+  });
+}
+
+function mapRegistrationRow(
+  r: Awaited<
+    ReturnType<
+      typeof prisma.registration.findMany<{
+        include: {
+          attendee: true;
+          pass: true;
+          workshopDate: { include: { workshop: true } };
+          checkins: true;
+        };
+      }>
+    >
+  >[number]
+) {
+  return {
       id: r.id,
-      attendeeName: r.attendee.name,
-      attendeeEmail: r.attendee.email,
-      attendeePhone: r.attendee.phone,
+      attendeeName: r.attendeeName ?? r.attendee.name,
+      attendeeEmail: r.attendeeEmail ?? r.attendee.email,
+      attendeePhone: r.attendeePhone ?? r.attendee.phone,
+      source: r.source,
       workshop: r.workshopDate.workshop.label,
       workshopSlug: r.workshopDate.workshop.slug,
       eventDate: r.workshopDate.startsAt.toISOString(),
@@ -55,6 +75,110 @@ export async function GET(request: Request) {
       emailError: r.pass?.emailError ?? null,
       checkedIn: r.checkins.length > 0,
       checkedInAt: r.checkins[0]?.createdAt.toISOString() ?? null,
-    })),
+    };
+}
+
+type ManualPostBody = {
+  token?: unknown;
+  workshop?: unknown;
+  email?: unknown;
+  name?: unknown;
+  phone?: unknown;
+  workshopDateId?: unknown;
+  sendPassEmail?: unknown;
+};
+
+export async function POST(request: Request) {
+  if (!isDatabaseConfigured()) {
+    return NextResponse.json(
+      { error: "DATABASE_URL is not configured" },
+      { status: 503 }
+    );
+  }
+
+  let body: ManualPostBody;
+  try {
+    body = (await request.json()) as ManualPostBody;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const legacyToken = typeof body.token === "string" ? body.token : "";
+  const auth = await assertAdminApiAccess(legacyToken || null);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  const workshopSlug =
+    typeof body.workshop === "string" && isWorkshopSlug(body.workshop)
+      ? body.workshop
+      : null;
+
+  if (!workshopSlug) {
+    return NextResponse.json({ error: "Taller inválido" }, { status: 400 });
+  }
+
+  const email =
+    typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  if (!email || !email.includes("@")) {
+    return NextResponse.json({ error: "Email inválido" }, { status: 400 });
+  }
+
+  const name =
+    typeof body.name === "string" && body.name.trim() ? body.name.trim() : null;
+  const phone =
+    typeof body.phone === "string" && body.phone.trim()
+      ? body.phone.trim()
+      : null;
+
+  const workshopDateId =
+    typeof body.workshopDateId === "string" && body.workshopDateId.trim()
+      ? body.workshopDateId.trim()
+      : null;
+
+  if (workshopDateId) {
+    const dateRow = await prisma.workshopDate.findFirst({
+      where: {
+        id: workshopDateId,
+        workshop: { slug: workshopSlug as WorkshopSlug },
+      },
+    });
+    if (!dateRow) {
+      return NextResponse.json(
+        { error: "La fecha no pertenece a este taller" },
+        { status: 400 }
+      );
+    }
+  }
+
+  const sendPassEmail = body.sendPassEmail !== false;
+  const orderKey = workshopDateId ?? "active";
+  const externalOrderId = `manual:${orderKey}:${email}`;
+
+  const result = await registerAttendee({
+    email,
+    name,
+    phone,
+    workshopSlug,
+    workshopDateId,
+    externalOrderId,
+    source: "manual",
+    sendPassEmail,
+  });
+
+  if (!result.ok) {
+    const status =
+      result.code === "SOLD_OUT"
+        ? 409
+        : result.code === "NO_DATE"
+          ? 400
+          : 500;
+    return NextResponse.json({ error: result.error, code: result.code }, { status });
+  }
+
+  return NextResponse.json({
+    ok: true,
+    registrationId: result.registrationId,
+    duplicate: result.duplicate,
   });
 }

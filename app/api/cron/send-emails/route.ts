@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma, isDatabaseConfigured } from "@/lib/prisma";
 import { sendHtmlEmail, renderEmailTemplate } from "@/lib/email";
 import { RegistrationStatus } from "@prisma/client";
+import { formatWorkshopDateTime } from "@/lib/workshop-datetime";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -19,17 +20,6 @@ function authorizeCron(request: Request): boolean {
   const url = new URL(request.url);
   const querySecret = url.searchParams.get("secret");
   return querySecret === secret;
-}
-
-function formatEventDate(startsAt: Date): string {
-  try {
-    return new Intl.DateTimeFormat("es", {
-      dateStyle: "full",
-      timeStyle: "short",
-    }).format(startsAt);
-  } catch {
-    return startsAt.toISOString();
-  }
 }
 
 export async function GET(request: Request) {
@@ -100,12 +90,17 @@ async function runSendEmails(request: Request) {
           continue;
         }
 
-        const attendeeName = registration.attendee.name ?? "Participante";
+        const attendeeName =
+          registration.attendeeName ??
+          registration.attendee.name ??
+          "Participante";
+        const attendeeEmail =
+          registration.attendeeEmail ?? registration.attendee.email;
         const vars = {
           name: attendeeName,
-          email: registration.attendee.email,
+          email: attendeeEmail,
           workshop: workshopDate.workshop.label,
-          eventDate: formatEventDate(workshopDate.startsAt),
+          eventDate: formatWorkshopDateTime(workshopDate.startsAt),
           venue: workshopDate.venue ?? "",
         };
 
@@ -113,7 +108,7 @@ async function runSendEmails(request: Request) {
         const subject = renderEmailTemplate(template.subject, vars);
 
         const result = await sendHtmlEmail({
-          to: registration.attendee.email,
+          to: attendeeEmail,
           subject,
           htmlBody: html,
         });

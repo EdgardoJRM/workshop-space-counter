@@ -2,13 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { CsvImportPanel } from "@/components/admin/CsvImportPanel";
+import { ManualRegisterPanel } from "@/components/admin/ManualRegisterPanel";
 import type { WorkshopSlug } from "@/lib/workshop-keys";
+import { formatWorkshopDateTime } from "@/lib/workshop-datetime";
 
 type RegistrationRow = {
   id: string;
   attendeeName: string | null;
   attendeeEmail: string;
   attendeePhone: string | null;
+  source: string | null;
   workshop: string;
   eventDate: string;
   status: string;
@@ -74,6 +77,7 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
 
   return (
     <div>
+      <ManualRegisterPanel slug={slug} onRegistered={() => void load()} />
       <CsvImportPanel slug={slug} onImported={() => void load()} />
 
       {loading && (
@@ -89,51 +93,65 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
       )}
 
       {!loading && rows.length > 0 && (
-    <ul className="mt-4 space-y-3">
-      {rows.map((r) => (
-        <li
-          key={r.id}
-          className="rounded-lg border border-brand-grey/20 bg-white p-3 text-sm"
-        >
-          <p className="font-medium text-brand-ink">
-            {r.attendeeName ?? r.attendeeEmail}
-          </p>
-          <p className="text-xs text-brand-grey">{r.attendeeEmail}</p>
-          {r.attendeePhone && (
-            <p className="text-xs text-brand-grey">{r.attendeePhone}</p>
-          )}
-          <p className="mt-1 text-brand-charcoal">
-            {new Date(r.eventDate).toLocaleString("es")}
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            {r.checkedIn ? (
-              <span className="rounded-full bg-brand-blue/15 px-2 py-0.5 text-xs text-brand-blue">
-                Check-in
-              </span>
-            ) : (
-              <span className="rounded-full bg-brand-off px-2 py-0.5 text-xs text-brand-charcoal">
-                Pendiente
-              </span>
-            )}
-            {r.emailedAt ? (
-              <span className="text-xs text-brand-grey">Email enviado</span>
-            ) : (
-              <span className="text-xs text-amber-700">
-                {r.emailError ?? "Email pendiente"}
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => void resend(r.id)}
-              disabled={resendingId === r.id}
-              className="ml-auto text-xs font-medium text-brand-blue underline disabled:opacity-50"
+        <ul className="mt-4 space-y-3">
+          {rows.map((r) => (
+            <li
+              key={r.id}
+              className="rounded-lg border border-brand-grey/20 bg-white p-3 text-sm"
             >
-              {resendingId === r.id ? "Enviando…" : "Reenviar pase"}
-            </button>
-          </div>
-        </li>
-      ))}
-    </ul>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="font-medium text-brand-ink">
+                    {r.attendeeName ?? r.attendeeEmail}
+                  </p>
+                  <p className="text-xs text-brand-grey">{r.attendeeEmail}</p>
+                  {r.attendeePhone && (
+                    <p className="text-xs text-brand-grey">{r.attendeePhone}</p>
+                  )}
+                </div>
+                {r.source && (
+                  <span className="shrink-0 rounded-full bg-brand-off px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-brand-grey">
+                    {r.source}
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-brand-charcoal">
+                <span className="text-brand-grey">Evento:</span>{" "}
+                {formatWorkshopDateTime(new Date(r.eventDate))}
+              </p>
+              <p className="text-xs text-brand-grey">
+                Registrado:{" "}
+                {formatWorkshopDateTime(new Date(r.registeredAt))}
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {r.checkedIn ? (
+                  <span className="rounded-full bg-brand-blue/15 px-2 py-0.5 text-xs text-brand-blue">
+                    Check-in
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-brand-off px-2 py-0.5 text-xs text-brand-charcoal">
+                    Pendiente
+                  </span>
+                )}
+                {r.emailedAt ? (
+                  <span className="text-xs text-brand-grey">Email enviado</span>
+                ) : (
+                  <span className="text-xs text-amber-700">
+                    {r.emailError ?? "Email pendiente"}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void resend(r.id)}
+                  disabled={resendingId === r.id}
+                  className="ml-auto text-xs font-medium text-brand-blue underline disabled:opacity-50"
+                >
+                  {resendingId === r.id ? "Enviando…" : "Reenviar pase"}
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
