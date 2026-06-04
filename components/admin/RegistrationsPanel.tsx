@@ -19,7 +19,25 @@ type RegistrationRow = {
   emailedAt: string | null;
   emailError: string | null;
   checkedIn: boolean;
+  printStatus: string | null;
+  printError: string | null;
+  printPrintedAt: string | null;
 };
+
+function printStatusLabel(status: string | null): string {
+  switch (status) {
+    case "PENDING":
+      return "Label pendiente";
+    case "PROCESSING":
+      return "Imprimiendo…";
+    case "PRINTED":
+      return "Label impreso";
+    case "FAILED":
+      return "Error de impresión";
+    default:
+      return "Sin label";
+  }
+}
 
 export type RegistrationsPanelProps = {
   slug: WorkshopSlug;
@@ -30,6 +48,7 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [resendingId, setResendingId] = useState<string | null>(null);
+  const [reprintingId, setReprintingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -56,6 +75,24 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function reprintLabel(id: string) {
+    setReprintingId(id);
+    try {
+      const res = await fetch("/api/admin/print-jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registrationId: id }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Error al encolar impresión");
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Error");
+    } finally {
+      setReprintingId(null);
+    }
+  }
 
   async function resend(id: string) {
     setResendingId(id);
@@ -140,6 +177,26 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
                     {r.emailError ?? "Email pendiente"}
                   </span>
                 )}
+                <span
+                  className={`text-xs ${
+                    r.printStatus === "FAILED"
+                      ? "text-red-600"
+                      : r.printStatus === "PRINTED"
+                        ? "text-brand-grey"
+                        : "text-brand-charcoal"
+                  }`}
+                  title={r.printError ?? undefined}
+                >
+                  {printStatusLabel(r.printStatus)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void reprintLabel(r.id)}
+                  disabled={reprintingId === r.id}
+                  className="text-xs font-medium text-brand-blue underline disabled:opacity-50"
+                >
+                  {reprintingId === r.id ? "Encolando…" : "Reimprimir label"}
+                </button>
                 <button
                   type="button"
                   onClick={() => void resend(r.id)}

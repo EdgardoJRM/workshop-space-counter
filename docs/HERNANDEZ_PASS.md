@@ -23,6 +23,7 @@ Copia `.env.local.example` a `.env.local` y completa:
 | `ADMIN_EMAILS`, `STAFF_EMAILS`, `AUTH_JWT_SECRET` | Magic link en `/login` (admin y staff) |
 | `APP_BASE_URL` | Obligatorio para enlaces mágicos y QR del pase en email |
 | `GOOGLE_MAPS_API_KEY` | Opcional: imagen del mapa en el email del pase |
+| `PRINT_AGENT_TOKEN` | Secreto compartido con la Mac (Impresora Auto) para cola de labels |
 
 ## Primer despliegue
 
@@ -175,6 +176,16 @@ Tras `db:seed` hay una fecha por taller. Para nuevas fechas, usa `POST /api/admi
 2. Webhook de prueba (con DB y secret configurados).
 3. Abrir `passUrl` del response.
 4. Login staff → escanear QR o pegar URL en campo manual.
+
+## Labels Rollo (día del evento)
+
+1. En Vercel: `PRINT_AGENT_TOKEN` (mismo valor en la Mac).
+2. En la Mac: proyecto **Impresora Auto** con `.env.local` (`APP_BASE_URL` + token). Instalar con `Instalar - SOLO UNA VEZ.command`.
+3. Conectar la Rollo; el watcher prende el agente en modo nube.
+4. Cualquier teléfono en `/staff/scan` hace check-in → se encola un label → la Mac imprime.
+5. Admin → **Labels**: editar tamaños de fuente y papel. **Registros** → **Reimprimir label** si hace falta duplicado.
+
+SQL si no puedes `db:push`: ver [`docs/PRINT_QUEUE_SQL.md`](PRINT_QUEUE_SQL.md).
 
 ## Fase 2 (fuera del MVP)
 

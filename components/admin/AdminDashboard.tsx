@@ -6,6 +6,7 @@ import { RegistrationsPanel } from "@/components/admin/RegistrationsPanel";
 import { DatesPanel } from "@/components/admin/DatesPanel";
 import { WebhookPanel } from "@/components/admin/WebhookPanel";
 import { EmailSequencePanel } from "@/components/admin/EmailSequencePanel";
+import { LabelPanel } from "@/components/admin/LabelPanel";
 import { AdminOverview } from "@/components/admin/AdminOverview";
 import {
   ADMIN_NAV,
@@ -202,6 +203,7 @@ export function AdminDashboard() {
                   <RegistrationsPanel slug={slug} />
                 )}
                 {active === slug && view === "dates" && <DatesPanel slug={slug} />}
+                {active === slug && view === "labels" && <LabelPanel slug={slug} />}
               </div>
             ))}
           </div>

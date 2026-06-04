@@ -53,5 +53,7 @@ export async function POST(request: Request) {
     attendeeName: result.attendeeName,
     workshopLabel: result.workshopLabel,
     checkedInAt: result.checkedInAt,
+    printJobQueued: result.printJobQueued ?? false,
+    printJobId: result.printJobId,
   });
 }

@@ -79,6 +79,7 @@ model Registration {
   pass           Pass?
   checkins       Checkin[]
   emailLogs      EmailLog[]
+  printJobs      PrintJob[]
 
   @@unique([externalOrderId])
   @@index([workshopDateId])
@@ -132,8 +133,47 @@ model Checkin {
   checkedInBy    String?
   userAgent      String?
   createdAt      DateTime     @default(now())
+  printJob       PrintJob?
 
   @@index([registrationId])
+}
+
+enum PrintJobStatus {
+  PENDING
+  PROCESSING
+  PRINTED
+  FAILED
+}
+
+model PrintJob {
+  id             String         @id @default(cuid())
+  registrationId String
+  registration   Registration   @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  checkinId      String?        @unique
+  checkin        Checkin?       @relation(fields: [checkinId], references: [id], onDelete: SetNull)
+  status         PrintJobStatus @default(PENDING)
+  trigger        String
+  payload        Json
+  attempts       Int            @default(0)
+  printedAt      DateTime?
+  error          String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([status, createdAt])
+  @@index([registrationId])
+}
+
+model LabelTemplate {
+  id           String   @id @default(cuid())
+  workshopSlug String?  @unique
+  fontLarge    Int      @default(160)
+  fontSmall    Int      @default(80)
+  mediaSize    String   @default("3x2")
+  showEmail    Boolean  @default(false)
+  showWorkshop Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 enum WebhookEventStatus {

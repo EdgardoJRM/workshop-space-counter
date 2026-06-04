@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { hashPassToken } from "@/lib/pass-tokens";
+import { createPrintJobForCheckin } from "@/lib/print-jobs";
 
 export type CheckinResult =
   | {
@@ -8,6 +9,8 @@ export type CheckinResult =
       attendeeName: string;
       workshopLabel: string;
       checkedInAt: string;
+      printJobQueued?: boolean;
+      printJobId?: string;
     }
   | { ok: false; error: string; code: string };
 
@@ -70,11 +73,15 @@ export async function processCheckinScan(
     return created;
   });
 
+  const printResult = await createPrintJobForCheckin(reg.id, checkin.id);
+
   return {
     ok: true,
     status: "checked_in",
     attendeeName,
     workshopLabel: reg.workshopDate.workshop.label,
     checkedInAt: checkin.createdAt.toISOString(),
+    printJobQueued: printResult.created,
+    printJobId: printResult.jobId,
   };
 }

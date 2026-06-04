@@ -3,6 +3,7 @@ export type AdminView =
   | "spaces"
   | "registrations"
   | "dates"
+  | "labels"
   | "webhook"
   | "emails";
 
@@ -39,6 +40,12 @@ export const ADMIN_NAV: NavItem[] = [
     group: "workshop",
   },
   {
+    id: "labels",
+    label: "Labels",
+    description: "Plantilla Rollo e impresión en check-in",
+    group: "workshop",
+  },
+  {
     id: "webhook",
     label: "Webhook",
     description: "URL y secreto para ClickFunnels",
@@ -53,7 +60,12 @@ export const ADMIN_NAV: NavItem[] = [
 ];
 
 export function viewNeedsWorkshop(view: AdminView): boolean {
-  return view === "spaces" || view === "registrations" || view === "dates";
+  return (
+    view === "spaces" ||
+    view === "registrations" ||
+    view === "dates" ||
+    view === "labels"
+  );
 }
 
 export function getViewMeta(view: AdminView): { title: string; description: string } {

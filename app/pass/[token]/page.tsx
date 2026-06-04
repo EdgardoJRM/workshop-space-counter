@@ -25,9 +25,9 @@ export default async function PassPage({ params }: Props) {
   const attendeeEmail = reg.attendeeEmail ?? reg.attendee.email;
   const passUrl = getPassPublicUrl(params.token);
   const qrDataUrl = await QRCode.toDataURL(passUrl, {
-    width: 320,
-    margin: 2,
-    color: { dark: "#222022", light: "#ffffff" },
+    width: 340,
+    margin: 3,
+    color: { dark: "#000000", light: "#ffffff" },
   });
 
   const checkedIn = reg.checkins.length > 0;
@@ -37,14 +37,11 @@ export default async function PassPage({ params }: Props) {
   );
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md flex-col justify-center px-4 py-12">
-      <div className="relative rounded-2xl border border-brand-grey/25 bg-white/95 p-8 shadow-brand">
+    <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 pb-10 pt-2">
+      <div className="relative rounded-2xl border border-brand-grey/15 bg-white p-8 shadow-lg shadow-brand-slate/10">
         <div className="absolute left-8 top-0 h-1 w-12 rounded-b-full bg-brand-gold shadow-sm shadow-brand-gold/35" />
 
-        <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-brand-blue">
-          Hernandez Pass
-        </p>
-        <h1 className="mt-2 text-center text-xl font-semibold text-brand-slate">
+        <h1 className="text-center text-xl font-semibold text-brand-slate">
           {reg.workshopDate.workshop.label}
         </h1>
         <p className="mt-4 text-center text-sm text-brand-charcoal">
@@ -76,14 +73,14 @@ export default async function PassPage({ params }: Props) {
           )}
         </div>
 
-        <div className="mt-8 flex justify-center">
+        <div className="mt-8 flex justify-center rounded-xl bg-white p-3 ring-1 ring-brand-grey/10">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={qrDataUrl}
             alt="Código QR del pase"
             width={320}
             height={320}
-            className="rounded-lg border border-brand-grey/20"
+            className="block max-w-full"
           />
         </div>
 

@@ -38,6 +38,7 @@ export async function GET(request: Request) {
       pass: true,
       workshopDate: { include: { workshop: true } },
       checkins: { take: 1, orderBy: { createdAt: "desc" } },
+      printJobs: { orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
 
@@ -55,11 +56,13 @@ function mapRegistrationRow(
           pass: true;
           workshopDate: { include: { workshop: true } };
           checkins: true;
+          printJobs: true;
         };
       }>
     >
   >[number]
 ) {
+  const latestPrint = r.printJobs[0];
   return {
       id: r.id,
       attendeeName: r.attendeeName ?? r.attendee.name,
@@ -75,6 +78,9 @@ function mapRegistrationRow(
       emailError: r.pass?.emailError ?? null,
       checkedIn: r.checkins.length > 0,
       checkedInAt: r.checkins[0]?.createdAt.toISOString() ?? null,
+      printStatus: latestPrint?.status ?? null,
+      printError: latestPrint?.error ?? null,
+      printPrintedAt: latestPrint?.printedAt?.toISOString() ?? null,
     };
 }
 

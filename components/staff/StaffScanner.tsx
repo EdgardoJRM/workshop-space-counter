@@ -7,6 +7,7 @@ type ScanResult = {
   attendeeName: string;
   workshopLabel: string;
   checkedInAt: string;
+  printJobQueued?: boolean;
 };
 
 function extractTokenFromPayload(raw: string): string {
@@ -56,6 +57,7 @@ export function StaffScanner() {
         attendeeName?: string;
         workshopLabel?: string;
         checkedInAt?: string;
+        printJobQueued?: boolean;
       };
 
       if (!res.ok || !data.ok) {
@@ -68,6 +70,7 @@ export function StaffScanner() {
         attendeeName: data.attendeeName!,
         workshopLabel: data.workshopLabel!,
         checkedInAt: data.checkedInAt!,
+        printJobQueued: data.printJobQueued,
       });
     } catch {
       setError("Error de red");
@@ -243,6 +246,17 @@ export function StaffScanner() {
           <p className="mt-1 text-xs text-brand-grey">
             {new Date(lastResult.checkedInAt).toLocaleString("es")}
           </p>
+          {lastResult.status === "checked_in" && lastResult.printJobQueued && (
+            <p className="mt-2 text-xs font-medium text-brand-blue">
+              Label en cola — la impresora lo tomará en segundos.
+            </p>
+          )}
+          {lastResult.status === "already_checked_in" && (
+            <p className="mt-2 text-xs text-brand-grey">
+              No se imprime de nuevo automáticamente. Usa reimprimir en admin si
+              hace falta.
+            </p>
+          )}
         </div>
       )}
     </div>

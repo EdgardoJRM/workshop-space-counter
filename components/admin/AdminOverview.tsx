@@ -170,6 +170,13 @@ export function AdminOverview({ onNavigate }: Props) {
                   >
                     Registros
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate("labels", slug)}
+                    className="rounded-lg bg-brand-off px-3 py-1.5 text-xs font-semibold text-brand-charcoal"
+                  >
+                    Labels
+                  </button>
                 </div>
               </li>
             );
