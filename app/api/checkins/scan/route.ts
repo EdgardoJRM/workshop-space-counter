@@ -34,6 +34,7 @@ function checkinJsonResponse(result: Awaited<ReturnType<typeof processCheckinSca
     checkedInAt: result.checkedInAt,
     printJobQueued: result.printJobQueued ?? false,
     printJobId: result.printJobId,
+    printError: result.printError,
   });
 }
 
@@ -77,12 +78,24 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    const result = await processCheckinByRegistrationId(
-      registrationId,
-      workshopDateId,
-      meta
-    );
-    return checkinJsonResponse(result);
+    try {
+      const result = await processCheckinByRegistrationId(
+        registrationId,
+        workshopDateId,
+        meta
+      );
+      return checkinJsonResponse(result);
+    } catch (err) {
+      console.error("[checkins/scan]", err);
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Error del servidor al registrar check-in. Revisa la base de datos.",
+        },
+        { status: 500 }
+      );
+    }
   }
 
   const token = typeof body.token === "string" ? body.token.trim() : "";
@@ -93,6 +106,18 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await processCheckinScan(token, meta);
-  return checkinJsonResponse(result);
+  try {
+    const result = await processCheckinScan(token, meta);
+    return checkinJsonResponse(result);
+  } catch (err) {
+    console.error("[checkins/scan]", err);
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "Error del servidor al registrar check-in. Revisa la base de datos.",
+      },
+      { status: 500 }
+    );
+  }
 }

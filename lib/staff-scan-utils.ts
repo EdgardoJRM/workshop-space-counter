@@ -20,6 +20,7 @@ export type ScanResult = {
   workshopLabel: string;
   checkedInAt: string;
   printJobQueued?: boolean;
+  printError?: string;
 };
 
 export async function postCheckin(body: {
@@ -30,37 +31,66 @@ export async function postCheckin(body: {
   | { ok: true; result: ScanResult }
   | { ok: false; error: string; status: number }
 > {
-  const res = await fetch("/api/checkins/scan", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = (await res.json()) as {
-    ok?: boolean;
-    error?: string;
-    status?: ScanResult["status"];
-    attendeeName?: string;
-    workshopLabel?: string;
-    checkedInAt?: string;
-    printJobQueued?: boolean;
-  };
+  try {
+    const res = await fetch("/api/checkins/scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
 
-  if (!res.ok || !data.ok) {
+    let data: {
+      ok?: boolean;
+      error?: string;
+      status?: ScanResult["status"];
+      attendeeName?: string;
+      workshopLabel?: string;
+      checkedInAt?: string;
+      printJobQueued?: boolean;
+      printError?: string;
+    };
+
+    try {
+      data = (await res.json()) as typeof data;
+    } catch {
+      return {
+        ok: false,
+        error: `Respuesta inválida del servidor (${res.status})`,
+        status: res.status,
+      };
+    }
+
+    if (!res.ok || !data.ok) {
+      return {
+        ok: false,
+        error: data.error ?? `Error ${res.status}`,
+        status: res.status,
+      };
+    }
+
+    if (!data.status || !data.attendeeName || !data.checkedInAt) {
+      return {
+        ok: false,
+        error: "Respuesta incompleta del servidor",
+        status: res.status,
+      };
+    }
+
+    return {
+      ok: true,
+      result: {
+        status: data.status,
+        attendeeName: data.attendeeName,
+        workshopLabel: data.workshopLabel ?? "",
+        checkedInAt: data.checkedInAt,
+        printJobQueued: data.printJobQueued,
+        printError: data.printError,
+      },
+    };
+  } catch {
     return {
       ok: false,
-      error: data.error ?? `Error ${res.status}`,
-      status: res.status,
+      error: "Error de red. Comprueba la conexión.",
+      status: 0,
     };
   }
-
-  return {
-    ok: true,
-    result: {
-      status: data.status!,
-      attendeeName: data.attendeeName!,
-      workshopLabel: data.workshopLabel!,
-      checkedInAt: data.checkedInAt!,
-      printJobQueued: data.printJobQueued,
-    },
-  };
 }

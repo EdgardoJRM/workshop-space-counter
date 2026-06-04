@@ -17,7 +17,28 @@ export const DEFAULT_LABEL_TEMPLATE: LabelTemplateConfig = {
   showWorkshop: false,
 };
 
+function isMissingTableError(error: unknown): boolean {
+  const code =
+    error && typeof error === "object" && "code" in error
+      ? String((error as { code: string }).code)
+      : "";
+  return code === "P2021" || code === "42P01";
+}
+
 export async function getLabelTemplateForWorkshop(
+  workshopSlug?: string | null
+): Promise<LabelTemplateConfig> {
+  try {
+    return await loadLabelTemplateForWorkshop(workshopSlug);
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      return DEFAULT_LABEL_TEMPLATE;
+    }
+    throw error;
+  }
+}
+
+async function loadLabelTemplateForWorkshop(
   workshopSlug?: string | null
 ): Promise<LabelTemplateConfig> {
   if (workshopSlug) {

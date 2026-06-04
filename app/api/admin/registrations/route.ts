@@ -29,22 +29,81 @@ export async function GET(request: Request) {
     ? { workshopDate: { workshop: { slug: workshopSlug as WorkshopSlug } } }
     : {};
 
-  const registrations = await prisma.registration.findMany({
-    where,
-    orderBy: { registeredAt: "desc" },
-    take: 100,
-    include: {
-      attendee: true,
-      pass: true,
-      workshopDate: { include: { workshop: true } },
-      checkins: { take: 1, orderBy: { createdAt: "desc" } },
-      printJobs: { orderBy: { createdAt: "desc" }, take: 1 },
-    },
-  });
+  try {
+    const registrations = await prisma.registration.findMany({
+      where,
+      orderBy: { registeredAt: "desc" },
+      take: 100,
+      include: {
+        attendee: true,
+        pass: true,
+        workshopDate: { include: { workshop: true } },
+        checkins: { take: 1, orderBy: { createdAt: "desc" } },
+        printJobs: { orderBy: { createdAt: "desc" }, take: 1 },
+      },
+    });
 
-  return NextResponse.json({
-    registrations: registrations.map((r) => mapRegistrationRow(r)),
-  });
+    return NextResponse.json({
+      registrations: registrations.map((r) => mapRegistrationRow(r)),
+    });
+  } catch (err) {
+    const code =
+      err && typeof err === "object" && "code" in err
+        ? String((err as { code: string }).code)
+        : "";
+    if (code !== "P2021" && code !== "42P01") throw err;
+
+    const registrations = await prisma.registration.findMany({
+      where,
+      orderBy: { registeredAt: "desc" },
+      take: 100,
+      include: {
+        attendee: true,
+        pass: true,
+        workshopDate: { include: { workshop: true } },
+        checkins: { take: 1, orderBy: { createdAt: "desc" } },
+      },
+    });
+
+    return NextResponse.json({
+      registrations: registrations.map((r) => mapRegistrationRowWithoutPrint(r)),
+    });
+  }
+}
+
+function mapRegistrationRowWithoutPrint(
+  r: Awaited<
+    ReturnType<
+      typeof prisma.registration.findMany<{
+        include: {
+          attendee: true;
+          pass: true;
+          workshopDate: { include: { workshop: true } };
+          checkins: true;
+        };
+      }>
+    >
+  >[number]
+) {
+  return {
+    id: r.id,
+    attendeeName: r.attendeeName ?? r.attendee.name,
+    attendeeEmail: r.attendeeEmail ?? r.attendee.email,
+    attendeePhone: r.attendeePhone ?? r.attendee.phone,
+    source: r.source,
+    workshop: r.workshopDate.workshop.label,
+    workshopSlug: r.workshopDate.workshop.slug,
+    eventDate: r.workshopDate.startsAt.toISOString(),
+    status: r.status,
+    registeredAt: r.registeredAt.toISOString(),
+    emailedAt: r.pass?.emailedAt?.toISOString() ?? null,
+    emailError: r.pass?.emailError ?? null,
+    checkedIn: r.checkins.length > 0,
+    checkedInAt: r.checkins[0]?.createdAt.toISOString() ?? null,
+    printStatus: null,
+    printError: null,
+    printPrintedAt: null,
+  };
 }
 
 function mapRegistrationRow(

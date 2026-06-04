@@ -93,26 +93,33 @@ export function StaffScanner() {
       if (busy) return;
       setBusy(true);
       setError(null);
-      const response = await postCheckin(body);
-      if (!response.ok) {
-        setError(response.error);
+      try {
+        const response = await postCheckin(body);
+        if (!response.ok) {
+          setError(response.error);
+          return;
+        }
+        setLastResult(response.result);
+        if (response.result.printError) {
+          setError(response.result.printError);
+        }
+        if (body.registrationId) {
+          setAttendees((prev) =>
+            prev.map((a) =>
+              a.id === body.registrationId
+                ? {
+                    ...a,
+                    checkedIn: true,
+                    checkedInAt: response.result.checkedInAt,
+                  }
+                : a
+            )
+          );
+        }
+      } catch {
+        setError("Error inesperado al validar. Intenta de nuevo.");
+      } finally {
         setBusy(false);
-        return;
-      }
-      setLastResult(response.result);
-      setBusy(false);
-      if (body.registrationId && sessionId) {
-        setAttendees((prev) =>
-          prev.map((a) =>
-            a.id === body.registrationId
-              ? {
-                  ...a,
-                  checkedIn: true,
-                  checkedInAt: response.result.checkedInAt,
-                }
-              : a
-          )
-        );
       }
     },
     [busy, sessionId]
@@ -416,6 +423,11 @@ export function StaffScanner() {
               Label en cola — la impresora lo tomará en segundos.
             </p>
           )}
+          {lastResult.status === "checked_in" &&
+            !lastResult.printJobQueued &&
+            lastResult.printError && (
+              <p className="mt-2 text-xs text-amber-800">{lastResult.printError}</p>
+            )}
         </div>
       )}
     </div>

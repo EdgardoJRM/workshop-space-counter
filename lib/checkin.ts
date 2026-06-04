@@ -12,6 +12,7 @@ export type CheckinResult =
       checkedInAt: string;
       printJobQueued?: boolean;
       printJobId?: string;
+      printError?: string;
     }
   | { ok: false; error: string; code: string };
 
@@ -65,7 +66,19 @@ async function performCheckinOnRegistration(
     return created;
   });
 
-  const printResult = await createPrintJobForCheckin(reg.id, checkin.id);
+  let printJobQueued = false;
+  let printJobId: string | undefined;
+  let printError: string | undefined;
+
+  try {
+    const printResult = await createPrintJobForCheckin(reg.id, checkin.id);
+    printJobQueued = printResult.created;
+    printJobId = printResult.jobId;
+  } catch (err) {
+    console.error("[checkin] print job failed", err);
+    printError =
+      "Check-in guardado, pero no se pudo encolar el label. Ejecuta el SQL de PrintJob en Supabase o usa Reimprimir en admin.";
+  }
 
   return {
     ok: true,
@@ -73,8 +86,9 @@ async function performCheckinOnRegistration(
     attendeeName,
     workshopLabel: reg.workshopDate.workshop.label,
     checkedInAt: checkin.createdAt.toISOString(),
-    printJobQueued: printResult.created,
-    printJobId: printResult.jobId,
+    printJobQueued,
+    printJobId,
+    printError,
   };
 }
 
