@@ -180,7 +180,7 @@ Tras `db:seed` hay una fecha por taller. Para nuevas fechas, usa `POST /api/admi
 ## Labels Rollo (día del evento)
 
 1. En Vercel: `PRINT_AGENT_TOKEN` (mismo valor en la Mac).
-2. En la Mac: proyecto **Impresora Auto** con `.env.local` (`APP_BASE_URL` + token). Instalar con `Instalar - SOLO UNA VEZ.command`.
+2. En la Mac del evento: clonar e instalar **Impresora Auto** desde GitHub (ver [`impresora-auto/README.md`](../impresora-auto/README.md)).
 3. Conectar la Rollo; el watcher prende el agente en modo nube.
 4. Cualquier teléfono en `/staff/scan` hace check-in → se encola un label → la Mac imprime.
 5. Admin → **Labels**: editar tamaños de fuente y papel. **Registros** → **Reimprimir label** si hace falta duplicado.
