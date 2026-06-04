@@ -133,10 +133,73 @@ export async function sendPassEmail(
   }
 }
 
-function escapeHtml(s: string): string {
+export function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+export type HtmlEmailParams = {
+  to: string;
+  subject: string;
+  htmlBody: string;
+  textBody?: string;
+};
+
+export async function sendHtmlEmail(
+  params: HtmlEmailParams
+): Promise<{ ok: true; id?: string } | { ok: false; error: string }> {
+  const ses = getSesClient();
+  const from = getFromAddress();
+
+  if (!ses) {
+    return { ok: false, error: "AWS_REGION is not configured" };
+  }
+  if (!from) {
+    return { ok: false, error: "EMAIL_FROM is not configured" };
+  }
+
+  const configurationSet = process.env.SES_CONFIGURATION_SET?.trim();
+
+  try {
+    const result = await ses.send(
+      new SendEmailCommand({
+        Source: from,
+        Destination: { ToAddresses: [params.to] },
+        Message: {
+          Subject: { Data: params.subject, Charset: "UTF-8" },
+          Body: {
+            Html: { Data: params.htmlBody, Charset: "UTF-8" },
+            Text: {
+              Data: params.textBody ?? params.subject,
+              Charset: "UTF-8",
+            },
+          },
+        },
+        ...(configurationSet
+          ? { ConfigurationSetName: configurationSet }
+          : {}),
+      })
+    );
+    return { ok: true, id: result.MessageId };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Failed to send email",
+    };
+  }
+}
+
+/** Reemplaza {{name}}, {{email}}, {{workshop}}, {{eventDate}}, {{venue}} */
+export function renderEmailTemplate(
+  html: string,
+  vars: Record<string, string>
+): string {
+  let out = html;
+  for (const [key, value] of Object.entries(vars)) {
+    out = out.replaceAll(`{{${key}}}`, value);
+  }
+  return out;
 }

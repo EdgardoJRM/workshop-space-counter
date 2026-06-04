@@ -72,10 +72,38 @@ model Registration {
   updatedAt      DateTime           @updatedAt
   pass           Pass?
   checkins       Checkin[]
+  emailLogs      EmailLog[]
 
   @@unique([externalOrderId])
   @@index([workshopDateId])
   @@index([attendeeId])
+}
+
+model EmailTemplate {
+  id         String     @id @default(cuid())
+  name       String
+  subject    String
+  htmlBody   String     @db.Text
+  delayHours Int
+  active     Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  logs       EmailLog[]
+}
+
+model EmailLog {
+  id             String          @id @default(cuid())
+  templateId     String
+  template       EmailTemplate   @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  registrationId String
+  registration   Registration    @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  sentAt         DateTime        @default(now())
+  status         String
+  error          String?
+
+  @@unique([templateId, registrationId])
+  @@index([templateId])
+  @@index([registrationId])
 }
 
 model Pass {

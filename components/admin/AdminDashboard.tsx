@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { SpacesForm } from "@/components/admin/SpacesForm";
 import { RegistrationsPanel } from "@/components/admin/RegistrationsPanel";
+import { DatesPanel } from "@/components/admin/DatesPanel";
+import { WebhookPanel } from "@/components/admin/WebhookPanel";
+import { EmailSequencePanel } from "@/components/admin/EmailSequencePanel";
 import { WORKSHOPS, type WorkshopSlug } from "@/lib/workshop-keys";
 
 const TAB_ORDER: WorkshopSlug[] = [
@@ -11,7 +14,12 @@ const TAB_ORDER: WorkshopSlug[] = [
   "oferta-webinar",
 ];
 
-type AdminView = "spaces" | "registrations";
+type AdminView =
+  | "spaces"
+  | "registrations"
+  | "dates"
+  | "webhook"
+  | "emails";
 
 type SessionInfo = {
   email: string;
@@ -62,29 +70,29 @@ export function AdminDashboard() {
             Salir
           </button>
         </div>
-        <div className="mt-4 flex justify-center gap-2">
-          <button
-            type="button"
-            onClick={() => setView("spaces")}
-            className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-              view === "spaces"
-                ? "bg-brand-slate text-white"
-                : "bg-white text-brand-charcoal"
-            }`}
-          >
-            Cupos
-          </button>
-          <button
-            type="button"
-            onClick={() => setView("registrations")}
-            className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-              view === "registrations"
-                ? "bg-brand-slate text-white"
-                : "bg-white text-brand-charcoal"
-            }`}
-          >
-            Registros
-          </button>
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          {(
+            [
+              ["spaces", "Cupos"],
+              ["registrations", "Registros"],
+              ["dates", "Fechas"],
+              ["webhook", "Webhook"],
+              ["emails", "Emails"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setView(key)}
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+                view === key
+                  ? "bg-brand-slate text-white"
+                  : "bg-white text-brand-charcoal"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
         <div
           className="mt-4 flex flex-wrap justify-center gap-2"
@@ -113,6 +121,9 @@ export function AdminDashboard() {
         </div>
       </div>
 
+      {view === "webhook" && <WebhookPanel />}
+      {view === "emails" && <EmailSequencePanel />}
+
       {TAB_ORDER.map((slug) => (
         <div key={slug} hidden={active !== slug}>
           {active === slug && view === "spaces" && <SpacesForm slug={slug} />}
@@ -121,6 +132,7 @@ export function AdminDashboard() {
               <RegistrationsPanel slug={slug} />
             </div>
           )}
+          {active === slug && view === "dates" && <DatesPanel slug={slug} />}
         </div>
       ))}
 

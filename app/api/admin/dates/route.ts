@@ -87,6 +87,19 @@ export async function POST(request: Request) {
     const isActive =
       typeof body.isActive === "boolean" ? body.isActive : undefined;
 
+    if (isActive === true) {
+      const existing = await prisma.workshopDate.findUnique({
+        where: { id: dateId },
+        select: { workshopId: true },
+      });
+      if (existing) {
+        await prisma.workshopDate.updateMany({
+          where: { workshopId: existing.workshopId, isActive: true },
+          data: { isActive: false },
+        });
+      }
+    }
+
     const updated = await prisma.workshopDate.update({
       where: { id: dateId },
       data: {
