@@ -7,6 +7,8 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { SectionCard } from "@/components/SectionCard";
 import { WorkshopPicker } from "@/components/WorkshopPicker";
 import {
   adminReprintLabel,
@@ -133,8 +135,7 @@ export default function AdminRegistrationsScreen() {
     <ScrollView style={styles.screenPadded} keyboardShouldPersistTaps="handled">
       <WorkshopPicker />
 
-      <View style={[styles.card, { marginBottom: 16 }]}>
-        <Text style={styles.sectionLabel}>Registro manual</Text>
+      <SectionCard icon="person-add-outline" title="Registro manual">
         <Text style={styles.label}>Email</Text>
         <TextInput
           style={styles.input}
@@ -154,10 +155,9 @@ export default function AdminRegistrationsScreen() {
             {busy === "manual" ? "Guardando…" : "Registrar"}
           </Text>
         </Pressable>
-      </View>
+      </SectionCard>
 
-      <View style={[styles.card, { marginBottom: 16 }]}>
-        <Text style={styles.sectionLabel}>Importar CSV</Text>
+      <SectionCard icon="document-text-outline" title="Importar CSV">
         <TextInput
           style={[styles.input, { minHeight: 80, textAlignVertical: "top" }]}
           multiline
@@ -167,15 +167,16 @@ export default function AdminRegistrationsScreen() {
           placeholderTextColor={colors.textSubtle}
         />
         <Pressable
-          style={styles.btnSecondary}
+          style={[styles.btnOutline, { flexDirection: "row", gap: 8, justifyContent: "center" }]}
           onPress={() => void doImport()}
           disabled={busy === "csv"}
         >
-          <Text style={styles.btnSecondaryText}>
-            {busy === "csv" ? "Importando…" : "Importar CSV"}
+          <Ionicons name="cloud-upload-outline" size={20} color={colors.link} />
+          <Text style={[styles.btnOutlineText, { color: colors.link }]}>
+            {busy === "csv" ? "Importando…" : "Importar"}
           </Text>
         </Pressable>
-      </View>
+      </SectionCard>
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 

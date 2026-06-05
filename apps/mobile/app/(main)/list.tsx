@@ -4,13 +4,116 @@ import {
   FlatList,
   Pressable,
   Text,
-  TextInput,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { EmptyState } from "@/components/EmptyState";
+import { SearchField } from "@/components/SearchField";
+import { StatusBadge } from "@/components/StatusBadge";
 import { checkinById, fetchRegistrations, reprintLabel } from "@/lib/api";
 import { getSelectedEventId } from "./index";
 import type { RegistrationRow } from "@/lib/types";
 import { useAppTheme } from "@/lib/useAppTheme";
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
+}
+
+function AttendeeRow({
+  item,
+  onCheckin,
+  onReprint,
+}: {
+  item: RegistrationRow;
+  onCheckin: () => void;
+  onReprint: () => void;
+}) {
+  const { colors, styles } = useAppTheme();
+
+  return (
+    <View
+      style={[
+        styles.rowCard,
+        { borderWidth: 1, borderColor: colors.border, marginBottom: 10 },
+      ]}
+    >
+      <View style={{ flexDirection: "row", gap: 12 }}>
+        <View
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 22,
+            backgroundColor: item.checkedIn
+              ? "rgba(45, 106, 79, 0.15)"
+              : "rgba(255, 201, 7, 0.35)",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {item.checkedIn ? (
+            <Ionicons name="checkmark" size={22} color={colors.success} />
+          ) : (
+            <Text style={{ fontWeight: "700", color: colors.text }}>
+              {initials(item.name || item.email)}
+            </Text>
+          )}
+        </View>
+        <View style={{ flex: 1 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+            }}
+          >
+            <Text style={styles.rowTitle}>{item.name || item.email}</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.textSubtle} />
+          </View>
+          <Text style={styles.rowMeta}>{item.email}</Text>
+          <View style={{ marginTop: 8 }}>
+            <StatusBadge
+              label={item.checkedIn ? "Check-in" : "Pendiente"}
+              variant={item.checkedIn ? "success" : "gold"}
+            />
+          </View>
+        </View>
+      </View>
+
+      <View
+        style={{
+          flexDirection: "row",
+          gap: 8,
+          marginTop: 12,
+          justifyContent: "flex-end",
+          flexWrap: "wrap",
+        }}
+      >
+        {!item.checkedIn ? (
+          <Pressable style={styles.btnOutline} onPress={onCheckin}>
+            <Text style={[styles.btnOutlineText, { color: colors.accent }]}>
+              Check-in manual
+            </Text>
+          </Pressable>
+        ) : null}
+        <Pressable
+          style={{
+            padding: 10,
+            borderRadius: 10,
+            borderWidth: 1,
+            borderColor: colors.border,
+          }}
+          onPress={onReprint}
+        >
+          <Ionicons name="print-outline" size={20} color={colors.textMuted} />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
 
 export default function ListScreen() {
   const { colors, styles } = useAppTheme();
@@ -70,25 +173,32 @@ export default function ListScreen() {
 
   if (!eventId) {
     return (
-      <View style={styles.screenPadded}>
-        <View style={styles.cardFlat}>
-          <Text style={[styles.subtitle, { textAlign: "center" }]}>
-            Selecciona un evento en la pestaña Evento.
-          </Text>
-        </View>
+      <View style={[styles.screenPadded, { justifyContent: "center", flex: 1 }]}>
+        <EmptyState
+          title="Aún no hay nada aquí"
+          message="Selecciona un evento en la pestaña Evento."
+          hintArrowToEvento
+        />
       </View>
     );
   }
 
   return (
     <View style={styles.screenPadded}>
-      <TextInput
-        style={[styles.input, { marginBottom: 12, backgroundColor: colors.surface }]}
-        placeholder="Buscar nombre o email"
-        placeholderTextColor={colors.textSubtle}
-        value={q}
-        onChangeText={setQ}
-      />
+      <SearchField value={q} onChangeText={setQ} />
+
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 12,
+        }}
+      >
+        <Text style={styles.rowMeta}>
+          {rows.length} asistentes · Actualizado ahora
+        </Text>
+      </View>
 
       {msg ? (
         <View
@@ -96,16 +206,13 @@ export default function ListScreen() {
             styles.cardFlat,
             {
               marginBottom: 12,
-              paddingVertical: 10,
               backgroundColor: msg.startsWith("Error")
                 ? "rgba(196, 71, 43, 0.08)"
                 : "rgba(45, 106, 79, 0.08)",
             },
           ]}
         >
-          <Text
-            style={msg.startsWith("Error") ? styles.errorText : styles.okText}
-          >
+          <Text style={msg.startsWith("Error") ? styles.errorText : styles.okText}>
             {msg}
           </Text>
         </View>
@@ -119,50 +226,11 @@ export default function ListScreen() {
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
-            <View style={[styles.rowCard, { borderWidth: 1, borderColor: colors.border }]}>
-              <View style={{ flex: 1, marginBottom: item.checkedIn ? 0 : 10 }}>
-                <Text style={styles.rowTitle}>{item.name}</Text>
-                <Text style={styles.rowMeta}>{item.email}</Text>
-                <View style={{ flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                  <View
-                    style={[
-                      styles.badge,
-                      item.checkedIn ? styles.badgeSuccess : undefined,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.badgeText,
-                        item.checkedIn ? styles.badgeSuccessText : undefined,
-                      ]}
-                    >
-                      {item.checkedIn ? "✓ Check-in" : "Pendiente"}
-                    </Text>
-                  </View>
-                  {item.printStatus ? (
-                    <View style={styles.badge}>
-                      <Text style={styles.badgeText}>{item.printStatus}</Text>
-                    </View>
-                  ) : null}
-                </View>
-              </View>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                {!item.checkedIn && (
-                  <Pressable
-                    style={styles.btnSecondary}
-                    onPress={() => void onCheckin(item)}
-                  >
-                    <Text style={styles.btnSecondaryText}>Check-in</Text>
-                  </Pressable>
-                )}
-                <Pressable
-                  style={styles.btnOutline}
-                  onPress={() => void onReprint(item)}
-                >
-                  <Text style={styles.btnOutlineText}>Label</Text>
-                </Pressable>
-              </View>
-            </View>
+            <AttendeeRow
+              item={item}
+              onCheckin={() => void onCheckin(item)}
+              onReprint={() => void onReprint(item)}
+            />
           )}
           contentContainerStyle={{ paddingBottom: 24 }}
           ListEmptyComponent={

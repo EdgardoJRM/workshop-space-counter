@@ -7,6 +7,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { WorkshopPicker } from "@/components/WorkshopPicker";
 import {
   deleteAdminDate,
@@ -148,11 +149,23 @@ export default function AdminDatesScreen() {
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
       <Pressable
-        style={[styles.btnOutline, { marginBottom: 16, alignSelf: "flex-start" }]}
+        style={[
+          styles.btnPrimary,
+          {
+            marginBottom: 16,
+            alignSelf: "flex-end",
+            paddingHorizontal: 16,
+            paddingVertical: 10,
+            marginTop: 0,
+            flexDirection: "row",
+            gap: 6,
+          },
+        ]}
         onPress={() => setShowCreate(!showCreate)}
       >
-        <Text style={styles.btnOutlineText}>
-          {showCreate ? "Cancelar" : "+ Nueva fecha"}
+        <Ionicons name="add" size={18} color={colors.onAccent} />
+        <Text style={[styles.btnPrimaryText, { fontSize: 14 }]}>
+          {showCreate ? "Cancelar" : "Nueva fecha"}
         </Text>
       </Pressable>
 

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Hernandez Pass",
     "slug": "hernandez-pass",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "hernandezpass",
@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#1a1a1a"
+      "backgroundColor": "#3f5e78"
     },
     "ios": {
       "supportsTablet": true,
@@ -29,7 +29,7 @@
       "package": "com.hernandezmedia.pass",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#1a1a1a"
+        "backgroundColor": "#3f5e78"
       },
       "permissions": [
         "CAMERA",

@@ -5,20 +5,39 @@ import {
   Text,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { InfoBanner } from "@/components/InfoBanner";
+import { StatusBadge } from "@/components/StatusBadge";
 import { printerStatus } from "@/lib/api";
 import { useAppTheme } from "@/lib/useAppTheme";
 
-function Metric({
+function MetricCell({
+  icon,
   label,
   value,
+  valueColor,
 }: {
+  icon: keyof typeof Ionicons.glyphMap;
   label: string;
   value: string | number;
+  valueColor?: string;
 }) {
-  const { styles } = useAppTheme();
+  const { colors, styles } = useAppTheme();
+
   return (
-    <View style={{ flex: 1, minWidth: "45%" }}>
-      <Text style={styles.metricValue}>{value}</Text>
+    <View
+      style={{
+        width: "50%",
+        padding: 16,
+        borderWidth: 1,
+        borderColor: colors.border,
+        alignItems: "center",
+      }}
+    >
+      <Ionicons name={icon} size={22} color={colors.accent} style={{ marginBottom: 8 }} />
+      <Text style={[styles.metricValue, valueColor ? { color: valueColor } : null]}>
+        {value}
+      </Text>
       <Text style={styles.metricLabel}>{label}</Text>
     </View>
   );
@@ -53,47 +72,66 @@ export default function PrinterScreen() {
     return () => clearInterval(id);
   }, [load]);
 
+  function lastSeenLabel(): string {
+    if (!status?.lastPollAt) return "sin datos";
+    const sec = Math.round((Date.now() - new Date(status.lastPollAt).getTime()) / 1000);
+    if (sec < 60) return `hace ${sec} s`;
+    return new Date(status.lastPollAt).toLocaleString("es-PR");
+  }
+
   return (
     <View style={styles.screenPadded}>
-      <Text style={styles.sectionLabel}>Mac del evento</Text>
-      <Text style={styles.title}>Impresora</Text>
-      <Text style={[styles.subtitle, { marginBottom: 20 }]}>
-        Empareja la Mac del evento desde el admin web → Impresora.
-      </Text>
-
       {loading ? (
         <ActivityIndicator color={colors.accent} style={{ marginTop: 32 }} />
       ) : status ? (
         <View style={styles.card}>
           <View
-            style={[
-              styles.badge,
-              status.connected ? styles.badgeSuccess : undefined,
-              { marginBottom: 16 },
-            ]}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 20,
+            }}
           >
-            <Text
-              style={[
-                styles.badgeText,
-                status.connected ? styles.badgeSuccessText : undefined,
-              ]}
-            >
-              {status.connected ? "● Conectada" : "○ Sin conexión reciente"}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <View
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 12,
+                  backgroundColor: "rgba(63, 94, 120, 0.1)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Ionicons name="print" size={28} color={colors.primary} />
+              </View>
+              <View>
+                <StatusBadge
+                  label={status.connected ? "Conectada" : "Desconectada"}
+                  variant={status.connected ? "success" : "muted"}
+                />
+                <Text style={[styles.rowMeta, { marginTop: 6 }]}>
+                  Agente Mac · última vez {lastSeenLabel()}
+                </Text>
+              </View>
+            </View>
+            {status.connected ? (
+              <Ionicons name="wifi" size={22} color={colors.success} />
+            ) : null}
           </View>
 
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 16 }}>
-            <Metric label="Pendientes" value={status.pending} />
-            <Metric label="Procesando" value={status.processing} />
-            <Metric label="Impresos (24h)" value={status.printedLast24h} />
+          <View style={{ flexDirection: "row", flexWrap: "wrap", marginHorizontal: -1 }}>
+            <MetricCell icon="document-text-outline" label="Pendientes" value={status.pending} />
+            <MetricCell icon="sync-outline" label="En proceso" value={status.processing} />
+            <MetricCell icon="print-outline" label="Impresas 24h" value={status.printedLast24h} />
+            <MetricCell
+              icon="checkmark-circle-outline"
+              label="Cola"
+              value="OK"
+              valueColor={colors.success}
+            />
           </View>
-
-          {status.lastPollAt ? (
-            <Text style={[styles.metricLabel, { marginTop: 16 }]}>
-              Último poll:{" "}
-              {new Date(status.lastPollAt).toLocaleString("es-PR")}
-            </Text>
-          ) : null}
         </View>
       ) : (
         <View style={styles.cardFlat}>
@@ -102,11 +140,19 @@ export default function PrinterScreen() {
       )}
 
       <Pressable
-        style={[styles.btnPrimary, { marginTop: 24 }]}
+        style={[
+          styles.btnPrimary,
+          { marginTop: 24, flexDirection: "row", gap: 8, justifyContent: "center" },
+        ]}
         onPress={() => void load()}
       >
-        <Text style={styles.btnPrimaryText}>Actualizar</Text>
+        <Ionicons name="refresh" size={20} color={colors.onAccent} />
+        <Text style={styles.btnPrimaryText}>Actualizar estado</Text>
       </Pressable>
+
+      <InfoBanner>
+        La impresión corre en la Mac del venue con Rollo 3×2.
+      </InfoBanner>
     </View>
   );
 }

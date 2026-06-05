@@ -7,10 +7,12 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { SectionCard } from "@/components/SectionCard";
+import { SyncBanner } from "@/components/InfoBanner";
 import { WorkshopPicker } from "@/components/WorkshopPicker";
 import { fetchSpaces, updateSpaces } from "@/lib/admin-api";
 import { useSession } from "@/lib/session-context";
-import { getWorkshopLabel } from "@/lib/workshops";
 import { useAppTheme } from "@/lib/useAppTheme";
 
 export default function AdminSpacesScreen() {
@@ -41,6 +43,11 @@ export default function AdminSpacesScreen() {
     void load();
   }, [load]);
 
+  function step(delta: number) {
+    const n = Number.parseInt(available, 10) || 0;
+    setAvailable(String(Math.max(0, n + delta)));
+  }
+
   async function save() {
     const n = Number.parseInt(available, 10);
     if (!Number.isInteger(n) || n < 0) {
@@ -51,8 +58,7 @@ export default function AdminSpacesScreen() {
     setError(null);
     setOk(null);
     try {
-      const data = await updateSpaces(workshop, n);
-      setAvailable(String(data.available));
+      await updateSpaces(workshop, n);
       setOk("Cupos actualizados");
       void load();
     } catch (e) {
@@ -65,40 +71,86 @@ export default function AdminSpacesScreen() {
   return (
     <ScrollView style={styles.screenPadded} keyboardShouldPersistTaps="handled">
       <WorkshopPicker />
-      <Text style={styles.title}>{getWorkshopLabel(workshop)}</Text>
-      <Text style={[styles.subtitle, { marginBottom: 16 }]}>
-        Valor que muestra el widget de cupos en ClickFunnels.
-      </Text>
 
       {loading ? (
         <ActivityIndicator color={colors.accent} />
       ) : (
-        <View style={styles.card}>
-          <Text style={styles.label}>Cupos disponibles</Text>
-          <TextInput
-            style={styles.input}
-            keyboardType="number-pad"
-            value={available}
-            onChangeText={setAvailable}
-          />
-          {updatedAt ? (
-            <Text style={[styles.rowMeta, { marginTop: 8 }]}>
-              Actualizado: {new Date(updatedAt).toLocaleString("es-PR")}
-            </Text>
-          ) : null}
+        <SectionCard icon="ticket-outline" title="Espacios disponibles">
+          <Text style={{ fontSize: 48, fontWeight: "700", textAlign: "center", color: colors.text }}>
+            {available || "0"}
+          </Text>
+          <Text style={[styles.rowMeta, { textAlign: "center", marginBottom: 20 }]}>
+            Espacios disponibles (ClickFunnels)
+          </Text>
+
+          <Text style={[styles.label, { marginTop: 0 }]}>Actualizar cupos</Text>
+          <Text style={[styles.subtitle, { marginBottom: 12 }]}>
+            Ajusta la cantidad de espacios disponibles para este taller.
+          </Text>
+
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <Pressable
+              onPress={() => step(-1)}
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: colors.border,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons name="remove" size={22} color={colors.text} />
+            </Pressable>
+            <TextInput
+              style={[styles.input, { flex: 1, textAlign: "center", fontSize: 20, fontWeight: "700" }]}
+              keyboardType="number-pad"
+              value={available}
+              onChangeText={setAvailable}
+            />
+            <Pressable
+              onPress={() => step(1)}
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: colors.border,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons name="add" size={22} color={colors.text} />
+            </Pressable>
+          </View>
+
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
           {ok ? <Text style={styles.okText}>{ok}</Text> : null}
+
           <Pressable
-            style={[styles.btnPrimary, saving && { opacity: 0.7 }]}
+            style={[
+              styles.btnPrimary,
+              { flexDirection: "row", gap: 8, justifyContent: "center" },
+              saving && { opacity: 0.7 },
+            ]}
             onPress={() => void save()}
             disabled={saving}
           >
+            <Ionicons name="save-outline" size={20} color={colors.onAccent} />
             <Text style={styles.btnPrimaryText}>
               {saving ? "Guardando…" : "Guardar cupos"}
             </Text>
           </Pressable>
-        </View>
+        </SectionCard>
       )}
+
+      {updatedAt ? (
+        <SyncBanner
+          label="Última sincronización con ClickFunnels"
+          detail={`Actualizado ${new Date(updatedAt).toLocaleString("es-PR")}`}
+        />
+      ) : null}
     </ScrollView>
   );
 }

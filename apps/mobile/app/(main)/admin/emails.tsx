@@ -7,6 +7,8 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { SectionCard } from "@/components/SectionCard";
 import {
   deleteEmailTemplate,
   fetchEmailTemplates,
@@ -149,13 +151,16 @@ export default function AdminEmailsScreen() {
 
   return (
     <ScrollView style={styles.screenPadded} keyboardShouldPersistTaps="handled">
-      <View style={[styles.card, { marginBottom: 16 }]}>
-        <Text style={styles.sectionLabel}>Nueva plantilla</Text>
+      <SectionCard icon="mail-outline" title="Nueva plantilla">
         <FormFields form={createForm} onChange={setCreateForm} />
-        <Pressable style={styles.btnPrimary} onPress={() => void create()}>
+        <Pressable
+          style={[styles.btnPrimary, { flexDirection: "row", gap: 8, justifyContent: "center" }]}
+          onPress={() => void create()}
+        >
+          <Ionicons name="add" size={20} color={colors.onAccent} />
           <Text style={styles.btnPrimaryText}>Crear plantilla</Text>
         </Pressable>
-      </View>
+      </SectionCard>
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 

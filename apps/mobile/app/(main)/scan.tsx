@@ -1,10 +1,34 @@
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import { EmptyState } from "@/components/EmptyState";
+import { IconCircle } from "@/components/IconCircle";
 import { checkinScan } from "@/lib/api";
 import { getSelectedEventId } from "./index";
 import { useAppTheme } from "@/lib/useAppTheme";
 import { webBrand } from "@/lib/ui";
+
+function ScanCorners({ color }: { color: string }) {
+  const len = 28;
+  const thick = 4;
+  const corner = (pos: object) => ({
+    position: "absolute" as const,
+    width: len,
+    height: len,
+    borderColor: color,
+    ...pos,
+  });
+
+  return (
+    <>
+      <View style={[corner({ top: 0, left: 0 }), { borderTopWidth: thick, borderLeftWidth: thick }]} />
+      <View style={[corner({ top: 0, right: 0 }), { borderTopWidth: thick, borderRightWidth: thick }]} />
+      <View style={[corner({ bottom: 0, left: 0 }), { borderBottomWidth: thick, borderLeftWidth: thick }]} />
+      <View style={[corner({ bottom: 0, right: 0 }), { borderBottomWidth: thick, borderRightWidth: thick }]} />
+    </>
+  );
+}
 
 export default function ScanScreen() {
   const { colors, styles } = useAppTheme();
@@ -25,14 +49,22 @@ export default function ScanScreen() {
   if (!permission.granted) {
     return (
       <View style={styles.centered}>
-        <View style={[styles.card, { width: "100%", maxWidth: 320 }]}>
-          <Text style={[styles.title, { fontSize: 18 }]}>Cámara</Text>
-          <Text style={[styles.subtitle, { marginTop: 8, marginBottom: 16 }]}>
-            Necesitamos acceso a la cámara para escanear códigos QR de check-in.
+        <View style={[styles.card, { width: "100%", maxWidth: 320, alignItems: "center" }]}>
+          <IconCircle name="camera-outline" size={72} variant="gold" />
+          <Text style={[styles.title, { fontSize: 20, marginTop: 16 }]}>Cámara</Text>
+          <Text style={[styles.subtitle, { marginTop: 8, marginBottom: 20, textAlign: "center" }]}>
+            Necesitamos acceso para escanear QR
           </Text>
-          <Pressable style={styles.btnPrimary} onPress={() => void requestPermission()}>
+          <Pressable
+            style={[styles.btnPrimary, { width: "100%", flexDirection: "row", gap: 8 }]}
+            onPress={() => void requestPermission()}
+          >
+            <Ionicons name="camera-outline" size={20} color={colors.onAccent} />
             <Text style={styles.btnPrimaryText}>Permitir cámara</Text>
           </Pressable>
+          <Text style={[styles.rowMeta, { marginTop: 16, textAlign: "center" }]}>
+            Tu privacidad es importante. No almacenamos imágenes ni videos.
+          </Text>
         </View>
       </View>
     );
@@ -40,12 +72,13 @@ export default function ScanScreen() {
 
   if (!eventId) {
     return (
-      <View style={styles.centered}>
-        <View style={styles.cardFlat}>
-          <Text style={[styles.subtitle, { textAlign: "center" }]}>
-            Selecciona un evento en la pestaña Evento.
-          </Text>
-        </View>
+      <View style={[styles.screenPadded, { flex: 1, justifyContent: "center" }]}>
+        <EmptyState
+          title="Aún no hay nada aquí"
+          message="Selecciona un evento en la pestaña Evento."
+          icon="scan-outline"
+          hintArrowToEvento
+        />
       </View>
     );
   }
@@ -69,17 +102,16 @@ export default function ScanScreen() {
               if (token.startsWith("hp:")) token = token.slice(3);
               const res = await checkinScan(token, eventId);
               if (res.ok) {
-                const status =
-                  res.status === "already_checked_in"
-                    ? "Ya registrado"
-                    : "Check-in OK";
+                const name = res.attendeeName ?? "Asistente";
                 setResultOk(true);
                 setResult(
-                  `${status}: ${res.attendeeName}${res.printJobQueued ? " · Label en cola" : ""}`
+                  res.status === "already_checked_in"
+                    ? `${name} — Ya registrado`
+                    : `${name} — Check-in registrado`
                 );
               } else {
                 setResultOk(false);
-                setResult(`Error: ${(res as { error?: string }).error}`);
+                setResult((res as { error?: string }).error ?? "Error");
               }
             } catch (e) {
               setResultOk(false);
@@ -94,31 +126,33 @@ export default function ScanScreen() {
       )}
 
       <View style={scanStyles.dim} pointerEvents="none" />
-      <View style={[scanStyles.frame, { borderColor: colors.accent }]} pointerEvents="none" />
 
-      <View style={scanStyles.bottomHint}>
-        <Text style={scanStyles.hintTitle}>Escanear pase</Text>
-        <Text style={scanStyles.hintSub}>Apunta al código QR del asistente</Text>
+      <View style={scanStyles.topHint} pointerEvents="none">
+        <Text style={scanStyles.topHintText}>Apunta al código QR del pase</Text>
+      </View>
+
+      <View style={[scanStyles.frameWrap, { borderColor: colors.accent }]} pointerEvents="none">
+        <ScanCorners color={colors.accent} />
+        <View style={[scanStyles.scanLine, { backgroundColor: colors.accent }]} />
       </View>
 
       {result ? (
         <View
           style={[
-            scanStyles.banner,
+            scanStyles.toast,
             {
-              borderLeftColor: resultOk ? colors.success : colors.error,
-              backgroundColor: webBrand.white,
+              backgroundColor: resultOk
+                ? "rgba(45, 106, 79, 0.95)"
+                : "rgba(196, 71, 43, 0.95)",
             },
           ]}
         >
-          <Text
-            style={[
-              scanStyles.bannerText,
-              { color: resultOk ? colors.success : colors.error },
-            ]}
-          >
-            {result}
-          </Text>
+          {resultOk ? (
+            <Ionicons name="checkmark-circle" size={22} color={webBrand.white} />
+          ) : (
+            <Ionicons name="alert-circle" size={22} color={webBrand.white} />
+          )}
+          <Text style={scanStyles.toastText}>{result}</Text>
         </View>
       ) : null}
     </View>
@@ -129,57 +163,53 @@ const scanStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
   dim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(34, 32, 34, 0.45)",
+    backgroundColor: "rgba(34, 32, 34, 0.5)",
   },
-  frame: {
+  topHint: {
     position: "absolute",
-    top: "28%",
+    top: 72,
+    alignSelf: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: "rgba(0,0,0,0.55)",
+  },
+  topHintText: {
+    color: webBrand.white,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  frameWrap: {
+    position: "absolute",
+    top: "26%",
     alignSelf: "center",
     width: 260,
     height: 260,
-    borderWidth: 3,
-    borderRadius: 20,
-    backgroundColor: "transparent",
   },
-  bottomHint: {
+  scanLine: {
     position: "absolute",
-    bottom: 40,
-    left: 24,
-    right: 24,
+    top: "50%",
+    left: 8,
+    right: 8,
+    height: 2,
+    opacity: 0.9,
+  },
+  toast: {
+    position: "absolute",
+    bottom: 110,
+    left: 20,
+    right: 20,
+    flexDirection: "row",
     alignItems: "center",
+    gap: 10,
     paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 14,
-    backgroundColor: "rgba(63, 94, 120, 0.92)",
+    paddingHorizontal: 18,
+    borderRadius: 999,
   },
-  hintTitle: {
+  toastText: {
+    flex: 1,
     color: webBrand.white,
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  hintSub: {
-    color: "rgba(255,255,255,0.85)",
-    fontSize: 13,
-    marginTop: 4,
-  },
-  banner: {
-    position: "absolute",
-    top: 56,
-    left: 16,
-    right: 16,
-    padding: 16,
-    borderRadius: 14,
-    borderLeftWidth: 4,
-    shadowColor: webBrand.ink,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  bannerText: {
     fontSize: 15,
     fontWeight: "600",
-    textAlign: "center",
-    lineHeight: 22,
   },
 });
