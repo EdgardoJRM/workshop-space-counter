@@ -1,6 +1,8 @@
 import { Tabs } from "expo-router";
-import { Platform } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import { HeaderLogoButton } from "@/components/HeaderLogoButton";
+import { HeaderLogoutButton } from "@/components/HeaderLogoutButton";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { TabBarIcon, type TabIconName } from "@/components/TabBarIcon";
 import { useSession } from "@/lib/session-context";
 import { useAppTheme } from "@/lib/useAppTheme";
@@ -16,35 +18,50 @@ function tabIcon(name: TabIconName) {
   }) => <TabBarIcon name={name} color={color} focused={focused} />;
 }
 
-export default function MainLayout() {
-  const { colors, brand } = useAppTheme();
-  const { isAdmin, loaded } = useSession();
+function EventsHeader() {
+  const { brand } = useAppTheme();
+  const subtitle =
+    brand.displayName && brand.displayName !== brand.appTitle
+      ? brand.displayName
+      : "Panel de eventos";
 
-  const headerLogo = { headerLeft: () => <HeaderLogoButton /> };
+  return (
+    <ScreenHeader
+      title={brand.appTitle}
+      subtitle={subtitle}
+      right={<HeaderLogoutButton />}
+    />
+  );
+}
+
+function ToolHeader({ title }: { title: string }) {
+  return (
+    <ScreenHeader
+      title={title}
+      left={<HeaderLogoButton />}
+    />
+  );
+}
+
+export default function MainLayout() {
+  const { colors } = useAppTheme();
+  const { isAdmin, loaded } = useSession();
 
   return (
     <Tabs
       screenOptions={{
-        headerStyle: {
-          backgroundColor: colors.header,
-          ...Platform.select({
-            ios: { shadowColor: "transparent" },
-            default: { elevation: 0 },
-          }),
-        },
-        headerTintColor: colors.onHeader,
-        headerTitleStyle: {
-          fontWeight: "700",
-          fontSize: 17,
+        headerShown: true,
+        sceneStyle: {
+          backgroundColor: colors.background,
         },
         tabBarStyle: {
           backgroundColor: webBrand.white,
           borderTopColor: colors.border,
-          borderTopWidth: 1,
-          paddingTop: 8,
-          height: Platform.OS === "ios" ? 88 : 64,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          paddingTop: 6,
+          height: Platform.OS === "ios" ? 84 : 62,
         },
-        tabBarActiveTintColor: colors.accent,
+        tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSubtle,
         tabBarLabelStyle: {
           fontSize: 11,
@@ -55,7 +72,8 @@ export default function MainLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: brand.appTitle,
+          title: "Evento",
+          header: () => <EventsHeader />,
           tabBarLabel: "Evento",
           tabBarIcon: tabIcon("evento"),
         }}
@@ -66,7 +84,7 @@ export default function MainLayout() {
           title: "Escanear",
           tabBarLabel: "Escanear",
           tabBarIcon: tabIcon("scan"),
-          ...headerLogo,
+          header: () => <ToolHeader title="Escanear" />,
         }}
       />
       <Tabs.Screen
@@ -75,7 +93,7 @@ export default function MainLayout() {
           title: "Lista",
           tabBarLabel: "Lista",
           tabBarIcon: tabIcon("list"),
-          ...headerLogo,
+          header: () => <ToolHeader title="Lista" />,
         }}
       />
       <Tabs.Screen
@@ -84,7 +102,7 @@ export default function MainLayout() {
           title: "Impresora",
           tabBarLabel: "Impresora",
           tabBarIcon: tabIcon("printer"),
-          ...headerLogo,
+          header: () => <ToolHeader title="Impresora" />,
         }}
       />
       <Tabs.Screen
@@ -93,7 +111,7 @@ export default function MainLayout() {
           title: "Admin",
           tabBarLabel: "Admin",
           tabBarIcon: tabIcon("admin"),
-          headerLeft: () => <HeaderLogoButton />,
+          header: () => <ToolHeader title="Admin" />,
           href: loaded && isAdmin ? undefined : null,
         }}
       />
