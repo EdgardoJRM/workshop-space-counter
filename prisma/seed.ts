@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { buildDirectPostgresUrl } from "../lib/database-url";
+import { ensureDefaultOrganization } from "../lib/organization";
 import { WORKSHOPS } from "../lib/workshop-keys";
 
 const directUrl = buildDirectPostgresUrl();
@@ -14,10 +15,18 @@ const DEFAULT_CAPACITIES: Record<string, number> = {
 };
 
 async function main() {
+  const org = await ensureDefaultOrganization();
+
   for (const meta of Object.values(WORKSHOPS)) {
     const workshop = await prisma.workshop.upsert({
-      where: { slug: meta.slug },
+      where: {
+        organizationId_slug: {
+          organizationId: org.id,
+          slug: meta.slug,
+        },
+      },
       create: {
+        organizationId: org.id,
         slug: meta.slug,
         label: meta.label,
         active: true,
@@ -50,7 +59,7 @@ async function main() {
     }
   }
 
-  console.log("Seed complete: workshops and default active dates.");
+  console.log(`Seed complete: org=${org.slug}, workshops and dates.`);
 }
 
 main()

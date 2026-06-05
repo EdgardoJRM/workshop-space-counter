@@ -12,5 +12,8 @@ export async function GET() {
     authenticated: true,
     email: session.email,
     roles: session.roles,
+    organizationId: session.organizationId,
+    organizationSlug: session.organizationSlug,
+    orgRole: session.orgRole,
   });
 }

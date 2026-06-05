@@ -22,13 +22,16 @@ export function getWorkshopCalendarDay(date: Date): string {
   }).format(date);
 }
 
-export async function getStaffScanSessions(): Promise<{
+export async function getStaffScanSessions(
+  organizationId: string
+): Promise<{
   todayKey: string;
   sessions: StaffScanSession[];
 }> {
   const todayKey = getWorkshopCalendarDay(new Date());
 
   const dates = await prisma.workshopDate.findMany({
+    where: { workshop: { organizationId } },
     include: {
       workshop: true,
       _count: { select: { registrations: true } },

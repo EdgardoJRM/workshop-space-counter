@@ -11,6 +11,7 @@ CHECK_SECONDS = int(os.environ.get("PRINTER_CHECK_SECONDS", "5"))
 PRINTER_NAME = os.environ.get("PRINTER_NAME", "").strip()
 PORT = os.environ.get("PORT", "3000")
 ENV_FILE = os.path.join(APP_DIR, ".env.local")
+LOG_DIR = os.path.expanduser("~/Library/Logs/Impresora Auto")
 
 
 def load_env_file():
@@ -49,22 +50,26 @@ def printer_exists():
     return bool(default_printer())
 
 
-def agent_script():
-    token = os.environ.get("PRINT_AGENT_TOKEN", "").strip()
-    base = os.environ.get("APP_BASE_URL", "").strip()
-    if token and base:
-        return os.path.join(APP_DIR, "cloud_agent.py")
-    return os.path.join(APP_DIR, "app.py")
+def is_cloud_mode():
+    return bool(
+        os.environ.get("PRINT_AGENT_TOKEN", "").strip()
+        and os.environ.get("APP_BASE_URL", "").strip()
+    )
 
 
-def start_server():
+def start_local_server():
     env = os.environ.copy()
     env["PORT"] = PORT
-    script = agent_script()
-    return subprocess.Popen([PYTHON_BIN, script], cwd=APP_DIR, env=env)
+    env["PYTHONUNBUFFERED"] = "1"
+    script = os.path.join(APP_DIR, "app.py")
+    return subprocess.Popen(
+        [PYTHON_BIN, "-u", script],
+        cwd=APP_DIR,
+        env=env,
+    )
 
 
-def stop_server(process):
+def stop_subprocess(process):
     if process is None or process.poll() is not None:
         return
     process.terminate()
@@ -75,40 +80,93 @@ def stop_server(process):
         process.wait(timeout=5)
 
 
+def run_cloud_watcher():
+    """Modo cloud: un solo proceso, todo el log en server.log."""
+    from cloud_agent import poll_once, run_startup_messages
+
+    print("Printer watcher activo.", flush=True)
+    print("Modo: cloud (cola Hernandez Pass)", flush=True)
+    print(f"Logs: {LOG_DIR}/server.log", flush=True)
+    print(f"Carpeta: {APP_DIR}", flush=True)
+
+    cloud_ready = False
+
+    while True:
+        connected = printer_exists()
+
+        if not connected:
+            if cloud_ready:
+                print("Impresora no disponible. Pausando polling...", flush=True)
+                cloud_ready = False
+            time.sleep(CHECK_SECONDS)
+            continue
+
+        if not cloud_ready:
+            print("Impresora detectada. Conectando con la nube...", flush=True)
+            try:
+                run_startup_messages()
+            except SystemExit:
+                print(
+                    "ERROR: Revisa APP_BASE_URL y PRINT_AGENT_TOKEN en .env.local",
+                    flush=True,
+                )
+                time.sleep(30)
+                continue
+            except Exception as exc:
+                print(f"ERROR al iniciar agente cloud: {exc}", flush=True)
+                time.sleep(30)
+                continue
+            cloud_ready = True
+            print("Agente listo. Esperando check-ins para imprimir.", flush=True)
+
+        poll_once()
+        time.sleep(int(os.environ.get("PRINT_POLL_SECONDS", "3")))
+
+
+def run_local_watcher():
+    local_server = None
+
+    print("Printer watcher activo.", flush=True)
+    print("Modo: local", flush=True)
+    print(f"Puerto: {PORT}", flush=True)
+
+    while True:
+        connected = printer_exists()
+        running = local_server is not None and local_server.poll() is None
+
+        if connected and not running:
+            print("Impresora detectada. Iniciando servidor local...", flush=True)
+            local_server = start_local_server()
+        elif not connected and running:
+            print("Impresora no disponible. Deteniendo servidor...", flush=True)
+            stop_subprocess(local_server)
+            local_server = None
+        elif local_server is not None and local_server.poll() is not None:
+            print("Servidor detenido. Se reiniciara cuando la impresora este disponible.", flush=True)
+            local_server = None
+
+        time.sleep(CHECK_SECONDS)
+
+
 def main():
     load_env_file()
-    server = None
+    if not os.path.exists(ENV_FILE):
+        print(f"AVISO: No existe {ENV_FILE}", flush=True)
 
     def handle_signal(signum, frame):
-        stop_server(server)
         raise SystemExit(0)
 
     signal.signal(signal.SIGTERM, handle_signal)
     signal.signal(signal.SIGINT, handle_signal)
 
-    mode = "cloud" if os.environ.get("PRINT_AGENT_TOKEN") and os.environ.get("APP_BASE_URL") else "local"
-    print("Printer watcher activo.", flush=True)
-    print(f"Modo: {mode}", flush=True)
-    print(f"Puerto (modo local): {PORT}", flush=True)
-
-    while True:
-        connected = printer_exists()
-        running = server is not None and server.poll() is None
-
-        if connected and not running:
-            print("Impresora detectada. Iniciando agente...", flush=True)
-            server = start_server()
-
-        if not connected and running:
-            print("Impresora no disponible. Deteniendo agente...", flush=True)
-            stop_server(server)
-            server = None
-
-        if server is not None and server.poll() is not None:
-            print("Agente detenido. Se reiniciara cuando la impresora este disponible.", flush=True)
-            server = None
-
-        time.sleep(CHECK_SECONDS)
+    if is_cloud_mode():
+        run_cloud_watcher()
+    else:
+        print(
+            "AVISO: Sin APP_BASE_URL + PRINT_AGENT_TOKEN — solo modo local.",
+            flush=True,
+        )
+        run_local_watcher()
 
 
 if __name__ == "__main__":

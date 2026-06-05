@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getDefaultOrganization } from "@/lib/organization";
 import type { WorkshopSlug } from "@/lib/workshop-keys";
 
 export type LabelTemplateConfig = {
@@ -26,10 +27,11 @@ function isMissingTableError(error: unknown): boolean {
 }
 
 export async function getLabelTemplateForWorkshop(
-  workshopSlug?: string | null
+  workshopSlug?: string | null,
+  organizationId?: string
 ): Promise<LabelTemplateConfig> {
   try {
-    return await loadLabelTemplateForWorkshop(workshopSlug);
+    return await loadLabelTemplateForWorkshop(workshopSlug, organizationId);
   } catch (error) {
     if (isMissingTableError(error)) {
       return DEFAULT_LABEL_TEMPLATE;
@@ -39,11 +41,21 @@ export async function getLabelTemplateForWorkshop(
 }
 
 async function loadLabelTemplateForWorkshop(
-  workshopSlug?: string | null
+  workshopSlug?: string | null,
+  organizationId?: string
 ): Promise<LabelTemplateConfig> {
+  const orgId =
+    organizationId ?? (await getDefaultOrganization())?.id ?? null;
+  if (!orgId) return DEFAULT_LABEL_TEMPLATE;
+
   if (workshopSlug) {
     const specific = await prisma.labelTemplate.findUnique({
-      where: { workshopSlug },
+      where: {
+        organizationId_workshopSlug: {
+          organizationId: orgId,
+          workshopSlug,
+        },
+      },
     });
     if (specific) {
       return {
@@ -57,7 +69,7 @@ async function loadLabelTemplateForWorkshop(
   }
 
   const global = await prisma.labelTemplate.findFirst({
-    where: { workshopSlug: null },
+    where: { organizationId: orgId, workshopSlug: null },
   });
   if (global) {
     return {
@@ -74,7 +86,8 @@ async function loadLabelTemplateForWorkshop(
 
 export async function upsertLabelTemplate(
   workshopSlug: WorkshopSlug | null,
-  config: LabelTemplateConfig
+  config: LabelTemplateConfig,
+  organizationId: string
 ) {
   const data = {
     fontLarge: config.fontLarge,
@@ -86,7 +99,7 @@ export async function upsertLabelTemplate(
 
   if (workshopSlug === null) {
     const existing = await prisma.labelTemplate.findFirst({
-      where: { workshopSlug: null },
+      where: { organizationId, workshopSlug: null },
     });
     if (existing) {
       return prisma.labelTemplate.update({
@@ -95,13 +108,22 @@ export async function upsertLabelTemplate(
       });
     }
     return prisma.labelTemplate.create({
-      data: { ...data, workshopSlug: null },
+      data: { organizationId, workshopSlug: null, ...data },
     });
   }
 
   return prisma.labelTemplate.upsert({
-    where: { workshopSlug },
-    create: { ...data, workshopSlug },
+    where: {
+      organizationId_workshopSlug: {
+        organizationId,
+        workshopSlug,
+      },
+    },
+    create: {
+      organizationId,
+      workshopSlug,
+      ...data,
+    },
     update: data,
   });
 }

@@ -2,56 +2,22 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Vercel + Supabase (integración automática) inyecta POSTGRES_PRISMA_URL y POSTGRES_URL_NON_POOLING.
-// Setup manual: usa los mismos nombres o DATABASE_URL + DIRECT_URL (ver scripts npm run db:*).
 datasource db {
   provider  = "postgresql"
   url       = env("POSTGRES_PRISMA_URL")
   directUrl = env("POSTGRES_URL_NON_POOLING")
 }
 
-model Workshop {
-  id          String         @id @default(cuid())
-  slug        String         @unique
-  label       String
-  description String?
-  active      Boolean        @default(true)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  dates       WorkshopDate[]
+enum OrgRole {
+  OWNER
+  ADMIN
+  STAFF
 }
 
-model WorkshopDate {
-  id            String         @id @default(cuid())
-  workshopId    String
-  workshop      Workshop       @relation(fields: [workshopId], references: [id], onDelete: Cascade)
-  title         String?
-  startsAt      DateTime
-  venue         String?
-  mapsUrl       String?
-  capacity      Int            @default(25)
-  soldCount     Int            @default(0)
-  checkedInCount Int           @default(0)
-  isActive      Boolean        @default(true)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  registrations Registration[]
-
-  @@index([workshopId, isActive])
-  @@index([startsAt])
-}
-
-model Attendee {
-  id            String         @id @default(cuid())
-  email         String
-  name          String?
-  phone         String?
-  metadata      Json?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  registrations Registration[]
-
-  @@unique([email])
+enum PlanTier {
+  STARTER
+  EVENT_PRO
+  BUSINESS
 }
 
 enum RegistrationStatus {
@@ -60,26 +26,161 @@ enum RegistrationStatus {
   REFUNDED
 }
 
-model Registration {
-  id             String             @id @default(cuid())
-  attendeeId     String
-  attendee       Attendee           @relation(fields: [attendeeId], references: [id], onDelete: Cascade)
-  workshopDateId String
-  workshopDate   WorkshopDate       @relation(fields: [workshopDateId], references: [id], onDelete: Cascade)
-  externalOrderId String?
-  attendeeName   String?
-  attendeeEmail  String?
-  attendeePhone  String?
-  source         String?
+enum PrintJobStatus {
+  PENDING
+  PROCESSING
+  PRINTED
+  FAILED
+}
+
+enum WebhookEventStatus {
+  RECEIVED
+  PROCESSED
+  FAILED
+  DUPLICATE
+}
+
+model Organization {
+  id                     String   @id @default(cuid())
+  slug                   String   @unique
+  name                   String
+  displayName            String?
+  appTitle               String?
+  logoUrl                String?
+  primaryColor           String?  @default("#1a1a1a")
+  accentColor            String?  @default("#c9a227")
+  supportEmail           String?
+  customDomain           String?
+  plan                   PlanTier @default(STARTER)
+  stripeCustomerId       String?  @unique
+  stripeSubscriptionId   String?  @unique
+  subscriptionStatus     String?
+  clickfunnelsSecret     String?
+  legacyPrintAgentToken  String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  members        OrganizationMember[]
+  workshops      Workshop[]
+  attendees      Attendee[]
+  emailTemplates EmailTemplate[]
+  labelTemplates LabelTemplate[]
+  webhookEvents  WebhookEvent[]
+  printerAgents  PrinterAgent[]
+  pairingCodes   PrinterPairingCode[]
+}
+
+model OrganizationMember {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  role           OrgRole
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, email])
+  @@index([email])
+}
+
+model PrinterAgent {
+  id             String    @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String?
+  tokenHash      String    @unique
+  lastSeenAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId])
+}
+
+model PrinterPairingCode {
+  id             String    @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code           String    @unique
+  expiresAt      DateTime
+  usedAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([organizationId, expiresAt])
+}
+
+model Workshop {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  slug           String
+  label          String
+  description    String?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  dates          WorkshopDate[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+}
+
+model WorkshopDate {
+  id             String   @id @default(cuid())
+  workshopId     String
+  workshop       Workshop @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  title          String?
+  startsAt       DateTime
+  venue          String?
+  mapsUrl        String?
+  capacity       Int      @default(25)
+  soldCount      Int      @default(0)
+  checkedInCount Int      @default(0)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  registrations  Registration[]
+
+  @@index([workshopId, isActive])
+  @@index([startsAt])
+}
+
+model Attendee {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  name           String?
+  phone          String?
   metadata       Json?
-  status         RegistrationStatus @default(CONFIRMED)
-  registeredAt   DateTime           @default(now())
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  pass           Pass?
-  checkins       Checkin[]
-  emailLogs      EmailLog[]
-  printJobs      PrintJob[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  registrations  Registration[]
+
+  @@unique([organizationId, email])
+  @@index([organizationId])
+}
+
+model Registration {
+  id              String             @id @default(cuid())
+  attendeeId      String
+  attendee        Attendee           @relation(fields: [attendeeId], references: [id], onDelete: Cascade)
+  workshopDateId  String
+  workshopDate    WorkshopDate       @relation(fields: [workshopDateId], references: [id], onDelete: Cascade)
+  externalOrderId String?
+  attendeeName    String?
+  attendeeEmail   String?
+  attendeePhone   String?
+  source          String?
+  metadata        Json?
+  status          RegistrationStatus @default(CONFIRMED)
+  registeredAt    DateTime           @default(now())
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  pass            Pass?
+  checkins        Checkin[]
+  emailLogs       EmailLog[]
+  printJobs       PrintJob[]
 
   @@unique([externalOrderId])
   @@index([workshopDateId])
@@ -88,24 +189,28 @@ model Registration {
 }
 
 model EmailTemplate {
-  id         String     @id @default(cuid())
-  name       String
-  subject    String
-  htmlBody   String     @db.Text
-  delayHours Int
-  active     Boolean    @default(true)
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
-  logs       EmailLog[]
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  subject        String
+  htmlBody       String   @db.Text
+  delayHours     Int
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  logs           EmailLog[]
+
+  @@index([organizationId])
 }
 
 model EmailLog {
-  id             String          @id @default(cuid())
+  id             String        @id @default(cuid())
   templateId     String
-  template       EmailTemplate   @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  template       EmailTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   registrationId String
-  registration   Registration    @relation(fields: [registrationId], references: [id], onDelete: Cascade)
-  sentAt         DateTime        @default(now())
+  registration   Registration  @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  sentAt         DateTime      @default(now())
   status         String
   error          String?
 
@@ -138,15 +243,9 @@ model Checkin {
   @@index([registrationId])
 }
 
-enum PrintJobStatus {
-  PENDING
-  PROCESSING
-  PRINTED
-  FAILED
-}
-
 model PrintJob {
   id             String         @id @default(cuid())
+  organizationId String
   registrationId String
   registration   Registration   @relation(fields: [registrationId], references: [id], onDelete: Cascade)
   checkinId      String?        @unique
@@ -160,39 +259,39 @@ model PrintJob {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
-  @@index([status, createdAt])
+  @@index([organizationId, status, createdAt])
   @@index([registrationId])
 }
 
 model LabelTemplate {
-  id           String   @id @default(cuid())
-  workshopSlug String?  @unique
-  fontLarge    Int      @default(160)
-  fontSmall    Int      @default(80)
-  mediaSize    String   @default("3x2")
-  showEmail    Boolean  @default(false)
-  showWorkshop Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-}
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workshopSlug   String?
+  fontLarge      Int      @default(160)
+  fontSmall      Int      @default(80)
+  mediaSize      String   @default("3x2")
+  showEmail      Boolean  @default(false)
+  showWorkshop   Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-enum WebhookEventStatus {
-  RECEIVED
-  PROCESSED
-  FAILED
-  DUPLICATE
+  @@unique([organizationId, workshopSlug])
+  @@index([organizationId])
 }
 
 model WebhookEvent {
-  id          String             @id @default(cuid())
-  provider    String             @default("clickfunnels")
-  externalId  String
-  payload     Json
-  status      WebhookEventStatus @default(RECEIVED)
-  error       String?
-  createdAt   DateTime           @default(now())
-  processedAt DateTime?
+  id             String             @id @default(cuid())
+  organizationId String
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provider       String             @default("clickfunnels")
+  externalId     String
+  payload        Json
+  status         WebhookEventStatus @default(RECEIVED)
+  error          String?
+  createdAt      DateTime           @default(now())
+  processedAt    DateTime?
 
-  @@unique([provider, externalId])
-  @@index([status])
+  @@unique([organizationId, provider, externalId])
+  @@index([organizationId, status])
 }

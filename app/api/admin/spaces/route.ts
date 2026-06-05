@@ -69,7 +69,11 @@ export async function POST(request: Request) {
 
   try {
     if (isDatabaseConfigured()) {
-      const snap = await applyManualAvailable(workshop, raw);
+      const snap = await applyManualAvailable(
+        workshop,
+        raw,
+        auth.organizationId
+      );
       if (snap) {
         return NextResponse.json({
           ok: true,

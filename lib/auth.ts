@@ -1,17 +1,28 @@
 import { timingSafeEqual } from "crypto";
+import { OrgRole } from "@prisma/client";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import {
+  ensureDefaultOrganization,
+  getMemberRole,
+  getOrganizationBySlug,
+  getOrganizationsForEmail,
+  orgRoleToAuthRoles,
+} from "@/lib/organization";
 
 export type AuthRole = "admin" | "staff";
 
 export type SessionPayload = {
   email: string;
   roles: AuthRole[];
+  organizationId: string;
+  organizationSlug: string;
+  orgRole: OrgRole;
 };
 
 const SESSION_COOKIE = "hp_session";
-const SESSION_MAX_AGE_SEC = 60 * 60 * 24 * 7; // 7 días
-const MAGIC_MAX_AGE_SEC = 60 * 15; // 15 min
+const SESSION_MAX_AGE_SEC = 60 * 60 * 24 * 7;
+const MAGIC_MAX_AGE_SEC = 60 * 15;
 
 function getSecret(): Uint8Array | null {
   const s =
@@ -29,28 +40,105 @@ export function parseEmailList(raw: string | undefined): string[] {
     .filter((e) => e.includes("@"));
 }
 
-export function getRolesForEmail(email: string): AuthRole[] {
+export async function resolveAuthForEmailInOrg(
+  email: string,
+  organizationSlug: string
+): Promise<{
+  organizationId: string;
+  organizationSlug: string;
+  orgRole: OrgRole;
+  roles: AuthRole[];
+} | null> {
+  const normalized = email.trim().toLowerCase();
+  const slug = organizationSlug.trim().toLowerCase();
+  const memberships = await getOrganizationsForEmail(normalized);
+  const match = memberships.find((m) => m.slug === slug);
+  if (match) {
+    return {
+      organizationId: match.id,
+      organizationSlug: match.slug,
+      orgRole: match.role,
+      roles: orgRoleToAuthRoles(match.role),
+    };
+  }
+
+  const org = await getOrganizationBySlug(slug);
+  if (!org) return null;
+
+  const roles = getLegacyRolesForEmail(normalized);
+  if (roles.length === 0) return null;
+
+  const defaultOrg = await ensureDefaultOrganization();
+  if (org.id !== defaultOrg.id) return null;
+
+  const orgRole =
+    (await getMemberRole(org.id, normalized)) ??
+    (roles.includes("admin") ? OrgRole.ADMIN : OrgRole.STAFF);
+
+  return {
+    organizationId: org.id,
+    organizationSlug: org.slug,
+    orgRole,
+    roles,
+  };
+}
+
+export async function resolveAuthForEmail(email: string): Promise<{
+  organizationId: string;
+  organizationSlug: string;
+  orgRole: OrgRole;
+  roles: AuthRole[];
+} | null> {
+  const normalized = email.trim().toLowerCase();
+  const memberships = await getOrganizationsForEmail(normalized);
+
+  if (memberships.length > 0) {
+    const primary = memberships[0]!;
+    return {
+      organizationId: primary.id,
+      organizationSlug: primary.slug,
+      orgRole: primary.role,
+      roles: orgRoleToAuthRoles(primary.role),
+    };
+  }
+
+  const roles = getLegacyRolesForEmail(normalized);
+  if (roles.length === 0) return null;
+
+  const org = await ensureDefaultOrganization();
+  const orgRole =
+    (await getMemberRole(org.id, normalized)) ??
+    (roles.includes("admin") ? OrgRole.ADMIN : OrgRole.STAFF);
+
+  return {
+    organizationId: org.id,
+    organizationSlug: org.slug,
+    orgRole,
+    roles,
+  };
+}
+
+function getLegacyRolesForEmail(email: string): AuthRole[] {
   const normalized = email.trim().toLowerCase();
   const roles: AuthRole[] = [];
-
   const adminEmails = parseEmailList(process.env.ADMIN_EMAILS);
   const staffEmails = parseEmailList(process.env.STAFF_EMAILS);
   const legacyAllowed = parseEmailList(process.env.AUTH_ALLOWED_EMAILS);
 
   if (adminEmails.includes(normalized)) roles.push("admin");
   if (staffEmails.includes(normalized)) roles.push("staff");
-
   if (roles.length === 0 && legacyAllowed.includes(normalized)) {
     roles.push("admin", "staff");
   }
-
   return Array.from(new Set(roles));
 }
 
-export function hasRole(
-  session: SessionPayload,
-  role: AuthRole
-): boolean {
+/** @deprecated use resolveAuthForEmail */
+export function getRolesForEmail(email: string): AuthRole[] {
+  return getLegacyRolesForEmail(email);
+}
+
+export function hasRole(session: SessionPayload, role: AuthRole): boolean {
   return session.roles.includes(role);
 }
 
@@ -61,7 +149,8 @@ export function canAccessStaff(session: SessionPayload): boolean {
 export async function createMagicLinkToken(
   email: string,
   intent: AuthRole,
-  nextPath: string
+  nextPath: string,
+  organizationSlug?: string
 ): Promise<string | null> {
   const secret = getSecret();
   if (!secret) return null;
@@ -71,6 +160,7 @@ export async function createMagicLinkToken(
     email: email.trim().toLowerCase(),
     intent,
     next: nextPath,
+    organizationSlug: organizationSlug ?? undefined,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -78,9 +168,12 @@ export async function createMagicLinkToken(
     .sign(secret);
 }
 
-export async function verifyMagicLinkToken(
-  token: string
-): Promise<{ email: string; intent: AuthRole; next: string } | null> {
+export async function verifyMagicLinkToken(token: string): Promise<{
+  email: string;
+  intent: AuthRole;
+  next: string;
+  organizationSlug?: string;
+} | null> {
   const secret = getSecret();
   if (!secret) return null;
   try {
@@ -94,24 +187,30 @@ export async function verifyMagicLinkToken(
         : intent === "staff"
           ? "/staff/scan"
           : "/admin";
+    const organizationSlug =
+      typeof payload.organizationSlug === "string"
+        ? payload.organizationSlug
+        : undefined;
     if (!email) return null;
-    return { email, intent, next };
+    return { email, intent, next, organizationSlug };
   } catch {
     return null;
   }
 }
 
 export async function createSessionToken(
-  email: string,
-  roles: AuthRole[]
+  payload: SessionPayload
 ): Promise<string | null> {
   const secret = getSecret();
-  if (!secret || roles.length === 0) return null;
+  if (!secret || payload.roles.length === 0) return null;
 
   return new SignJWT({
     type: "session",
-    email: email.trim().toLowerCase(),
-    roles,
+    email: payload.email.trim().toLowerCase(),
+    roles: payload.roles,
+    organizationId: payload.organizationId,
+    organizationSlug: payload.organizationSlug,
+    orgRole: payload.orgRole,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -132,8 +231,40 @@ export async function verifySessionToken(
     const roles: AuthRole[] = Array.isArray(rolesRaw)
       ? rolesRaw.filter((r): r is AuthRole => r === "admin" || r === "staff")
       : [];
+    const organizationId =
+      typeof payload.organizationId === "string" ? payload.organizationId : "";
+    const organizationSlug =
+      typeof payload.organizationSlug === "string"
+        ? payload.organizationSlug
+        : "";
+    const orgRole =
+      payload.orgRole === OrgRole.OWNER ||
+      payload.orgRole === OrgRole.ADMIN ||
+      payload.orgRole === OrgRole.STAFF
+        ? payload.orgRole
+        : OrgRole.STAFF;
+
     if (!email || roles.length === 0) return null;
-    return { email, roles };
+
+    if (!organizationId) {
+      const resolved = await resolveAuthForEmail(email);
+      if (!resolved) return null;
+      return {
+        email,
+        roles,
+        organizationId: resolved.organizationId,
+        organizationSlug: resolved.organizationSlug,
+        orgRole: resolved.orgRole,
+      };
+    }
+
+    return {
+      email,
+      roles,
+      organizationId,
+      organizationSlug,
+      orgRole,
+    };
   } catch {
     return null;
   }
@@ -174,7 +305,6 @@ export async function requireStaffSession(): Promise<SessionPayload | null> {
   return session;
 }
 
-/** Compat: APIs que aceptaban ADMIN_TOKEN en body/query siguen funcionando. */
 export function verifyLegacyAdminToken(token: string): boolean {
   const expected = process.env.ADMIN_TOKEN?.trim();
   if (!expected || !token) return false;

@@ -5,28 +5,43 @@ import {
   parseClickFunnelsPayload,
   verifyWebhookSecret,
 } from "@/lib/clickfunnels";
+import { resolveOrganizationForWebhook } from "@/lib/organization";
 import { processClickFunnelsPurchase } from "@/lib/registrations";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const secret = process.env.CLICKFUNNELS_WEBHOOK_SECRET?.trim();
+  if (!isDatabaseConfigured()) {
+    return NextResponse.json(
+      { error: "DATABASE_URL is not configured" },
+      { status: 503 }
+    );
+  }
+
+  const org = await resolveOrganizationForWebhook(request);
+  if (!org) {
+    return NextResponse.json(
+      { error: "Organization not found" },
+      { status: 404 }
+    );
+  }
+
+  const orgRow = await prisma.organization.findUnique({
+    where: { id: org.id },
+  });
+  const secret =
+    orgRow?.clickfunnelsSecret?.trim() ||
+    process.env.CLICKFUNNELS_WEBHOOK_SECRET?.trim();
+
   if (!secret) {
     return NextResponse.json(
-      { error: "CLICKFUNNELS_WEBHOOK_SECRET is not configured" },
+      { error: "Webhook secret is not configured for this organization" },
       { status: 500 }
     );
   }
 
   if (!verifyWebhookSecret(request, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  if (!isDatabaseConfigured()) {
-    return NextResponse.json(
-      { error: "DATABASE_URL is not configured" },
-      { status: 503 }
-    );
   }
 
   let body: unknown;
@@ -46,7 +61,8 @@ export async function POST(request: Request) {
 
   const existingEvent = await prisma.webhookEvent.findUnique({
     where: {
-      provider_externalId: {
+      organizationId_provider_externalId: {
+        organizationId: org.id,
         provider: "clickfunnels",
         externalId: purchase.externalOrderId,
       },
@@ -63,12 +79,14 @@ export async function POST(request: Request) {
 
   const webhookEvent = await prisma.webhookEvent.upsert({
     where: {
-      provider_externalId: {
+      organizationId_provider_externalId: {
+        organizationId: org.id,
         provider: "clickfunnels",
         externalId: purchase.externalOrderId,
       },
     },
     create: {
+      organizationId: org.id,
       provider: "clickfunnels",
       externalId: purchase.externalOrderId,
       payload: purchase.raw as object,

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   createSessionToken,
-  getRolesForEmail,
+  resolveAuthForEmail,
   setSessionCookie,
   verifyMagicLinkToken,
 } from "@/lib/auth";
@@ -21,12 +21,18 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/login?error=invalid_token", request.url));
   }
 
-  const roles = getRolesForEmail(magic.email);
-  if (!roles.includes(magic.intent)) {
+  const resolved = await resolveAuthForEmail(magic.email);
+  if (!resolved || !resolved.roles.includes(magic.intent)) {
     return NextResponse.redirect(new URL("/login?error=not_authorized", request.url));
   }
 
-  const sessionToken = await createSessionToken(magic.email, roles);
+  const sessionToken = await createSessionToken({
+    email: magic.email,
+    roles: resolved.roles,
+    organizationId: resolved.organizationId,
+    organizationSlug: resolved.organizationSlug,
+    orgRole: resolved.orgRole,
+  });
   if (!sessionToken) {
     return NextResponse.redirect(new URL("/login?error=server", request.url));
   }

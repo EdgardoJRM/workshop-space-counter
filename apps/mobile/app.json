@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "Hernandez Pass",
+    "slug": "hernandez-pass",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "hernandezpass",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1a1a1a"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.hernandezmedia.pass",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Hernandez Pass usa la cámara para escanear códigos QR de check-in.",
+        "CFBundleDisplayName": "Hernandez Pass"
+      },
+      "associatedDomains": ["applinks:pass.edgardohernandez.com"]
+    },
+    "android": {
+      "package": "com.hernandezmedia.pass",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1a1a1a"
+      },
+      "permissions": ["CAMERA"]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permite escanear QR de asistentes en el evento."
+        }
+      ]
+    ],
+    "extra": {
+      "apiBaseUrl": "https://pass.edgardohernandez.com",
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "REPLACE_WITH_EAS_PROJECT_ID"
+      }
+    }
+  }
+}

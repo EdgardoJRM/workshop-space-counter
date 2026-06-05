@@ -18,9 +18,13 @@ export async function GET(request: Request) {
 
   const [templates, logs] = await Promise.all([
     prisma.emailTemplate.findMany({
+      where: { organizationId: auth.organizationId },
       orderBy: { delayHours: "asc" },
     }),
     prisma.emailLog.findMany({
+      where: {
+        template: { organizationId: auth.organizationId },
+      },
       orderBy: { sentAt: "desc" },
       take: 50,
       include: {
@@ -101,7 +105,9 @@ export async function POST(request: Request) {
   const action = typeof body.action === "string" ? body.action : null;
 
   if (id && action === "toggle") {
-    const existing = await prisma.emailTemplate.findUnique({ where: { id } });
+    const existing = await prisma.emailTemplate.findFirst({
+      where: { id, organizationId: auth.organizationId },
+    });
     if (!existing) {
       return NextResponse.json({ error: "Template not found" }, { status: 404 });
     }
@@ -130,6 +136,12 @@ export async function POST(request: Request) {
   }
 
   if (id) {
+    const existing = await prisma.emailTemplate.findFirst({
+      where: { id, organizationId: auth.organizationId },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "Template not found" }, { status: 404 });
+    }
     const updated = await prisma.emailTemplate.update({
       where: { id },
       data: {
@@ -145,6 +157,7 @@ export async function POST(request: Request) {
 
   const created = await prisma.emailTemplate.create({
     data: {
+      organizationId: auth.organizationId,
       name,
       subject,
       htmlBody,

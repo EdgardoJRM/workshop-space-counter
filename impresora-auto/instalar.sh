@@ -15,6 +15,9 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 1
 fi
 
+PY_VER=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+echo "Python: $PY_VER"
+
 if ! command -v lpr >/dev/null 2>&1; then
   echo "ERROR: No hay lpr (impresoras). Revisa Ajustes del sistema."
   exit 1
@@ -44,6 +47,7 @@ cat > "$PLIST_PATH" <<EOF
   <key>ProgramArguments</key>
   <array>
     <string>${PYTHON_BIN}</string>
+    <string>-u</string>
     <string>${APP_DIR}/printer_watcher.py</string>
   </array>
   <key>WorkingDirectory</key>

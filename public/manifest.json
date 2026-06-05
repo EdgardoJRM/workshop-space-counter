@@ -1,0 +1,24 @@
+{
+  "name": "Hernandez Pass Staff",
+  "short_name": "HP Staff",
+  "description": "Scanner de check-in para eventos Hernandez Pass",
+  "start_url": "/staff/scan",
+  "display": "standalone",
+  "background_color": "#f8f7f4",
+  "theme_color": "#1a1a1a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

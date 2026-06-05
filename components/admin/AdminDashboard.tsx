@@ -7,6 +7,7 @@ import { DatesPanel } from "@/components/admin/DatesPanel";
 import { WebhookPanel } from "@/components/admin/WebhookPanel";
 import { EmailSequencePanel } from "@/components/admin/EmailSequencePanel";
 import { LabelPanel } from "@/components/admin/LabelPanel";
+import { PrinterPairingPanel } from "@/components/admin/PrinterPairingPanel";
 import { AdminOverview } from "@/components/admin/AdminOverview";
 import {
   ADMIN_NAV,
@@ -191,6 +192,7 @@ export function AdminDashboard() {
           <div className="pb-12">
             {view === "home" && <AdminOverview onNavigate={navigate} />}
 
+            {view === "printer" && <PrinterPairingPanel />}
             {view === "webhook" && <WebhookPanel />}
             {view === "emails" && <EmailSequencePanel />}
 

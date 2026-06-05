@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isStaffAuthenticated } from "@/lib/staff-auth";
+import { requireStaffSession } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/prisma";
 import {
   formatSessionOptionLabel,
@@ -16,12 +16,14 @@ export async function GET() {
     );
   }
 
-  const staffOk = await isStaffAuthenticated();
-  if (!staffOk) {
+  const session = await requireStaffSession();
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { todayKey, sessions } = await getStaffScanSessions();
+  const { todayKey, sessions } = await getStaffScanSessions(
+    session.organizationId
+  );
 
   return NextResponse.json({
     todayKey,

@@ -1,17 +1,9 @@
-export function getPrintAgentToken(): string | null {
-  const token = process.env.PRINT_AGENT_TOKEN?.trim();
-  return token || null;
-}
+import { resolvePrintAgentAuth } from "@/lib/printer-pairing";
 
-export function isPrintAgentAuthorized(request: Request): boolean {
-  const expected = getPrintAgentToken();
-  if (!expected) return false;
+export { resolvePrintAgentAuth };
 
-  const auth = request.headers.get("authorization");
-  if (auth?.startsWith("Bearer ")) {
-    return auth.slice(7).trim() === expected;
-  }
-
-  const header = request.headers.get("x-print-agent-token");
-  return header?.trim() === expected;
+export async function isPrintAgentAuthorized(
+  request: Request
+): Promise<{ organizationId: string } | null> {
+  return resolvePrintAgentAuth(request);
 }

@@ -4,6 +4,7 @@ export type AdminView =
   | "registrations"
   | "dates"
   | "labels"
+  | "printer"
   | "webhook"
   | "emails";
 
@@ -44,6 +45,12 @@ export const ADMIN_NAV: NavItem[] = [
     label: "Labels",
     description: "Plantilla Rollo e impresión en check-in",
     group: "workshop",
+  },
+  {
+    id: "printer",
+    label: "Impresora",
+    description: "Emparejar Mac con la Rollo (código SaaS)",
+    group: "system",
   },
   {
     id: "webhook",

@@ -12,7 +12,17 @@ echo "Edita .env.local (APP_BASE_URL + PRINT_AGENT_TOKEN igual que Vercel) y lue
 echo "  zsh instalar.sh"
 ```
 
-Edita `.env.local`:
+### Opción A — Emparejamiento SaaS (recomendado)
+
+1. En admin web → **Impresora** → Generar código.
+2. En la Mac:
+
+```bash
+zsh emparejar.sh
+zsh instalar.sh
+```
+
+### Opción B — Token manual (legacy)
 
 ```env
 APP_BASE_URL=https://workshop-space-counter.vercel.app

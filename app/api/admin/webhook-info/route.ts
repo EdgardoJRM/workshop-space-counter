@@ -22,11 +22,19 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
+  const { prisma } = await import("@/lib/prisma");
+  const org = await prisma.organization.findUnique({
+    where: { id: auth.organizationId },
+    select: { slug: true, clickfunnelsSecret: true },
+  });
+
   const base = getAppBaseUrl(request);
-  const webhookUrl = `${base}/api/webhooks/clickfunnels`;
+  const orgSlug = org?.slug ?? "hernandez";
+  const webhookUrl = `${base}/api/webhooks/clickfunnels?org=${encodeURIComponent(orgSlug)}`;
   const secretConfigured = Boolean(
-    process.env.CLICKFUNNELS_WEBHOOK_SECRET?.trim()
+    org?.clickfunnelsSecret?.trim() ||
+      process.env.CLICKFUNNELS_WEBHOOK_SECRET?.trim()
   );
 
-  return NextResponse.json({ webhookUrl, secretConfigured });
+  return NextResponse.json({ webhookUrl, secretConfigured, organizationSlug: orgSlug });
 }

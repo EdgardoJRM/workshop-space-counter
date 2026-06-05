@@ -25,10 +25,19 @@ export async function GET(request: Request) {
   const w = url.searchParams.get("w");
   const slug = w && isWorkshopSlug(w) ? w : null;
 
-  const template = await getLabelTemplateForWorkshop(slug);
+  const template = await getLabelTemplateForWorkshop(slug, auth.organizationId);
   const row = slug
-    ? await prisma.labelTemplate.findUnique({ where: { workshopSlug: slug } })
-    : await prisma.labelTemplate.findFirst({ where: { workshopSlug: null } });
+    ? await prisma.labelTemplate.findUnique({
+        where: {
+          organizationId_workshopSlug: {
+            organizationId: auth.organizationId,
+            workshopSlug: slug,
+          },
+        },
+      })
+    : await prisma.labelTemplate.findFirst({
+        where: { organizationId: auth.organizationId, workshopSlug: null },
+      });
 
   return NextResponse.json({
     template,
@@ -86,13 +95,17 @@ export async function POST(request: Request) {
       ? body.mediaSize.trim()
       : DEFAULT_LABEL_TEMPLATE.mediaSize;
 
-  await upsertLabelTemplate(workshopSlug as WorkshopSlug | null, {
-    fontLarge,
-    fontSmall,
-    mediaSize,
-    showEmail: body.showEmail === true,
-    showWorkshop: body.showWorkshop === true,
-  });
+  await upsertLabelTemplate(
+    workshopSlug as WorkshopSlug | null,
+    {
+      fontLarge,
+      fontSmall,
+      mediaSize,
+      showEmail: body.showEmail === true,
+      showWorkshop: body.showWorkshop === true,
+    },
+    auth.organizationId
+  );
 
   return NextResponse.json({ ok: true });
 }

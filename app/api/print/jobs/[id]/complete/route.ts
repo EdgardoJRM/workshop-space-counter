@@ -20,7 +20,8 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
-  if (!isPrintAgentAuthorized(request)) {
+  const agent = await isPrintAgentAuthorized(request);
+  if (!agent) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

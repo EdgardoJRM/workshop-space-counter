@@ -23,7 +23,12 @@ export async function GET(request: Request) {
   const slug = w && isWorkshopSlug(w) ? w : null;
 
   const dates = await prisma.workshopDate.findMany({
-    where: slug ? { workshop: { slug } } : undefined,
+    where: {
+      workshop: {
+        organizationId: auth.organizationId,
+        ...(slug ? { slug } : {}),
+      },
+    },
     orderBy: { startsAt: "asc" },
     include: { workshop: true },
     take: 50,
@@ -123,7 +128,10 @@ export async function POST(request: Request) {
     });
 
     if (isWorkshopSlug(updated.workshop.slug)) {
-      await syncCapacityToRedis(updated.workshop.slug);
+      await syncCapacityToRedis(
+        updated.workshop.slug,
+        auth.organizationId
+      );
     }
 
     return NextResponse.json({ ok: true, date: updated });
@@ -139,7 +147,12 @@ export async function POST(request: Request) {
   }
 
   const workshop = await prisma.workshop.findUnique({
-    where: { slug: workshopSlug },
+    where: {
+      organizationId_slug: {
+        organizationId: auth.organizationId,
+        slug: workshopSlug,
+      },
+    },
   });
   if (!workshop) {
     return NextResponse.json({ error: "Workshop not found" }, { status: 404 });
@@ -176,7 +189,7 @@ export async function POST(request: Request) {
   });
 
   if (created.isActive) {
-    await syncCapacityToRedis(workshopSlug);
+    await syncCapacityToRedis(workshopSlug, auth.organizationId);
   }
 
   return NextResponse.json({ ok: true, date: created });

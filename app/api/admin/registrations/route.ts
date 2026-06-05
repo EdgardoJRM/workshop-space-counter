@@ -25,9 +25,14 @@ export async function GET(request: Request) {
   const workshopSlug =
     workshopRaw && isWorkshopSlug(workshopRaw) ? workshopRaw : null;
 
-  const where = workshopSlug
-    ? { workshopDate: { workshop: { slug: workshopSlug as WorkshopSlug } } }
-    : {};
+  const where = {
+    workshopDate: {
+      workshop: {
+        organizationId: auth.organizationId,
+        ...(workshopSlug ? { slug: workshopSlug as WorkshopSlug } : {}),
+      },
+    },
+  };
 
   try {
     const registrations = await prisma.registration.findMany({

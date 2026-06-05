@@ -87,7 +87,7 @@ def render_label_to_path(payload: dict) -> str:
         return tmp.name
 
 
-def print_image_file(path: str, media_size: str | None = None) -> tuple[bool, str]:
+def print_image_file(path, media_size=None):
     media = media_size or MEDIA_SIZE
     command = ["lpr", "-o", f"media={media}"]
     if PRINTER_NAME:

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   createMagicLinkToken,
-  getRolesForEmail,
+  resolveAuthForEmail,
   type AuthRole,
 } from "@/lib/auth";
 import { sendMagicLinkEmail } from "@/lib/auth-email";
@@ -39,10 +39,9 @@ export async function POST(request: Request) {
   }
 
   const intent = parseIntent(body.intent);
-  const roles = getRolesForEmail(email);
+  const resolved = await resolveAuthForEmail(email);
 
-  if (!roles.includes(intent)) {
-    // No revelar si el email existe
+  if (!resolved || !resolved.roles.includes(intent)) {
     return NextResponse.json({
       ok: true,
       message: "Si tu correo está autorizado, recibirás un enlace en breve.",
@@ -50,7 +49,12 @@ export async function POST(request: Request) {
   }
 
   const nextPath = safeNextPath(body.next, intent);
-  const magicToken = await createMagicLinkToken(email, intent, nextPath);
+  const magicToken = await createMagicLinkToken(
+    email,
+    intent,
+    nextPath,
+    resolved.organizationSlug
+  );
   if (!magicToken) {
     return NextResponse.json(
       { error: "AUTH_JWT_SECRET is not configured" },

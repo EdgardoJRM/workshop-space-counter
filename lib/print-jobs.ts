@@ -66,13 +66,16 @@ export async function createPrintJobForCheckin(
   });
   if (!reg) return { created: false };
 
+  const orgId = reg.workshopDate.workshop.organizationId;
   const template = await getLabelTemplateForWorkshop(
-    reg.workshopDate.workshop.slug
+    reg.workshopDate.workshop.slug,
+    orgId
   );
   const payload = buildPrintPayload(reg, template);
 
   const job = await prisma.printJob.create({
     data: {
+      organizationId: orgId,
       registrationId,
       checkinId,
       trigger: "auto_checkin",
@@ -98,13 +101,16 @@ export async function createManualReprintJob(
     return { ok: false, error: "Registro no encontrado" };
   }
 
+  const orgId = reg.workshopDate.workshop.organizationId;
   const template = await getLabelTemplateForWorkshop(
-    reg.workshopDate.workshop.slug
+    reg.workshopDate.workshop.slug,
+    orgId
   );
   const payload = buildPrintPayload(reg, template);
 
   const job = await prisma.printJob.create({
     data: {
+      organizationId: orgId,
       registrationId,
       checkinId: null,
       trigger: "manual_reprint",
@@ -119,10 +125,11 @@ export async function createManualReprintJob(
 const STALE_PROCESSING_MS = 2 * 60 * 1000;
 
 /** Jobs en PROCESSING sin confirmar (Mac apagada o crash) vuelven a PENDING. */
-export async function releaseStaleProcessingPrintJobs() {
+export async function releaseStaleProcessingPrintJobs(organizationId?: string) {
   const cutoff = new Date(Date.now() - STALE_PROCESSING_MS);
   await prisma.printJob.updateMany({
     where: {
+      ...(organizationId ? { organizationId } : {}),
       status: PrintJobStatus.PROCESSING,
       updatedAt: { lt: cutoff },
     },
@@ -130,23 +137,27 @@ export async function releaseStaleProcessingPrintJobs() {
   });
 }
 
-export async function claimNextPrintJob() {
-  await releaseStaleProcessingPrintJobs();
+export async function claimNextPrintJob(organizationId: string) {
+  await releaseStaleProcessingPrintJobs(organizationId);
 
   const job = await prisma.printJob.findFirst({
-    where: { status: PrintJobStatus.PENDING },
+    where: { organizationId, status: PrintJobStatus.PENDING },
     orderBy: { createdAt: "asc" },
   });
   if (!job) return null;
 
   const updated = await prisma.printJob.updateMany({
-    where: { id: job.id, status: PrintJobStatus.PENDING },
+    where: {
+      id: job.id,
+      organizationId,
+      status: PrintJobStatus.PENDING,
+    },
     data: {
       status: PrintJobStatus.PROCESSING,
       attempts: { increment: 1 },
     },
   });
-  if (updated.count === 0) return claimNextPrintJob();
+  if (updated.count === 0) return claimNextPrintJob(organizationId);
 
   return prisma.printJob.findUnique({ where: { id: job.id } });
 }

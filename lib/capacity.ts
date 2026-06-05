@@ -1,4 +1,5 @@
 import { prisma, isDatabaseConfigured } from "@/lib/prisma";
+import { getDefaultOrganization } from "@/lib/organization";
 import { setSpaces } from "@/lib/redis";
 import {
   DEFAULT_WORKSHOP,
@@ -21,11 +22,18 @@ export function computeAvailable(capacity: number, soldCount: number): number {
 /**
  * Active date = isActive true, future or nearest; prefers soonest upcoming.
  */
-export async function getActiveWorkshopDate(slug: WorkshopSlug) {
+export async function getActiveWorkshopDate(
+  slug: WorkshopSlug,
+  organizationId?: string
+) {
   if (!isDatabaseConfigured()) return null;
 
+  const orgId =
+    organizationId ?? (await getDefaultOrganization())?.id ?? null;
+  if (!orgId) return null;
+
   const workshop = await prisma.workshop.findUnique({
-    where: { slug },
+    where: { organizationId_slug: { organizationId: orgId, slug } },
     include: {
       dates: {
         where: { isActive: true },
@@ -42,11 +50,12 @@ export async function getActiveWorkshopDate(slug: WorkshopSlug) {
 }
 
 export async function getCapacitySnapshot(
-  slug: WorkshopSlug
+  slug: WorkshopSlug,
+  organizationId?: string
 ): Promise<CapacitySnapshot | null> {
   if (!isDatabaseConfigured() || !isWorkshopSlug(slug)) return null;
 
-  const date = await getActiveWorkshopDate(slug);
+  const date = await getActiveWorkshopDate(slug, organizationId);
   if (!date) return null;
 
   const available = computeAvailable(date.capacity, date.soldCount);
@@ -60,19 +69,23 @@ export async function getCapacitySnapshot(
 }
 
 /** Sync computed available to Redis for legacy ClickFunnels widgets. */
-export async function syncCapacityToRedis(slug: WorkshopSlug): Promise<void> {
-  const snap = await getCapacitySnapshot(slug);
+export async function syncCapacityToRedis(
+  slug: WorkshopSlug,
+  organizationId?: string
+): Promise<void> {
+  const snap = await getCapacitySnapshot(slug, organizationId);
   if (!snap) return;
   await setSpaces(snap.available, snap.updatedAt ?? new Date().toISOString(), slug);
 }
 
 export async function applyManualAvailable(
   slug: WorkshopSlug,
-  available: number
+  available: number,
+  organizationId?: string
 ): Promise<CapacitySnapshot | null> {
   if (!isDatabaseConfigured()) return null;
 
-  const date = await getActiveWorkshopDate(slug);
+  const date = await getActiveWorkshopDate(slug, organizationId);
   if (!date) return null;
 
   const soldCount = Math.max(0, date.capacity - available);

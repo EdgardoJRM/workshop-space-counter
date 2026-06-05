@@ -120,9 +120,17 @@ export async function registerAttendee(
   const passUrl = getPassPublicUrl(passToken);
   const sendEmail = input.sendPassEmail !== false;
 
+  const organizationId = workshopDate.workshop.organizationId;
+
   const attendee = await prisma.attendee.upsert({
-    where: { email: input.email },
+    where: {
+      organizationId_email: {
+        organizationId,
+        email: input.email,
+      },
+    },
     create: {
+      organizationId,
       email: input.email,
       name: input.name,
       phone: input.phone,

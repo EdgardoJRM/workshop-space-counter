@@ -14,11 +14,12 @@ export async function GET(request: Request) {
     );
   }
 
-  if (!isPrintAgentAuthorized(request)) {
+  const agent = await isPrintAgentAuthorized(request);
+  if (!agent) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const job = await claimNextPrintJob();
+  const job = await claimNextPrintJob(agent.organizationId);
   if (!job) {
     return NextResponse.json({ job: null });
   }
