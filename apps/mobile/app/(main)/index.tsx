@@ -8,14 +8,14 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router } from "expo-router";
 import { IconCircle } from "@/components/IconCircle";
 import { ProgressBar } from "@/components/ProgressBar";
 import { StatusBadge } from "@/components/StatusBadge";
 import { fetchEvents } from "@/lib/api";
-import { clearSession } from "@/lib/storage";
+import { getEventDisplay } from "@/lib/event-display";
 import type { MobileEvent } from "@/lib/types";
 import { useAppTheme } from "@/lib/useAppTheme";
+import { webBrand } from "@/lib/ui";
 
 const EVENT_KEY = "hp_selected_event";
 
@@ -30,8 +30,12 @@ export async function setSelectedEventId(id: string): Promise<void> {
 function formatEventDate(iso: string): string {
   try {
     return new Date(iso).toLocaleString("es-PR", {
-      dateStyle: "full",
-      timeStyle: "short",
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
     });
   } catch {
     return iso;
@@ -45,47 +49,110 @@ function FeaturedEventCard({
   item: MobileEvent;
   onSelect: () => void;
 }) {
-  const { colors, styles } = useAppTheme();
+  const { colors } = useAppTheme();
+  const display = getEventDisplay(item, formatEventDate);
+  const pct =
+    item.registrationCount > 0
+      ? Math.round((item.checkedInCount / item.registrationCount) * 100)
+      : 0;
 
   return (
     <Pressable
       onPress={onSelect}
-      style={[
-        styles.rowCard,
-        styles.rowCardActive,
-        { borderWidth: 2, padding: 18 },
-      ]}
+      style={({ pressed }) => ({
+        backgroundColor: colors.surface,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderLeftWidth: 4,
+        borderLeftColor: colors.accent,
+        padding: 20,
+        opacity: pressed ? 0.96 : 1,
+        shadowColor: webBrand.ink,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+        elevation: 2,
+      })}
     >
-      <View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
-        <IconCircle name="calendar-outline" variant="gold" size={48} />
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.rowTitle, { fontSize: 17 }]}>{item.label}</Text>
-          <View style={{ flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-            {item.isToday ? <StatusBadge label="Hoy" variant="gold" /> : null}
-            {item.isActive ? <StatusBadge label="Activo" variant="success" /> : null}
-          </View>
-        </View>
+      <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+        {item.isToday ? <StatusBadge label="Hoy" variant="gold" /> : null}
+        {item.isActive ? <StatusBadge label="Activo" variant="success" /> : null}
       </View>
 
-      <Text style={{ fontSize: 28, fontWeight: "700", color: colors.link }}>
-        {item.checkedInCount}
-        <Text style={{ fontSize: 16, fontWeight: "500", color: colors.textMuted }}>
-          {" "}
-          / {item.registrationCount} check-in
+      <Text
+        style={{
+          fontSize: 22,
+          fontWeight: "800",
+          color: colors.text,
+          letterSpacing: -0.4,
+          lineHeight: 28,
+        }}
+      >
+        {display.workshop}
+      </Text>
+
+      {display.session ? (
+        <Text
+          style={{
+            fontSize: 15,
+            fontWeight: "500",
+            color: colors.textMuted,
+            marginTop: 4,
+            lineHeight: 20,
+          }}
+        >
+          {display.session}
         </Text>
-      </Text>
-      <ProgressBar value={item.checkedInCount} max={item.registrationCount} />
+      ) : null}
 
-      <View style={{ marginTop: 14, gap: 6 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Ionicons name="calendar-outline" size={16} color={colors.textMuted} />
-          <Text style={styles.rowMeta}>{formatEventDate(item.startsAt)}</Text>
-        </View>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+          marginTop: 14,
+          paddingTop: 14,
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+        }}
+      >
+        <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+        <Text
+          style={{
+            flex: 1,
+            fontSize: 14,
+            color: colors.textMuted,
+            lineHeight: 20,
+          }}
+        >
+          {display.dateLine}
+        </Text>
       </View>
 
-      <Text style={[styles.link, { marginTop: 12, alignSelf: "flex-end" }]}>
-        Ver detalles ›
-      </Text>
+      <View style={{ marginTop: 18 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "flex-end",
+            marginBottom: 8,
+          }}
+        >
+          <Text style={{ fontSize: 13, fontWeight: "600", color: colors.textSubtle }}>
+            Check-in
+          </Text>
+          <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>
+            {item.checkedInCount}
+            <Text style={{ fontWeight: "500", color: colors.textMuted }}>
+              {" "}
+              de {item.registrationCount}
+            </Text>
+            <Text style={{ fontWeight: "600", color: colors.textSubtle }}> · {pct}%</Text>
+          </Text>
+        </View>
+        <ProgressBar value={item.checkedInCount} max={item.registrationCount} />
+      </View>
     </Pressable>
   );
 }
@@ -99,29 +166,47 @@ function OtherEventRow({
   active: boolean;
   onSelect: () => void;
 }) {
-  const { colors, styles } = useAppTheme();
+  const { colors } = useAppTheme();
+  const display = getEventDisplay(item, formatEventDate);
 
   return (
     <Pressable
       onPress={onSelect}
-      style={[
-        styles.rowCard,
-        {
-          borderWidth: 1,
-          borderColor: active ? colors.accent : colors.border,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 12,
-        },
-      ]}
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 14,
+        backgroundColor: colors.surface,
+        borderRadius: 12,
+        padding: 16,
+        marginBottom: 10,
+        borderWidth: 1,
+        borderColor: active ? colors.accent : colors.border,
+        opacity: pressed ? 0.92 : 1,
+      })}
     >
-      <IconCircle name="calendar-outline" variant="blue" size={40} />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.rowTitle}>{item.label}</Text>
-        <Text style={styles.rowMeta}>{formatEventDate(item.startsAt)}</Text>
+      <IconCircle name="calendar-outline" variant="blue" size={44} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text
+          style={{ fontSize: 16, fontWeight: "700", color: colors.text }}
+          numberOfLines={1}
+        >
+          {display.workshop}
+        </Text>
+        {display.session ? (
+          <Text
+            style={{ fontSize: 13, color: colors.textMuted, marginTop: 2 }}
+            numberOfLines={1}
+          >
+            {display.session}
+          </Text>
+        ) : null}
+        <Text style={{ fontSize: 12, color: colors.textSubtle, marginTop: 4 }} numberOfLines={1}>
+          {display.dateLine}
+        </Text>
       </View>
-      <View style={{ alignItems: "flex-end" }}>
-        <Text style={{ fontSize: 15, fontWeight: "700", color: colors.link }}>
+      <View style={{ alignItems: "flex-end", gap: 4 }}>
+        <Text style={{ fontSize: 14, fontWeight: "700", color: colors.primary }}>
           {item.checkedInCount}/{item.registrationCount}
         </Text>
         <Ionicons name="chevron-forward" size={18} color={colors.textSubtle} />
@@ -157,11 +242,6 @@ export default function EventsScreen() {
     void load();
   }, [load]);
 
-  async function logout() {
-    await clearSession();
-    router.replace("/");
-  }
-
   const active =
     events.find((e) => e.workshopDateId === selectedId) ?? events[0] ?? null;
   const others = events.filter((e) => e.workshopDateId !== active?.workshopDateId);
@@ -175,24 +255,11 @@ export default function EventsScreen() {
   }
 
   return (
-    <ScrollView style={styles.screenPadded} showsVerticalScrollIndicator={false}>
-      <Pressable
-        onPress={() => void logout()}
-        style={[
-          styles.btnOutline,
-          {
-            alignSelf: "flex-start",
-            flexDirection: "row",
-            gap: 6,
-            marginBottom: 16,
-            backgroundColor: colors.surface,
-          },
-        ]}
-      >
-        <Ionicons name="log-out-outline" size={18} color={colors.text} />
-        <Text style={styles.btnOutlineText}>Cerrar sesión</Text>
-      </Pressable>
-
+    <ScrollView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={{ padding: 20, paddingBottom: 32 }}
+      showsVerticalScrollIndicator={false}
+    >
       {active ? (
         <FeaturedEventCard
           item={active}
@@ -211,7 +278,17 @@ export default function EventsScreen() {
 
       {others.length > 0 ? (
         <>
-          <Text style={[styles.title, { fontSize: 18, marginTop: 24, marginBottom: 12 }]}>
+          <Text
+            style={{
+              fontSize: 12,
+              fontWeight: "700",
+              letterSpacing: 1.1,
+              textTransform: "uppercase",
+              color: colors.textSubtle,
+              marginTop: 28,
+              marginBottom: 12,
+            }}
+          >
             Otras fechas
           </Text>
           {others.map((item) => (
