@@ -1,10 +1,12 @@
 import { Tabs } from "expo-router";
 import { Platform } from "react-native";
+import { useSession } from "@/lib/session-context";
 import { useAppTheme } from "@/lib/useAppTheme";
 import { webBrand } from "@/lib/ui";
 
 export default function MainLayout() {
   const { colors, brand } = useAppTheme();
+  const { isAdmin, loaded } = useSession();
 
   return (
     <Tabs
@@ -45,6 +47,14 @@ export default function MainLayout() {
       <Tabs.Screen
         name="printer"
         options={{ title: "Impresora", tabBarLabel: "Impresora" }}
+      />
+      <Tabs.Screen
+        name="admin"
+        options={{
+          title: "Admin",
+          tabBarLabel: "Admin",
+          href: loaded && isAdmin ? undefined : null,
+        }}
       />
     </Tabs>
   );

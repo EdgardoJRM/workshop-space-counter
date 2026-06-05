@@ -18,15 +18,18 @@
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://pass.edgardohernandez.com"
+      },
+      "ios": {
+        "image": "macos-sequoia-15.6-xcode-26.2"
       }
     }
   },
   "submit": {
     "production": {
       "ios": {
-        "appleId": "REPLACE_APPLE_ID",
-        "ascAppId": "REPLACE_ASC_APP_ID",
-        "appleTeamId": "REPLACE_TEAM_ID"
+        "appleId": "enrique@edgardohernandez.com",
+        "ascAppId": "6776896427",
+        "appleTeamId": "XWGK62GV2R"
       }
     }
   }

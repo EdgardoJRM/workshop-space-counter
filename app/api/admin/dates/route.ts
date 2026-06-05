@@ -14,7 +14,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const legacyToken = url.searchParams.get("token");
-  const auth = await assertAdminApiAccess(legacyToken);
+  const auth = await assertAdminApiAccess(legacyToken, request);
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
   }
 
   const legacyToken = typeof body.token === "string" ? body.token : "";
-  const auth = await assertAdminApiAccess(legacyToken || null);
+  const auth = await assertAdminApiAccess(legacyToken || null, request);
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

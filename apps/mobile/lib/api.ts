@@ -45,11 +45,12 @@ export async function fetchOrgBranding(
 
 export async function requestMagicLink(
   email: string,
-  orgSlug: string
+  orgSlug: string,
+  intent: "staff" | "admin" = "staff"
 ): Promise<void> {
   await apiFetch("/api/mobile/auth/magic-link", {
     method: "POST",
-    body: JSON.stringify({ email, orgSlug, intent: "staff" }),
+    body: JSON.stringify({ email, orgSlug, intent }),
   });
 }
 

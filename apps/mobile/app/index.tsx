@@ -64,15 +64,21 @@ export default function LoginScreen() {
     }
   }
 
-  async function onSendLink() {
+  async function onSendLink(intent: "staff" | "admin") {
     setSending(true);
     setError(null);
     setMessage(null);
     try {
       await saveOrgSlug(orgSlug.trim().toLowerCase());
-      await requestMagicLink(email.trim().toLowerCase(), orgSlug.trim().toLowerCase());
+      await requestMagicLink(
+        email.trim().toLowerCase(),
+        orgSlug.trim().toLowerCase(),
+        intent
+      );
       setMessage(
-        "Revisa tu correo y abre el enlace para entrar. Si no abre la app, vuelve aquí después."
+        intent === "admin"
+          ? "Revisa tu correo para entrar como administrador (pestaña Admin en la app)."
+          : "Revisa tu correo y abre el enlace para entrar. Si no abre la app, vuelve aquí después."
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al enviar");
@@ -155,11 +161,21 @@ export default function LoginScreen() {
 
             <Pressable
               style={[styles.btnPrimary, sending && { opacity: 0.7 }]}
-              onPress={() => void onSendLink()}
+              onPress={() => void onSendLink("staff")}
               disabled={sending}
             >
               <Text style={styles.btnPrimaryText}>
-                {sending ? "Enviando…" : "Enviar enlace mágico"}
+                {sending ? "Enviando…" : "Entrar como Staff"}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[styles.btnSecondary, { marginTop: 10 }, sending && { opacity: 0.7 }]}
+              onPress={() => void onSendLink("admin")}
+              disabled={sending}
+            >
+              <Text style={styles.btnSecondaryText}>
+                Entrar como Admin
               </Text>
             </Pressable>
           </View>

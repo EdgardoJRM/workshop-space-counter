@@ -73,10 +73,26 @@ La URL de API en producción ya está en `eas.json` (`EXPO_PUBLIC_API_BASE_URL`)
 ## Login en la app
 
 1. **Código del negocio:** `hernandez` (slug de la org en Supabase).
-2. **Email:** el que registraste en `OrganizationMember` (rol OWNER/ADMIN/STAFF).
-3. **Enlace mágico** por correo → abre la app con `hernandezpass://auth?token=...`.
+2. **Email:** el que registraste en `OrganizationMember`.
+3. **Entrar como Staff** (check-in) o **Entrar como Admin** (configuración completa).
+4. **Enlace mágico** por correo → abre la app con `hernandezpass://auth?token=...`.
 
 Si el correo abre Safari primero, la página en `pass.edgardohernandez.com` redirige a la app automáticamente.
+
+---
+
+## Admin en la app (pestaña Admin)
+
+Misma funcionalidad que el admin web:
+
+- Cupos (widget ClickFunnels)
+- Fechas del taller
+- Registros (manual, CSV, reenviar pase, reimprimir label)
+- Plantilla de labels Rollo
+- Emparejar impresora Mac
+- Webhook ClickFunnels (copiar URL)
+- Emails post-evento
+- Marca / white-label
 
 ---
 

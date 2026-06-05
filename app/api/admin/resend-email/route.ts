@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   }
 
   const legacyToken = typeof body.token === "string" ? body.token : "";
-  const auth = await assertAdminApiAccess(legacyToken || null);
+  const auth = await assertAdminApiAccess(legacyToken || null, request);
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

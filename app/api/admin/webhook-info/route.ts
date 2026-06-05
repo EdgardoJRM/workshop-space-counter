@@ -17,7 +17,7 @@ function getAppBaseUrl(request: Request): string {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const legacyToken = url.searchParams.get("token");
-  const auth = await assertAdminApiAccess(legacyToken);
+  const auth = await assertAdminApiAccess(legacyToken, request);
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
