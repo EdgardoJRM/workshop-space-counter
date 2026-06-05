@@ -198,6 +198,19 @@ export function createUiStyles(c: AppColors) {
       fontSize: 13,
       fontWeight: "600",
     },
+    btnDanger: {
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderWidth: 1.5,
+      borderColor: "#dc2626",
+      alignItems: "center",
+    },
+    btnDangerText: {
+      color: "#dc2626",
+      fontSize: 13,
+      fontWeight: "600",
+    },
     badge: {
       alignSelf: "flex-start",
       paddingHorizontal: 10,

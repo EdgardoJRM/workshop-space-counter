@@ -104,6 +104,17 @@ export async function POST(request: Request) {
   const id = typeof body.id === "string" ? body.id : null;
   const action = typeof body.action === "string" ? body.action : null;
 
+  if (id && action === "delete") {
+    const existing = await prisma.emailTemplate.findFirst({
+      where: { id, organizationId: auth.organizationId },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "Template not found" }, { status: 404 });
+    }
+    await prisma.emailTemplate.delete({ where: { id } });
+    return NextResponse.json({ ok: true });
+  }
+
   if (id && action === "toggle") {
     const existing = await prisma.emailTemplate.findFirst({
       where: { id, organizationId: auth.organizationId },

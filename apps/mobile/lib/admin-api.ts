@@ -65,6 +65,13 @@ export async function saveAdminDate(body: Record<string, unknown>) {
   });
 }
 
+export async function deleteAdminDate(dateId: string) {
+  return adminFetch<{ ok: boolean }>(
+    `/api/admin/dates?id=${encodeURIComponent(dateId)}`,
+    { method: "DELETE" }
+  );
+}
+
 export type AdminRegistrationRow = {
   id: string;
   attendeeName: string | null;
@@ -99,6 +106,23 @@ export async function createManualRegistration(body: {
     "/api/admin/registrations",
     { method: "POST", body: JSON.stringify(body) }
   );
+}
+
+export async function cancelRegistration(registrationId: string) {
+  return adminFetch<{ ok: boolean }>("/api/admin/registrations", {
+    method: "POST",
+    body: JSON.stringify({ action: "cancel", registrationId }),
+  });
+}
+
+export async function updateRegistration(
+  registrationId: string,
+  fields: { name?: string; phone?: string }
+) {
+  return adminFetch<{ ok: boolean }>("/api/admin/registrations", {
+    method: "POST",
+    body: JSON.stringify({ action: "update", registrationId, ...fields }),
+  });
 }
 
 export async function resendPassEmail(registrationId: string) {
@@ -194,6 +218,13 @@ export async function toggleEmailTemplate(id: string) {
   return adminFetch<{ ok: boolean }>("/api/admin/email-templates", {
     method: "POST",
     body: JSON.stringify({ id, action: "toggle" }),
+  });
+}
+
+export async function deleteEmailTemplate(id: string) {
+  return adminFetch<{ ok: boolean }>("/api/admin/email-templates", {
+    method: "POST",
+    body: JSON.stringify({ id, action: "delete" }),
   });
 }
 

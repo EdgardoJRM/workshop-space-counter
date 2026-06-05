@@ -194,3 +194,53 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ ok: true, date: created });
 }
+
+export async function DELETE(request: Request) {
+  if (!isDatabaseConfigured()) {
+    return NextResponse.json(
+      { error: "DATABASE_URL is not configured" },
+      { status: 503 }
+    );
+  }
+
+  const url = new URL(request.url);
+  const auth = await assertAdminApiAccess(url.searchParams.get("token"), request);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  const dateId = url.searchParams.get("id")?.trim();
+  if (!dateId) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 });
+  }
+
+  const existing = await prisma.workshopDate.findFirst({
+    where: {
+      id: dateId,
+      workshop: { organizationId: auth.organizationId },
+    },
+    include: { workshop: true },
+  });
+
+  if (!existing) {
+    return NextResponse.json({ error: "Date not found" }, { status: 404 });
+  }
+
+  if (existing.soldCount > 0 || existing.checkedInCount > 0) {
+    return NextResponse.json(
+      {
+        error:
+          "No se puede eliminar una fecha con registros o check-ins. Cancela registros primero.",
+      },
+      { status: 409 }
+    );
+  }
+
+  await prisma.workshopDate.delete({ where: { id: dateId } });
+
+  if (existing.isActive && isWorkshopSlug(existing.workshop.slug)) {
+    await syncCapacityToRedis(existing.workshop.slug, auth.organizationId);
+  }
+
+  return NextResponse.json({ ok: true });
+}

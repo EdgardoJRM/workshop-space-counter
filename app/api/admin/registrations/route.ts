@@ -150,6 +150,8 @@ function mapRegistrationRow(
 
 type ManualPostBody = {
   token?: unknown;
+  action?: unknown;
+  registrationId?: unknown;
   workshop?: unknown;
   email?: unknown;
   name?: unknown;
@@ -177,6 +179,68 @@ export async function POST(request: Request) {
   const auth = await assertAdminApiAccess(legacyToken || null, request);
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  const action = typeof body.action === "string" ? body.action : null;
+  const registrationId =
+    typeof body.registrationId === "string" ? body.registrationId.trim() : "";
+
+  if (registrationId && action === "cancel") {
+    const reg = await prisma.registration.findFirst({
+      where: {
+        id: registrationId,
+        workshopDate: {
+          workshop: { organizationId: auth.organizationId },
+        },
+      },
+    });
+    if (!reg) {
+      return NextResponse.json({ error: "Registration not found" }, { status: 404 });
+    }
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: { status: "CANCELLED" },
+    });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (registrationId && action === "update") {
+    const name =
+      typeof body.name === "string" && body.name.trim() ? body.name.trim() : undefined;
+    const phone =
+      typeof body.phone === "string" ? body.phone.trim() || null : undefined;
+
+    const reg = await prisma.registration.findFirst({
+      where: {
+        id: registrationId,
+        workshopDate: {
+          workshop: { organizationId: auth.organizationId },
+        },
+      },
+    });
+    if (!reg) {
+      return NextResponse.json({ error: "Registration not found" }, { status: 404 });
+    }
+
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: {
+        ...(name !== undefined ? { attendeeName: name } : {}),
+        ...(phone !== undefined ? { attendeePhone: phone } : {}),
+      },
+    });
+
+    if (name !== undefined || phone !== undefined) {
+      await prisma.attendee.update({
+        where: { id: reg.attendeeId },
+        data: {
+          ...(name !== undefined ? { name } : {}),
+          ...(phone !== undefined ? { phone } : {}),
+        },
+      });
+    }
+
+    return NextResponse.json({ ok: true });
   }
 
   const workshopSlug =
