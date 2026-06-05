@@ -44,7 +44,9 @@
         {
           "cameraPermission": "Permite escanear QR de asistentes en el evento."
         }
-      ]
+      ],
+      "expo-asset",
+      "expo-font"
     ],
     "extra": {
       "apiBaseUrl": "https://pass.edgardohernandez.com",
