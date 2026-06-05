@@ -12,18 +12,12 @@
       }
     },
     "preview": {
-      "distribution": "internal",
-      "ios": {
-        "bundleIdentifier": "com.hernandezmedia.pass"
-      }
+      "distribution": "internal"
     },
     "production": {
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://pass.edgardohernandez.com"
-      },
-      "ios": {
-        "bundleIdentifier": "com.hernandezmedia.pass"
       }
     }
   },

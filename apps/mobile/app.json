@@ -18,9 +18,12 @@
       "bundleIdentifier": "com.hernandezmedia.pass",
       "infoPlist": {
         "NSCameraUsageDescription": "Hernandez Pass usa la cámara para escanear códigos QR de check-in.",
-        "CFBundleDisplayName": "Hernandez Pass"
+        "CFBundleDisplayName": "Hernandez Pass",
+        "ITSAppUsesNonExemptEncryption": false
       },
-      "associatedDomains": ["applinks:pass.edgardohernandez.com"]
+      "associatedDomains": [
+        "applinks:pass.edgardohernandez.com"
+      ]
     },
     "android": {
       "package": "com.hernandezmedia.pass",
@@ -28,7 +31,11 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1a1a1a"
       },
-      "permissions": ["CAMERA"]
+      "permissions": [
+        "CAMERA",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -45,8 +52,9 @@
         "origin": false
       },
       "eas": {
-        "projectId": "REPLACE_WITH_EAS_PROJECT_ID"
+        "projectId": "754886e0-385c-4424-b925-ee40d4565009"
       }
-    }
+    },
+    "owner": "gardin12"
   }
 }
