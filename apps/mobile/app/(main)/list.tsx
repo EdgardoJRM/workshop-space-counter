@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   FlatList,
   Pressable,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -11,10 +10,10 @@ import {
 import { checkinById, fetchRegistrations, reprintLabel } from "@/lib/api";
 import { getSelectedEventId } from "./index";
 import type { RegistrationRow } from "@/lib/types";
-import { useBrand } from "@/lib/theme";
+import { useAppTheme } from "@/lib/useAppTheme";
 
 export default function ListScreen() {
-  const { brand } = useBrand();
+  const { colors, styles } = useAppTheme();
   const [eventId, setEventId] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<RegistrationRow[]>([]);
@@ -69,77 +68,110 @@ export default function ListScreen() {
     }
   }
 
+  if (!eventId) {
+    return (
+      <View style={styles.screenPadded}>
+        <View style={styles.cardFlat}>
+          <Text style={[styles.subtitle, { textAlign: "center" }]}>
+            Selecciona un evento en la pestaña Evento.
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <View style={styles.container}>
+    <View style={styles.screenPadded}>
       <TextInput
-        style={styles.search}
+        style={[styles.input, { marginBottom: 12, backgroundColor: colors.surface }]}
         placeholder="Buscar nombre o email"
+        placeholderTextColor={colors.textSubtle}
         value={q}
         onChangeText={setQ}
       />
-      {msg && <Text style={styles.msg}>{msg}</Text>}
+
+      {msg ? (
+        <View
+          style={[
+            styles.cardFlat,
+            {
+              marginBottom: 12,
+              paddingVertical: 10,
+              backgroundColor: msg.startsWith("Error")
+                ? "rgba(196, 71, 43, 0.08)"
+                : "rgba(45, 106, 79, 0.08)",
+            },
+          ]}
+        >
+          <Text
+            style={msg.startsWith("Error") ? styles.errorText : styles.okText}
+          >
+            {msg}
+          </Text>
+        </View>
+      ) : null}
+
       {loading ? (
-        <ActivityIndicator color={brand.accentColor} style={{ marginTop: 24 }} />
+        <ActivityIndicator color={colors.accent} style={{ marginTop: 32 }} />
       ) : (
         <FlatList
           data={rows}
           keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
-            <View style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.name}>{item.name}</Text>
-                <Text style={styles.email}>{item.email}</Text>
-                <Text style={styles.meta}>
-                  {item.checkedIn ? "✓ Check-in" : "Pendiente"}
-                  {item.printStatus ? ` · ${item.printStatus}` : ""}
-                </Text>
+            <View style={[styles.rowCard, { borderWidth: 1, borderColor: colors.border }]}>
+              <View style={{ flex: 1, marginBottom: item.checkedIn ? 0 : 10 }}>
+                <Text style={styles.rowTitle}>{item.name}</Text>
+                <Text style={styles.rowMeta}>{item.email}</Text>
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                  <View
+                    style={[
+                      styles.badge,
+                      item.checkedIn ? styles.badgeSuccess : undefined,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.badgeText,
+                        item.checkedIn ? styles.badgeSuccessText : undefined,
+                      ]}
+                    >
+                      {item.checkedIn ? "✓ Check-in" : "Pendiente"}
+                    </Text>
+                  </View>
+                  {item.printStatus ? (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{item.printStatus}</Text>
+                    </View>
+                  ) : null}
+                </View>
               </View>
-              {!item.checkedIn && (
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                {!item.checkedIn && (
+                  <Pressable
+                    style={styles.btnSecondary}
+                    onPress={() => void onCheckin(item)}
+                  >
+                    <Text style={styles.btnSecondaryText}>Check-in</Text>
+                  </Pressable>
+                )}
                 <Pressable
-                  style={[styles.btn, { backgroundColor: brand.primaryColor }]}
-                  onPress={() => void onCheckin(item)}
+                  style={styles.btnOutline}
+                  onPress={() => void onReprint(item)}
                 >
-                  <Text style={styles.btnText}>Check-in</Text>
+                  <Text style={styles.btnOutlineText}>Label</Text>
                 </Pressable>
-              )}
-              <Pressable
-                style={[styles.btn, { backgroundColor: brand.accentColor }]}
-                onPress={() => void onReprint(item)}
-              >
-                <Text style={styles.btnTextDark}>Label</Text>
-              </Pressable>
+              </View>
             </View>
           )}
+          contentContainerStyle={{ paddingBottom: 24 }}
+          ListEmptyComponent={
+            <Text style={[styles.subtitle, { textAlign: "center", marginTop: 24 }]}>
+              Sin resultados.
+            </Text>
+          }
         />
       )}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 12, backgroundColor: "#f5f5f2" },
-  search: {
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "#ddd",
-  },
-  msg: { fontSize: 13, color: "#0a7a32", marginBottom: 8 },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "#fff",
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 8,
-  },
-  name: { fontSize: 15, fontWeight: "600" },
-  email: { fontSize: 12, color: "#666" },
-  meta: { fontSize: 11, color: "#888", marginTop: 2 },
-  btn: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8 },
-  btnText: { color: "#fff", fontSize: 12, fontWeight: "600" },
-  btnTextDark: { color: "#111", fontSize: 12, fontWeight: "600" },
-});

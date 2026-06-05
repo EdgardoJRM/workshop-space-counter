@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { exchangeMagicToken } from "@/lib/api";
 import { saveSession } from "@/lib/storage";
 import { useBrand } from "@/lib/theme";
+import { useAppTheme } from "@/lib/useAppTheme";
 
 export default function AuthDeepLinkScreen() {
   const { token } = useLocalSearchParams<{ token?: string }>();
   const { setBrand } = useBrand();
+  const { colors, styles } = useAppTheme();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -29,33 +31,25 @@ export default function AuthDeepLinkScreen() {
   }, [token]);
 
   return (
-    <View style={styles.centered}>
+    <View style={[styles.centered, { backgroundColor: colors.header }]}>
       {!error ? (
         <>
-          <ActivityIndicator size="large" />
-          <Text style={styles.text}>Entrando…</Text>
-        </>
-      ) : (
-        <>
-          <Text style={styles.error}>{error}</Text>
-          <Text style={styles.link} onPress={() => router.replace("/")}>
-            Volver al login
+          <ActivityIndicator size="large" color={colors.accent} />
+          <Text style={{ fontSize: 16, color: colors.onHeader, marginTop: 16 }}>
+            Entrando…
           </Text>
         </>
+      ) : (
+        <View style={[styles.card, { width: "100%", maxWidth: 340 }]}>
+          <Text style={[styles.errorText, { textAlign: "center" }]}>{error}</Text>
+          <Pressable
+            style={[styles.btnPrimary, { marginTop: 16 }]}
+            onPress={() => router.replace("/")}
+          >
+            <Text style={styles.btnPrimaryText}>Volver al login</Text>
+          </Pressable>
+        </View>
       )}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-    gap: 12,
-  },
-  text: { fontSize: 16, color: "#333" },
-  error: { fontSize: 16, color: "#b00020", textAlign: "center" },
-  link: { fontSize: 16, color: "#0066cc", marginTop: 8 },
-});

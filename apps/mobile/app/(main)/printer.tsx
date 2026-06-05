@@ -2,15 +2,30 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
-  StyleSheet,
   Text,
   View,
 } from "react-native";
 import { printerStatus } from "@/lib/api";
-import { useBrand } from "@/lib/theme";
+import { useAppTheme } from "@/lib/useAppTheme";
+
+function Metric({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  const { styles } = useAppTheme();
+  return (
+    <View style={{ flex: 1, minWidth: "45%" }}>
+      <Text style={styles.metricValue}>{value}</Text>
+      <Text style={styles.metricLabel}>{label}</Text>
+    </View>
+  );
+}
 
 export default function PrinterScreen() {
-  const { brand } = useBrand();
+  const { colors, styles } = useAppTheme();
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<{
     connected: boolean;
@@ -39,60 +54,59 @@ export default function PrinterScreen() {
   }, [load]);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Impresora Mac</Text>
-      <Text style={styles.sub}>
+    <View style={styles.screenPadded}>
+      <Text style={styles.sectionLabel}>Mac del evento</Text>
+      <Text style={styles.title}>Impresora</Text>
+      <Text style={[styles.subtitle, { marginBottom: 20 }]}>
         Empareja la Mac del evento desde el admin web → Impresora.
       </Text>
 
       {loading ? (
-        <ActivityIndicator color={brand.accentColor} style={{ marginTop: 24 }} />
+        <ActivityIndicator color={colors.accent} style={{ marginTop: 32 }} />
       ) : status ? (
         <View style={styles.card}>
-          <Text style={styles.status}>
-            {status.connected ? "● Conectada" : "○ Sin conexión reciente"}
-          </Text>
-          <Text style={styles.line}>Pendientes: {status.pending}</Text>
-          <Text style={styles.line}>Procesando: {status.processing}</Text>
-          <Text style={styles.line}>Impresos (24h): {status.printedLast24h}</Text>
-          {status.lastPollAt && (
-            <Text style={styles.muted}>
-              Último poll: {new Date(status.lastPollAt).toLocaleString("es-PR")}
+          <View
+            style={[
+              styles.badge,
+              status.connected ? styles.badgeSuccess : undefined,
+              { marginBottom: 16 },
+            ]}
+          >
+            <Text
+              style={[
+                styles.badgeText,
+                status.connected ? styles.badgeSuccessText : undefined,
+              ]}
+            >
+              {status.connected ? "● Conectada" : "○ Sin conexión reciente"}
             </Text>
-          )}
+          </View>
+
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 16 }}>
+            <Metric label="Pendientes" value={status.pending} />
+            <Metric label="Procesando" value={status.processing} />
+            <Metric label="Impresos (24h)" value={status.printedLast24h} />
+          </View>
+
+          {status.lastPollAt ? (
+            <Text style={[styles.metricLabel, { marginTop: 16 }]}>
+              Último poll:{" "}
+              {new Date(status.lastPollAt).toLocaleString("es-PR")}
+            </Text>
+          ) : null}
         </View>
       ) : (
-        <Text style={styles.muted}>No se pudo cargar el estado.</Text>
+        <View style={styles.cardFlat}>
+          <Text style={styles.subtitle}>No se pudo cargar el estado.</Text>
+        </View>
       )}
 
       <Pressable
-        style={[styles.button, { backgroundColor: brand.accentColor }]}
+        style={[styles.btnPrimary, { marginTop: 24 }]}
         onPress={() => void load()}
       >
-        <Text style={styles.buttonText}>Actualizar</Text>
+        <Text style={styles.btnPrimaryText}>Actualizar</Text>
       </Pressable>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: "#f5f5f2" },
-  title: { fontSize: 20, fontWeight: "700" },
-  sub: { fontSize: 13, color: "#666", marginTop: 4, marginBottom: 16 },
-  card: {
-    backgroundColor: "#fff",
-    padding: 16,
-    borderRadius: 12,
-    gap: 8,
-  },
-  status: { fontSize: 18, fontWeight: "700" },
-  line: { fontSize: 15 },
-  muted: { fontSize: 12, color: "#888", marginTop: 8 },
-  button: {
-    marginTop: 20,
-    padding: 14,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  buttonText: { fontWeight: "700", color: "#111" },
-});

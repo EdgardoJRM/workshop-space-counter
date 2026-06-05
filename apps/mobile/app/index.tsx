@@ -4,7 +4,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  StyleSheet,
+  ScrollView,
   Text,
   TextInput,
   View,
@@ -13,9 +13,11 @@ import { router } from "expo-router";
 import { bootstrap, fetchOrgBranding, requestMagicLink } from "@/lib/api";
 import { getAccessToken, getOrgSlug, saveOrgSlug } from "@/lib/storage";
 import { useBrand } from "@/lib/theme";
+import { useAppTheme } from "@/lib/useAppTheme";
 
 export default function LoginScreen() {
   const { brand, setBrand } = useBrand();
+  const { colors, styles } = useAppTheme();
   const [orgSlug, setOrgSlug] = useState("hernandez");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(true);
@@ -56,6 +58,7 @@ export default function LoginScreen() {
       setBrand(org);
       await saveOrgSlug(org.slug);
       setOrgSlug(org.slug);
+      setError(null);
     } catch {
       setError("Negocio no encontrado");
     }
@@ -81,83 +84,99 @@ export default function LoginScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={brand.accentColor} />
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: brand.primaryColor }]}
+      style={{ flex: 1, backgroundColor: colors.header }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View style={styles.card}>
-        <Text style={styles.title}>{brand.appTitle}</Text>
-        <Text style={styles.subtitle}>Check-in para tu evento</Text>
-
-        <Text style={styles.label}>Código del negocio</Text>
-        <TextInput
-          style={styles.input}
-          autoCapitalize="none"
-          value={orgSlug}
-          onChangeText={setOrgSlug}
-          onBlur={() => void onPreviewOrg(orgSlug)}
-          placeholder="ej. hernandez"
-        />
-
-        <Text style={styles.label}>Tu email (staff)</Text>
-        <TextInput
-          style={styles.input}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          value={email}
-          onChangeText={setEmail}
-          placeholder="tu@correo.com"
-        />
-
-        {error && <Text style={styles.error}>{error}</Text>}
-        {message && <Text style={styles.ok}>{message}</Text>}
-
-        <Pressable
-          style={[styles.button, { backgroundColor: brand.accentColor }]}
-          onPress={() => void onSendLink()}
-          disabled={sending}
-        >
-          <Text style={styles.buttonText}>
-            {sending ? "Enviando…" : "Enviar enlace mágico"}
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ flexGrow: 1 }}
+        bounces={false}
+      >
+        <View style={styles.hero}>
+          <Text style={styles.heroKicker}>Staff · Check-in</Text>
+          <Text style={styles.heroTitle}>{brand.appTitle}</Text>
+          <Text style={styles.heroSubtitle}>
+            {brand.displayName || brand.name}
+            {"\n"}Acceso solo para personal autorizado del evento.
           </Text>
-        </Pressable>
-      </View>
+        </View>
+
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: colors.background,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            marginTop: -16,
+            paddingHorizontal: 20,
+            paddingTop: 28,
+            paddingBottom: 32,
+          }}
+        >
+          <View style={styles.card}>
+            <Text style={styles.sectionLabel}>Iniciar sesión</Text>
+            <Text style={[styles.subtitle, { marginBottom: 4 }]}>
+              Check-in para tu evento
+            </Text>
+
+            <Text style={styles.label}>Código del negocio</Text>
+            <TextInput
+              style={styles.input}
+              autoCapitalize="none"
+              autoCorrect={false}
+              value={orgSlug}
+              onChangeText={setOrgSlug}
+              onBlur={() => void onPreviewOrg(orgSlug)}
+              placeholder="ej. hernandez"
+              placeholderTextColor={colors.textSubtle}
+            />
+
+            <Text style={styles.label}>Tu email (staff)</Text>
+            <TextInput
+              style={styles.input}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="tu@correo.com"
+              placeholderTextColor={colors.textSubtle}
+            />
+
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            {message ? <Text style={styles.okText}>{message}</Text> : null}
+
+            <Pressable
+              style={[styles.btnPrimary, sending && { opacity: 0.7 }]}
+              onPress={() => void onSendLink()}
+              disabled={sending}
+            >
+              <Text style={styles.btnPrimaryText}>
+                {sending ? "Enviando…" : "Enviar enlace mágico"}
+              </Text>
+            </Pressable>
+          </View>
+
+          <Text
+            style={{
+              textAlign: "center",
+              fontSize: 12,
+              color: colors.textSubtle,
+              marginTop: 20,
+              lineHeight: 18,
+            }}
+          >
+            pass.edgardohernandez.com
+          </Text>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
-  container: { flex: 1, justifyContent: "center", padding: 24 },
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 24,
-    gap: 8,
-  },
-  title: { fontSize: 26, fontWeight: "700", color: "#111" },
-  subtitle: { fontSize: 14, color: "#666", marginBottom: 12 },
-  label: { fontSize: 12, fontWeight: "600", color: "#444", marginTop: 8 },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 10,
-    padding: 12,
-    fontSize: 16,
-  },
-  button: {
-    marginTop: 16,
-    padding: 14,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  buttonText: { color: "#111", fontWeight: "700", fontSize: 16 },
-  error: { color: "#b00020", fontSize: 13 },
-  ok: { color: "#0a7a32", fontSize: 13 },
-});

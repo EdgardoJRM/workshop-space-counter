@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { checkinScan } from "@/lib/api";
 import { getSelectedEventId } from "./index";
-import { useBrand } from "@/lib/theme";
+import { useAppTheme } from "@/lib/useAppTheme";
+import { webBrand } from "@/lib/ui";
 
 export default function ScanScreen() {
-  const { brand } = useBrand();
+  const { colors, styles } = useAppTheme();
   const [permission, requestPermission] = useCameraPermissions();
   const [eventId, setEventId] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
+  const [resultOk, setResultOk] = useState(true);
   const [scanning, setScanning] = useState(true);
 
   useEffect(() => {
@@ -17,16 +19,21 @@ export default function ScanScreen() {
   }, []);
 
   if (!permission) {
-    return <View style={styles.centered} />;
+    return <View style={[styles.centered, { backgroundColor: "#000" }]} />;
   }
 
   if (!permission.granted) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.msg}>Necesitamos acceso a la cámara.</Text>
-        <Text style={styles.link} onPress={() => void requestPermission()}>
-          Permitir cámara
-        </Text>
+        <View style={[styles.card, { width: "100%", maxWidth: 320 }]}>
+          <Text style={[styles.title, { fontSize: 18 }]}>Cámara</Text>
+          <Text style={[styles.subtitle, { marginTop: 8, marginBottom: 16 }]}>
+            Necesitamos acceso a la cámara para escanear códigos QR de check-in.
+          </Text>
+          <Pressable style={styles.btnPrimary} onPress={() => void requestPermission()}>
+            <Text style={styles.btnPrimaryText}>Permitir cámara</Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
@@ -34,13 +41,17 @@ export default function ScanScreen() {
   if (!eventId) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.msg}>Selecciona un evento en la pestaña Evento.</Text>
+        <View style={styles.cardFlat}>
+          <Text style={[styles.subtitle, { textAlign: "center" }]}>
+            Selecciona un evento en la pestaña Evento.
+          </Text>
+        </View>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={scanStyles.container}>
       {scanning && (
         <CameraView
           style={StyleSheet.absoluteFillObject}
@@ -49,6 +60,7 @@ export default function ScanScreen() {
             if (!scanning) return;
             setScanning(false);
             setResult("Procesando…");
+            setResultOk(true);
             try {
               let token = data;
               if (token.includes("/pass/")) {
@@ -61,62 +73,113 @@ export default function ScanScreen() {
                   res.status === "already_checked_in"
                     ? "Ya registrado"
                     : "Check-in OK";
+                setResultOk(true);
                 setResult(
                   `${status}: ${res.attendeeName}${res.printJobQueued ? " · Label en cola" : ""}`
                 );
               } else {
+                setResultOk(false);
                 setResult(`Error: ${(res as { error?: string }).error}`);
               }
             } catch (e) {
+              setResultOk(false);
               setResult(e instanceof Error ? e.message : "Error");
             }
             setTimeout(() => {
               setResult(null);
               setScanning(true);
-            }, 2500);
+            }, 2800);
           }}
         />
       )}
-      <View style={[styles.overlay, { borderColor: brand.accentColor }]}>
-        <Text style={styles.hint}>Apunta al QR del pase</Text>
+
+      <View style={scanStyles.dim} pointerEvents="none" />
+      <View style={[scanStyles.frame, { borderColor: colors.accent }]} pointerEvents="none" />
+
+      <View style={scanStyles.bottomHint}>
+        <Text style={scanStyles.hintTitle}>Escanear pase</Text>
+        <Text style={scanStyles.hintSub}>Apunta al código QR del asistente</Text>
       </View>
-      {result && (
-        <View style={styles.banner}>
-          <Text style={styles.bannerText}>{result}</Text>
+
+      {result ? (
+        <View
+          style={[
+            scanStyles.banner,
+            {
+              borderLeftColor: resultOk ? colors.success : colors.error,
+              backgroundColor: webBrand.white,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              scanStyles.bannerText,
+              { color: resultOk ? colors.success : colors.error },
+            ]}
+          >
+            {result}
+          </Text>
         </View>
-      )}
+      ) : null}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const scanStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
-  centered: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
+  dim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(34, 32, 34, 0.45)",
   },
-  msg: { fontSize: 16, textAlign: "center", color: "#333" },
-  link: { fontSize: 16, color: "#0066cc", marginTop: 12 },
-  overlay: {
+  frame: {
     position: "absolute",
-    bottom: 48,
+    top: "28%",
     alignSelf: "center",
-    padding: 12,
-    borderWidth: 2,
-    borderRadius: 8,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    width: 260,
+    height: 260,
+    borderWidth: 3,
+    borderRadius: 20,
+    backgroundColor: "transparent",
   },
-  hint: { color: "#fff", fontSize: 14 },
+  bottomHint: {
+    position: "absolute",
+    bottom: 40,
+    left: 24,
+    right: 24,
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 14,
+    backgroundColor: "rgba(63, 94, 120, 0.92)",
+  },
+  hintTitle: {
+    color: webBrand.white,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  hintSub: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 13,
+    marginTop: 4,
+  },
   banner: {
     position: "absolute",
-    top: 60,
+    top: 56,
     left: 16,
     right: 16,
-    backgroundColor: "#fff",
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 14,
+    borderLeftWidth: 4,
+    shadowColor: webBrand.ink,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  bannerText: { fontSize: 15, fontWeight: "600", textAlign: "center" },
+  bannerText: {
+    fontSize: 15,
+    fontWeight: "600",
+    textAlign: "center",
+    lineHeight: 22,
+  },
 });

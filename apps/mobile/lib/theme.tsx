@@ -1,15 +1,17 @@
 import React, { createContext, useContext, useMemo } from "react";
 import type { OrganizationBranding } from "./types";
 
+import { webBrand } from "./ui";
+
 const DEFAULT_BRAND: OrganizationBranding = {
   id: "",
   slug: "hernandez",
   name: "Hernandez Pass",
-  displayName: "Hernandez Pass",
+  displayName: "Hernandez Media",
   appTitle: "Hernandez Pass",
   logoUrl: null,
-  primaryColor: "#1a1a1a",
-  accentColor: "#c9a227",
+  primaryColor: webBrand.slate,
+  accentColor: webBrand.gold,
   supportEmail: null,
   customDomain: null,
 };
