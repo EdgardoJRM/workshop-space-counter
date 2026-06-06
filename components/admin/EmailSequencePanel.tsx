@@ -1,6 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import {
+  DEFAULT_EMAIL_BODY_PLAIN,
+  emailHtmlToPlainText,
+  plainTextToEmailHtml,
+} from "@/lib/email-template-text";
 
 type TemplateRow = {
   id: string;
@@ -25,7 +30,7 @@ type LogRow = {
 const EMPTY_FORM = {
   name: "",
   subject: "",
-  htmlBody: `<p>Hola {{name}},</p>\n<p>Gracias por asistir a {{workshop}} el {{eventDate}}.</p>`,
+  body: DEFAULT_EMAIL_BODY_PLAIN,
   delayHours: "24",
   active: true,
 };
@@ -90,7 +95,7 @@ export function EmailSequencePanel() {
     setForm({
       name: row.name,
       subject: row.subject,
-      htmlBody: row.htmlBody,
+      body: emailHtmlToPlainText(row.htmlBody),
       delayHours: String(row.delayHours),
       active: row.active,
     });
@@ -115,7 +120,7 @@ export function EmailSequencePanel() {
           id: editingId ?? undefined,
           name: form.name.trim(),
           subject: form.subject.trim(),
-          htmlBody: form.htmlBody,
+          htmlBody: plainTextToEmailHtml(form.body),
           delayHours: Number.isInteger(delayHours) ? delayHours : 0,
           active: form.active,
         }),
@@ -208,14 +213,19 @@ export function EmailSequencePanel() {
               />
             </label>
             <label className="block text-xs font-medium">
-              Cuerpo HTML
+              Mensaje del correo
               <textarea
                 required
                 rows={8}
-                value={form.htmlBody}
-                onChange={(e) => setForm((f) => ({ ...f, htmlBody: e.target.value }))}
-                className="mt-1 w-full rounded-lg border px-3 py-2 font-mono text-xs"
+                value={form.body}
+                onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
+                placeholder={"Hola {{name}},\n\nGracias por asistir a {{workshop}}..."}
+                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm leading-relaxed"
               />
+              <span className="mt-1 block text-[11px] text-brand-grey">
+                Texto normal — sin HTML. Párrafos con línea en blanco. Variables:{" "}
+                {"{{name}}"}, {"{{workshop}}"}, etc.
+              </span>
             </label>
             <label className="flex items-center gap-2 text-xs">
               <input

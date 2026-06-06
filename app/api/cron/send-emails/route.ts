@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma, isDatabaseConfigured } from "@/lib/prisma";
 import { sendHtmlEmail, renderEmailTemplate } from "@/lib/email";
+import { emailHtmlToPlainText } from "@/lib/email-template-text";
 import { RegistrationStatus } from "@prisma/client";
 import { formatWorkshopDateTime } from "@/lib/workshop-datetime";
 
@@ -111,6 +112,7 @@ async function runSendEmails(request: Request) {
           to: attendeeEmail,
           subject,
           htmlBody: html,
+          textBody: emailHtmlToPlainText(html),
         });
 
         if (result.ok) {

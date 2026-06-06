@@ -23,6 +23,11 @@ import {
   type EmailTemplateRow,
 } from "@/lib/admin-api";
 import { confirmDestructive } from "@/lib/confirm-alert";
+import {
+  DEFAULT_EMAIL_BODY_PLAIN,
+  emailHtmlToPlainText,
+  plainTextToEmailHtml,
+} from "@/lib/email-template-text";
 import { useAppTheme } from "@/lib/useAppTheme";
 import { webBrand } from "@/lib/ui";
 
@@ -32,7 +37,7 @@ const emptyForm = {
   name: "",
   subject: "",
   delayHours: "24",
-  htmlBody: `<p>Hola {{name}},</p>\n<p>Gracias por asistir a {{workshop}} el {{eventDate}}.</p>`,
+  body: DEFAULT_EMAIL_BODY_PLAIN,
   active: true,
 };
 
@@ -61,7 +66,7 @@ function formatSentAt(iso: string): string {
 function validateForm(form: FormState): string | null {
   if (!form.name.trim()) return "Indica el nombre de la plantilla";
   if (!form.subject.trim()) return "Indica el asunto del email";
-  if (!form.htmlBody.trim()) return "Indica el contenido HTML";
+  if (!form.body.trim()) return "Indica el mensaje del correo";
   const h = Number.parseInt(form.delayHours, 10);
   if (!Number.isInteger(h) || h < 0) return "El delay debe ser un entero ≥ 0";
   return null;
@@ -138,14 +143,18 @@ function FormFields({
       <Text style={[styles.subtitle, { marginTop: 4 }]}>
         Tiempo relativo al inicio del evento. {formatDelay(Number.parseInt(form.delayHours, 10) || 0)}
       </Text>
-      <Text style={styles.fieldLabel}>Contenido (HTML)</Text>
+      <Text style={styles.fieldLabel}>Mensaje del correo</Text>
+      <Text style={[styles.subtitle, { marginBottom: 8, marginTop: -4 }]}>
+        Escribe normal, como un email. Variables: {TEMPLATE_VARS}. Párrafos separados con línea en blanco.
+      </Text>
       <TextInput
-        style={[styles.input, { minHeight: 140, textAlignVertical: "top", fontSize: 13 }]}
+        style={[styles.input, { minHeight: 160, textAlignVertical: "top", fontSize: 15, lineHeight: 22 }]}
         multiline
-        value={form.htmlBody}
-        onChangeText={(v) => onChange({ ...form, htmlBody: v })}
-        autoCapitalize="none"
-        autoCorrect={false}
+        value={form.body}
+        onChangeText={(v) => onChange({ ...form, body: v })}
+        placeholder={"Hola {{name}},\n\nGracias por asistir..."}
+        placeholderTextColor={colors.textSubtle}
+        autoCapitalize="sentences"
       />
       <View style={styles.switchRow}>
         <View style={{ flex: 1 }}>
@@ -207,7 +216,7 @@ export default function AdminEmailsScreen() {
       await saveEmailTemplate({
         name: createForm.name.trim(),
         subject: createForm.subject.trim(),
-        htmlBody: createForm.htmlBody,
+        htmlBody: plainTextToEmailHtml(createForm.body),
         delayHours: Number.parseInt(createForm.delayHours, 10) || 0,
         active: createForm.active,
       });
@@ -228,7 +237,7 @@ export default function AdminEmailsScreen() {
       name: t.name,
       subject: t.subject,
       delayHours: String(t.delayHours),
-      htmlBody: t.htmlBody,
+      body: emailHtmlToPlainText(t.htmlBody),
       active: t.active,
     });
     setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 100);
@@ -254,7 +263,7 @@ export default function AdminEmailsScreen() {
         id: editingId,
         name: editForm.name.trim(),
         subject: editForm.subject.trim(),
-        htmlBody: editForm.htmlBody,
+        htmlBody: plainTextToEmailHtml(editForm.body),
         delayHours: Number.parseInt(editForm.delayHours, 10) || 0,
         active: editForm.active,
       });
@@ -412,7 +421,7 @@ export default function AdminEmailsScreen() {
                       <Text style={styles.rowMeta}>{formatDelay(t.delayHours)}</Text>
                       <Text style={styles.rowMeta}>{t.subject}</Text>
                       <Text style={[styles.rowMeta, { marginTop: 6 }]} numberOfLines={3}>
-                        {t.htmlBody.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()}
+                        {emailHtmlToPlainText(t.htmlBody)}
                       </Text>
                     </View>
                   </View>

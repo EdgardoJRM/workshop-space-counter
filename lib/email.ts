@@ -342,10 +342,10 @@ export async function sendHtmlEmail(
 
 /** Reemplaza {{name}}, {{email}}, {{workshop}}, {{eventDate}}, {{venue}} */
 export function renderEmailTemplate(
-  html: string,
+  body: string,
   vars: Record<string, string>
 ): string {
-  let out = html;
+  let out = body;
   for (const [key, value] of Object.entries(vars)) {
     out = out.replaceAll(`{{${key}}}`, value);
   }
