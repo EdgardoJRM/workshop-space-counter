@@ -98,8 +98,19 @@ Misma funcionalidad que el admin web:
 ### Push notifications (producción)
 
 1. Ejecuta el SQL en `docs/PUSH_NOTIFICATIONS_SQL.md` en Supabase (tabla `MobilePushToken`).
-2. Redeploy del backend (ruta `POST /api/mobile/push/register`).
-3. Build nativo con `expo-notifications` (TestFlight); el simulador no recibe push remotos.
+2. Backend desplegado en `pass.edgardohernandez.com` (`POST /api/mobile/push/register` → 401 sin token = OK).
+3. **TestFlight con push** — el perfil de aprovisionamiento anterior no incluía Push. Una sola vez:
+   - [Apple Developer](https://developer.apple.com/account/resources/identifiers/list) → `com.hernandezmedia.pass` → activar **Push Notifications** → Guardar.
+   - [Expo Credentials](https://expo.dev/accounts/gardin12/projects/hernandez-pass/credentials) → iOS → **eliminar** el Provisioning Profile actual.
+   - En terminal (puede pedir login de Apple para sincronizar capabilities):
+
+```bash
+cd apps/mobile
+npx eas-cli build --platform ios --profile production
+npx eas-cli submit --platform ios --profile production
+```
+
+   Debe aparecer el paso **Synced capabilities** en el log del build. El simulador no recibe push remotos.
 
 ---
 
