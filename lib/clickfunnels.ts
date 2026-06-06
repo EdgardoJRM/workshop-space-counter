@@ -1,5 +1,9 @@
+import { createHmac, timingSafeEqual } from "crypto";
 import type { WorkshopSlug } from "@/lib/workshop-keys";
 import { DEFAULT_WORKSHOP, isWorkshopSlug } from "@/lib/workshop-keys";
+
+/** ClickFunnels rechaza firmas más viejas que esto (docs oficiales). */
+const CF_SIGNATURE_TOLERANCE_SEC = 600;
 
 export type ClickFunnelsPurchase = {
   externalOrderId: string;
@@ -39,18 +43,36 @@ export function parseClickFunnelsPayload(body: unknown): ClickFunnelsPurchase | 
   if (!body || typeof body !== "object") return null;
   const raw = body as Record<string, unknown>;
 
+  // ClickFunnels V2: { event_type, event_id, data: { ... } }
+  const dataRoot =
+    raw.data && typeof raw.data === "object"
+      ? (raw.data as Record<string, unknown>)
+      : raw;
+
   const contact =
+    (pickNested(dataRoot, ["contact"]) as Record<string, unknown> | undefined) ??
+    (pickNested(dataRoot, ["purchase", "contact"]) as Record<string, unknown> | undefined) ??
     (pickNested(raw, ["contact"]) as Record<string, unknown> | undefined) ??
     (pickNested(raw, ["purchase", "contact"]) as Record<string, unknown> | undefined) ??
-    raw;
+    dataRoot;
 
   const email =
-    pickString(contact, ["email", "contact_email", "Email"]) ??
-    pickString(raw, ["email", "contact_email", "buyer_email"]);
+    pickString(contact, ["email", "contact_email", "Email", "email_address"]) ??
+    pickString(dataRoot, ["email", "contact_email", "buyer_email", "email_address"]) ??
+    pickString(raw, ["email", "contact_email", "buyer_email", "email_address"]);
 
   if (!email) return null;
 
   const externalOrderId =
+    pickString(dataRoot, [
+      "id",
+      "public_id",
+      "order_id",
+      "orderId",
+      "purchase_id",
+      "purchaseId",
+      "transaction_id",
+    ]) ??
     pickString(raw, [
       "id",
       "order_id",
@@ -58,7 +80,10 @@ export function parseClickFunnelsPayload(body: unknown): ClickFunnelsPurchase | 
       "purchase_id",
       "purchaseId",
       "transaction_id",
-    ]) ?? pickString(contact, ["id"]) ?? `cf-${email}-${Date.now()}`;
+      "event_id",
+    ]) ??
+    pickString(contact, ["id", "public_id"]) ??
+    `cf-${email}-${Date.now()}`;
 
   const firstName = pickString(contact, ["first_name", "firstName", "name"]);
   const lastName = pickString(contact, ["last_name", "lastName"]);
@@ -71,10 +96,19 @@ export function parseClickFunnelsPayload(body: unknown): ClickFunnelsPurchase | 
     pickString(contact, ["phone", "phone_number"]) ??
     pickString(raw, ["phone"]);
 
+  const customAttrs =
+    contact.custom_attributes && typeof contact.custom_attributes === "object"
+      ? (contact.custom_attributes as Record<string, unknown>)
+      : dataRoot.custom_attributes && typeof dataRoot.custom_attributes === "object"
+        ? (dataRoot.custom_attributes as Record<string, unknown>)
+        : null;
+
   const workshopRaw =
     pickString(raw, ["workshop", "workshop_slug", "w"]) ??
+    pickString(dataRoot, ["workshop", "workshop_slug", "w"]) ??
     pickString(contact, ["workshop", "workshop_slug"]) ??
     pickString(raw, ["custom_workshop"]) ??
+    (customAttrs ? pickString(customAttrs, ["workshop", "workshop_slug"]) : null) ??
     null;
 
   const workshopSlug: WorkshopSlug =
@@ -82,7 +116,9 @@ export function parseClickFunnelsPayload(body: unknown): ClickFunnelsPurchase | 
 
   const workshopDateId =
     pickString(raw, ["workshop_date_id", "date_id", "event_date_id"]) ??
+    pickString(dataRoot, ["workshop_date_id", "date_id", "event_date_id"]) ??
     pickString(contact, ["workshop_date_id"]) ??
+    (customAttrs ? pickString(customAttrs, ["workshop_date_id"]) : null) ??
     null;
 
   return {
@@ -114,4 +150,63 @@ export function verifyWebhookSecret(
   }
 
   return false;
+}
+
+/** Firma HMAC SHA256 oficial de ClickFunnels V2 webhooks. */
+export function verifyClickFunnelsSignature(
+  rawBody: string,
+  signature: string,
+  timestamp: string,
+  secret: string
+): boolean {
+  if (!rawBody || !signature.trim() || !timestamp.trim() || !secret.trim()) {
+    return false;
+  }
+
+  const timestampInt = Number.parseInt(timestamp, 10);
+  if (!Number.isFinite(timestampInt)) return false;
+
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - timestampInt) > CF_SIGNATURE_TOLERANCE_SEC) {
+    return false;
+  }
+
+  const expected = createHmac("sha256", secret)
+    .update(`${timestamp}.${rawBody}`)
+    .digest("hex");
+
+  const sig = signature.trim().toLowerCase();
+  const exp = expected.toLowerCase();
+  if (sig.length !== exp.length) return false;
+
+  try {
+    return timingSafeEqual(Buffer.from(sig, "utf8"), Buffer.from(exp, "utf8"));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Autentica webhooks de ClickFunnels:
+ * - V2 nativo: headers X-Webhook-ClickFunnels-Signature + Timestamp (HMAC)
+ * - Legacy: X-Webhook-Secret o ?secret= (curl, Zapier)
+ */
+export function verifyIncomingWebhook(
+  request: Request,
+  secret: string,
+  rawBody: string
+): boolean {
+  const cfSignature = request.headers.get("x-webhook-clickfunnels-signature");
+  const cfTimestamp = request.headers.get("x-webhook-clickfunnels-timestamp");
+
+  if (cfSignature && cfTimestamp) {
+    return verifyClickFunnelsSignature(
+      rawBody,
+      cfSignature,
+      cfTimestamp,
+      secret
+    );
+  }
+
+  return verifyWebhookSecret(request, secret);
 }

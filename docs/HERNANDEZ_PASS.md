@@ -108,10 +108,10 @@ También: `aws ses get-send-quota --region us-east-1` y `aws sesv2 list-email-id
 
 **URL:** `POST https://<tu-dominio>/api/webhooks/clickfunnels`
 
-**Autenticación (elige una):**
+**Autenticación:**
 
-- Header: `X-Webhook-Secret: <CLICKFUNNELS_WEBHOOK_SECRET>`
-- O query: `?secret=<CLICKFUNNELS_WEBHOOK_SECRET>`
+- **ClickFunnels V2 (recomendado):** CF envía `X-Webhook-ClickFunnels-Signature` y `X-Webhook-ClickFunnels-Timestamp`. El servidor verifica HMAC SHA256 con el `webhook_secret` del endpoint en CF (mismo valor que `CLICKFUNNELS_WEBHOOK_SECRET` en Vercel).
+- **Pruebas manuales / Zapier:** header `X-Webhook-Secret` o query `?secret=`.
 
 **Campos mínimos en el JSON:** `email` (requerido), `id` u `order_id` (idempotencia).
 

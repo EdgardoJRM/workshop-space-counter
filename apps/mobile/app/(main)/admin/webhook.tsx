@@ -45,7 +45,9 @@ export default function AdminWebhookScreen() {
         <View style={styles.card}>
           <Text style={styles.sectionLabel}>ClickFunnels</Text>
           <Text style={[styles.subtitle, { marginBottom: 12 }]}>
-            Header: X-Webhook-Secret con el secreto configurado en el servidor.
+            ClickFunnels V2 firma cada POST automáticamente. El secreto en Vercel (
+            CLICKFUNNELS_WEBHOOK_SECRET) debe ser el webhook secret del endpoint en CF, no un
+            valor inventado.
           </Text>
           <Text
             style={{

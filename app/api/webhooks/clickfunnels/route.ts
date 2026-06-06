@@ -3,7 +3,7 @@ import { WebhookEventStatus } from "@prisma/client";
 import { prisma, isDatabaseConfigured } from "@/lib/prisma";
 import {
   parseClickFunnelsPayload,
-  verifyWebhookSecret,
+  verifyIncomingWebhook,
 } from "@/lib/clickfunnels";
 import { resolveOrganizationForWebhook } from "@/lib/organization";
 import { notifyOrganizationStaffAsync } from "@/lib/notify-staff-push";
@@ -41,13 +41,23 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!verifyWebhookSecret(request, secret)) {
+  const rawBody = await request.text();
+
+  if (!verifyIncomingWebhook(request, secret, rawBody)) {
+    const hasCfSignature = Boolean(
+      request.headers.get("x-webhook-clickfunnels-signature")
+    );
+    console.warn("[clickfunnels webhook] unauthorized", {
+      org: org.slug,
+      hasCfSignature,
+      secretSource: orgRow?.clickfunnelsSecret?.trim() ? "org" : "env",
+    });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   let body: unknown;
   try {
-    body = await request.json();
+    body = rawBody ? JSON.parse(rawBody) : {};
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }

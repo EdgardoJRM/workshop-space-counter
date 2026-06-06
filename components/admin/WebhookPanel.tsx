@@ -56,7 +56,8 @@ export function WebhookPanel() {
   -H 'X-Webhook-Secret: TU_SECRETO_EN_VERCEL' \\
   -d '${JSON.stringify(SAMPLE_PAYLOAD)}'`;
 
-  const headerExample = "X-Webhook-Secret: <CLICKFUNNELS_WEBHOOK_SECRET>";
+  const headerExample =
+    "ClickFunnels V2 firma automáticamente (X-Webhook-ClickFunnels-Signature). Para pruebas manuales: X-Webhook-Secret";
 
   return (
     <div className="pb-4">
@@ -98,7 +99,13 @@ export function WebhookPanel() {
                 </p>
               )}
               <p className="mt-2 text-xs text-brand-grey">
-                Header requerido (no mostramos el valor por seguridad):
+                En ClickFunnels Workspace → Webhooks, copia el{" "}
+                <strong>webhook secret</strong> del endpoint y ponlo en Vercel como{" "}
+                <code className="text-[11px]">CLICKFUNNELS_WEBHOOK_SECRET</code> (debe
+                coincidir exactamente). CF V2 no usa header manual; firma cada POST.
+              </p>
+              <p className="mt-2 text-xs text-brand-grey">
+                Pruebas con curl (legacy):
               </p>
               <code className="mt-1 block break-all rounded-lg bg-brand-off/60 p-2 text-xs">
                 {headerExample}
@@ -127,12 +134,21 @@ export function WebhookPanel() {
             </div>
 
             <ol className="list-decimal space-y-2 pl-4 text-xs text-brand-charcoal">
-              <li>En Vercel → Environment Variables, define CLICKFUNNELS_WEBHOOK_SECRET.</li>
-              <li>En ClickFunnels, crea un webhook POST a la URL de arriba.</li>
-              <li>Añade el header X-Webhook-Secret con el mismo valor del secreto.</li>
               <li>
-                El JSON debe incluir al menos `email`; opcionalmente `name`, `order_id`,
-                `workshop` (slug: duplica-ventas, canva, oferta-webinar).
+                En ClickFunnels → Workspace Settings → Webhooks, crea el endpoint POST con la
+                URL de arriba (<code>?org=hernandez</code>).
+              </li>
+              <li>
+                Copia el <strong>webhook secret</strong> que muestra CF al crear el endpoint.
+              </li>
+              <li>
+                En Vercel → Environment Variables, pon ese valor en{" "}
+                <code>CLICKFUNNELS_WEBHOOK_SECRET</code> y redeploy.
+              </li>
+              <li>
+                Eventos recomendados: <code>order.completed</code> o{" "}
+                <code>one-time-order.completed</code> (el JSON V2 trae{" "}
+                <code>data.email_address</code> o contacto anidado).
               </li>
             </ol>
           </div>
