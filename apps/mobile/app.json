@@ -16,6 +16,9 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.hernandezmedia.pass",
+      "entitlements": {
+        "aps-environment": "production"
+      },
       "infoPlist": {
         "NSCameraUsageDescription": "Hernandez Pass usa la cámara para escanear códigos QR de check-in.",
         "CFBundleDisplayName": "Hernandez Pass",
