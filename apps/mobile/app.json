@@ -2,7 +2,7 @@
   "expo": {
     "name": "Hernandez Pass",
     "slug": "hernandez-pass",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "hernandezpass",
@@ -43,6 +43,13 @@
         "expo-camera",
         {
           "cameraPermission": "Permite escanear QR de asistentes en el evento."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#3f5e78"
         }
       ],
       "expo-asset",

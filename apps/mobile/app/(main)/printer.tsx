@@ -6,18 +6,20 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { InfoBanner } from "@/components/InfoBanner";
 import { StatusBadge } from "@/components/StatusBadge";
 import { printerStatus } from "@/lib/api";
 import { useAppTheme } from "@/lib/useAppTheme";
+import { webBrand } from "@/lib/ui";
 
 function MetricCell({
   icon,
+  iconColor,
   label,
   value,
   valueColor,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
+  iconColor: string;
   label: string;
   value: string | number;
   valueColor?: string;
@@ -34,7 +36,7 @@ function MetricCell({
         alignItems: "center",
       }}
     >
-      <Ionicons name={icon} size={22} color={colors.accent} style={{ marginBottom: 8 }} />
+      <Ionicons name={icon} size={22} color={iconColor} style={{ marginBottom: 8 }} />
       <Text style={[styles.metricValue, valueColor ? { color: valueColor } : null]}>
         {value}
       </Text>
@@ -89,32 +91,30 @@ export default function PrinterScreen() {
             style={{
               flexDirection: "row",
               alignItems: "center",
-              justifyContent: "space-between",
+              gap: 16,
               marginBottom: 20,
             }}
           >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-              <View
-                style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 12,
-                  backgroundColor: "rgba(63, 94, 120, 0.1)",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Ionicons name="print" size={28} color={colors.primary} />
-              </View>
-              <View>
-                <StatusBadge
-                  label={status.connected ? "Conectada" : "Desconectada"}
-                  variant={status.connected ? "success" : "muted"}
-                />
-                <Text style={[styles.rowMeta, { marginTop: 6 }]}>
-                  Agente Mac · última vez {lastSeenLabel()}
-                </Text>
-              </View>
+            <View
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: 12,
+                backgroundColor: "rgba(34, 32, 34, 0.06)",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons name="print" size={40} color={colors.text} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <StatusBadge
+                label={status.connected ? "Conectada" : "Desconectada"}
+                variant={status.connected ? "success" : "muted"}
+              />
+              <Text style={[styles.rowMeta, { marginTop: 8 }]}>
+                Agente Mac · última vez {lastSeenLabel()}
+              </Text>
             </View>
             {status.connected ? (
               <Ionicons name="wifi" size={22} color={colors.success} />
@@ -122,15 +122,57 @@ export default function PrinterScreen() {
           </View>
 
           <View style={{ flexDirection: "row", flexWrap: "wrap", marginHorizontal: -1 }}>
-            <MetricCell icon="document-text-outline" label="Pendientes" value={status.pending} />
-            <MetricCell icon="sync-outline" label="En proceso" value={status.processing} />
-            <MetricCell icon="print-outline" label="Impresas 24h" value={status.printedLast24h} />
+            <MetricCell
+              icon="document-text-outline"
+              iconColor={colors.accent}
+              label="Pendientes"
+              value={status.pending}
+            />
+            <MetricCell
+              icon="sync-outline"
+              iconColor={colors.link}
+              label="En proceso"
+              value={status.processing}
+            />
+            <MetricCell
+              icon="print-outline"
+              iconColor={colors.success}
+              label="Impresas 24h"
+              value={status.printedLast24h}
+            />
             <MetricCell
               icon="checkmark-circle-outline"
+              iconColor="#7c3aed"
               label="Cola"
               value="OK"
               valueColor={colors.success}
             />
+          </View>
+
+          <Pressable
+            style={[styles.btnPrimary, styles.btnWithIcon, { marginTop: 20 }]}
+            onPress={() => void load()}
+          >
+            <Ionicons name="refresh" size={20} color={colors.onAccent} />
+            <Text style={styles.btnPrimaryText}>Actualizar estado</Text>
+          </Pressable>
+
+          <View
+            style={{
+              marginTop: 16,
+              flexDirection: "row",
+              alignItems: "flex-start",
+              gap: 10,
+              backgroundColor: webBrand.off,
+              borderRadius: 12,
+              padding: 14,
+            }}
+          >
+            <Ionicons name="information-circle-outline" size={20} color={colors.textSubtle} />
+            <Text style={{ flex: 1, fontSize: 13, color: colors.textMuted, lineHeight: 19 }}>
+              La impresión corre en la <Text style={{ fontWeight: "700", color: colors.text }}>Mac del venue</Text> con{" "}
+              <Text style={{ fontWeight: "700", color: colors.text }}>Rollo 3×2</Text>
+            </Text>
           </View>
         </View>
       ) : (
@@ -138,21 +180,6 @@ export default function PrinterScreen() {
           <Text style={styles.subtitle}>No se pudo cargar el estado.</Text>
         </View>
       )}
-
-      <Pressable
-        style={[
-          styles.btnPrimary,
-          { marginTop: 24, flexDirection: "row", gap: 8, justifyContent: "center" },
-        ]}
-        onPress={() => void load()}
-      >
-        <Ionicons name="refresh" size={20} color={colors.onAccent} />
-        <Text style={styles.btnPrimaryText}>Actualizar estado</Text>
-      </Pressable>
-
-      <InfoBanner>
-        La impresión corre en la Mac del venue con Rollo 3×2.
-      </InfoBanner>
     </View>
   );
 }

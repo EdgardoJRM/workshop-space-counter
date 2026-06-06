@@ -1,38 +1,48 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
   ScrollView,
   Switch,
   Text,
-  TextInput,
+  View,
 } from "react-native";
-import { WorkshopPicker } from "@/components/WorkshopPicker";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
+import { InfoBanner } from "@/components/InfoBanner";
+import { LabelPreview } from "@/components/LabelPreview";
+import { SectionCard } from "@/components/SectionCard";
+import { StepperInput } from "@/components/StepperInput";
+import { WorkshopDropdown } from "@/components/WorkshopDropdown";
 import { fetchLabelTemplate, saveLabelTemplate } from "@/lib/admin-api";
 import { useSession } from "@/lib/session-context";
 import { useAppTheme } from "@/lib/useAppTheme";
+
+const MEDIA_SIZES = ["w62h29", "w62h100", "w29h90"];
 
 export default function AdminLabelsScreen() {
   const { workshop } = useSession();
   const { colors, styles } = useAppTheme();
   const [loading, setLoading] = useState(true);
-  const [fontLarge, setFontLarge] = useState("72");
-  const [fontSmall, setFontSmall] = useState("48");
-  const [mediaSize, setMediaSize] = useState("3x2");
-  const [showEmail, setShowEmail] = useState(false);
-  const [showWorkshop, setShowWorkshop] = useState(false);
+  const [fontLarge, setFontLarge] = useState("28");
+  const [fontSmall, setFontSmall] = useState("10");
+  const [mediaSize, setMediaSize] = useState("w62h29");
+  const [showEmail, setShowEmail] = useState(true);
+  const [showWorkshop, setShowWorkshop] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await fetchLabelTemplate(workshop);
-      setFontLarge(String(data.template.fontLarge));
-      setFontSmall(String(data.template.fontSmall));
-      setMediaSize(data.template.mediaSize);
-      setShowEmail(data.template.showEmail);
-      setShowWorkshop(data.template.showWorkshop);
+      const t = data.template;
+      setFontLarge(String(t?.fontLarge ?? 28));
+      setFontSmall(String(t?.fontSmall ?? 10));
+      setMediaSize(t?.mediaSize ?? "w62h29");
+      setShowEmail(Boolean(t?.showEmail));
+      setShowWorkshop(Boolean(t?.showWorkshop ?? true));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
     } finally {
@@ -40,18 +50,38 @@ export default function AdminLabelsScreen() {
     }
   }, [workshop]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load])
+  );
+
+  function stepFont(which: "large" | "small", delta: number) {
+    const cur = which === "large" ? fontLarge : fontSmall;
+    const n = Math.max(6, (Number.parseInt(cur, 10) || 0) + delta);
+    if (which === "large") setFontLarge(String(n));
+    else setFontSmall(String(n));
+  }
+
+  function cycleMedia() {
+    const i = MEDIA_SIZES.indexOf(mediaSize);
+    setMediaSize(MEDIA_SIZES[(i + 1) % MEDIA_SIZES.length] ?? "w62h29");
+  }
 
   async function save() {
     setError(null);
     setOk(null);
+    const large = Number.parseInt(fontLarge, 10);
+    const small = Number.parseInt(fontSmall, 10);
+    if (!Number.isFinite(large) || !Number.isFinite(small)) {
+      setError("Tamaños de fuente inválidos");
+      return;
+    }
     try {
       await saveLabelTemplate(workshop, {
-        fontLarge: Number.parseInt(fontLarge, 10),
-        fontSmall: Number.parseInt(fontSmall, 10),
-        mediaSize: mediaSize.trim(),
+        fontLarge: large,
+        fontSmall: small,
+        mediaSize: mediaSize.trim() || "w62h29",
         showEmail,
         showWorkshop,
       });
@@ -62,42 +92,95 @@ export default function AdminLabelsScreen() {
   }
 
   return (
-    <ScrollView style={styles.screenPadded}>
-      <WorkshopPicker />
+    <ScrollView style={styles.screenPadded} keyboardShouldPersistTaps="handled">
+      <WorkshopDropdown />
+
       {loading ? (
         <ActivityIndicator color={colors.accent} />
       ) : (
-        <View style={styles.card}>
-          <Text style={styles.label}>Fuente grande</Text>
-          <TextInput
-            style={styles.input}
-            keyboardType="number-pad"
-            value={fontLarge}
-            onChangeText={setFontLarge}
-          />
-          <Text style={styles.label}>Fuente pequeña</Text>
-          <TextInput
-            style={styles.input}
-            keyboardType="number-pad"
-            value={fontSmall}
-            onChangeText={setFontSmall}
-          />
-          <Text style={styles.label}>Tamaño media (ej. 3x2)</Text>
-          <TextInput style={styles.input} value={mediaSize} onChangeText={setMediaSize} />
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12 }}>
-            <Text style={styles.label}>Mostrar email</Text>
-            <Switch value={showEmail} onValueChange={setShowEmail} />
-          </View>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
-            <Text style={styles.label}>Mostrar taller</Text>
-            <Switch value={showWorkshop} onValueChange={setShowWorkshop} />
-          </View>
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-          {ok ? <Text style={styles.okText}>{ok}</Text> : null}
-          <Pressable style={styles.btnPrimary} onPress={() => void save()}>
-            <Text style={styles.btnPrimaryText}>Guardar plantilla</Text>
-          </Pressable>
-        </View>
+        <>
+          <SectionCard>
+            <LabelPreview
+              showEmail={showEmail}
+              showWorkshop={showWorkshop}
+              fontLarge={Number.parseInt(fontLarge, 10) || 28}
+              fontSmall={Number.parseInt(fontSmall, 10) || 10}
+            />
+          </SectionCard>
+
+          <SectionCard title="Configuración de la plantilla">
+            <Text style={styles.label}>Tamaño de fuente (nombre)</Text>
+            <StepperInput
+              value={fontLarge}
+              onChangeText={setFontLarge}
+              onDecrement={() => stepFont("large", -1)}
+              onIncrement={() => stepFont("large", 1)}
+            />
+
+            <Text style={styles.label}>Tamaño de fuente (email)</Text>
+            <StepperInput
+              value={fontSmall}
+              onChangeText={setFontSmall}
+              onDecrement={() => stepFont("small", -1)}
+              onIncrement={() => stepFont("small", 1)}
+            />
+
+            <Text style={styles.label}>Tamaño de fuente (taller)</Text>
+            <Pressable
+              onPress={cycleMedia}
+              style={[
+                styles.input,
+                {
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                },
+              ]}
+            >
+              <Text style={{ fontSize: 15, color: colors.text }}>{mediaSize}</Text>
+              <Ionicons name="chevron-down" size={18} color={colors.textSubtle} />
+            </Pressable>
+
+            <View style={styles.switchRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.label, { marginTop: 0 }]}>Mostrar email</Text>
+                <Text style={styles.subtitle}>Incluye el email del asistente en el label.</Text>
+              </View>
+              <Switch
+                value={showEmail}
+                onValueChange={setShowEmail}
+                trackColor={{ true: colors.accent }}
+              />
+            </View>
+
+            <View style={styles.switchRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.label, { marginTop: 0 }]}>Mostrar taller</Text>
+                <Text style={styles.subtitle}>Incluye el nombre del taller en el label.</Text>
+              </View>
+              <Switch
+                value={showWorkshop}
+                onValueChange={setShowWorkshop}
+                trackColor={{ true: colors.accent }}
+              />
+            </View>
+
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            {ok ? <Text style={styles.okText}>{ok}</Text> : null}
+
+            <Pressable
+              style={[styles.btnPrimary, styles.btnWithIcon]}
+              onPress={() => void save()}
+            >
+              <Ionicons name="save-outline" size={20} color={colors.onAccent} />
+              <Text style={styles.btnPrimaryText}>Guardar plantilla</Text>
+            </Pressable>
+          </SectionCard>
+
+          <InfoBanner>
+            Plantilla para rollo 3×2 pulgadas. Asegúrate de usar etiquetas térmicas compatibles.
+          </InfoBanner>
+        </>
       )}
     </ScrollView>
   );

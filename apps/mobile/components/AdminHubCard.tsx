@@ -1,7 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, Text, View } from "react-native";
 import { useAppTheme } from "@/lib/useAppTheme";
-import { webBrand } from "@/lib/ui";
 import { IconCircle } from "./IconCircle";
 
 export function AdminHubCard({
@@ -25,7 +24,9 @@ export function AdminHubCard({
   return (
     <Pressable
       onPress={onPress}
-      style={[
+      accessibilityRole="button"
+      style={({ pressed }) => [
+        pressed && { opacity: 0.85 },
         styles.rowCard,
         {
           borderWidth: 1,

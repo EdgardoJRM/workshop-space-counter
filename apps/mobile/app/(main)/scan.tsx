@@ -1,11 +1,13 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { EmptyState } from "@/components/EmptyState";
+import { SelectedEventBanner } from "@/components/SelectedEventBanner";
 import { IconCircle } from "@/components/IconCircle";
 import { checkinScan } from "@/lib/api";
-import { getSelectedEventId } from "./index";
+import { useSelectedEvent } from "@/lib/event-context";
+import { showLocalNotification } from "@/lib/push-notifications";
 import { useAppTheme } from "@/lib/useAppTheme";
 import { webBrand } from "@/lib/ui";
 
@@ -33,14 +35,10 @@ function ScanCorners({ color }: { color: string }) {
 export default function ScanScreen() {
   const { colors, styles } = useAppTheme();
   const [permission, requestPermission] = useCameraPermissions();
-  const [eventId, setEventId] = useState<string | null>(null);
+  const { selectedEventId: eventId } = useSelectedEvent();
   const [result, setResult] = useState<string | null>(null);
   const [resultOk, setResultOk] = useState(true);
   const [scanning, setScanning] = useState(true);
-
-  useEffect(() => {
-    void getSelectedEventId().then(setEventId);
-  }, []);
 
   if (!permission) {
     return <View style={[styles.centered, { backgroundColor: "#000" }]} />;
@@ -62,9 +60,12 @@ export default function ScanScreen() {
             <Ionicons name="camera-outline" size={20} color={colors.onAccent} />
             <Text style={styles.btnPrimaryText}>Permitir cámara</Text>
           </Pressable>
-          <Text style={[styles.rowMeta, { marginTop: 16, textAlign: "center" }]}>
-            Tu privacidad es importante. No almacenamos imágenes ni videos.
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 6, marginTop: 16 }}>
+            <Ionicons name="lock-closed-outline" size={14} color={colors.textSubtle} />
+            <Text style={[styles.rowMeta, { flex: 1, textAlign: "center", lineHeight: 18 }]}>
+              Tu privacidad es importante. No almacenamos imágenes ni vídeos.
+            </Text>
+          </View>
         </View>
       </View>
     );
@@ -72,19 +73,23 @@ export default function ScanScreen() {
 
   if (!eventId) {
     return (
-      <View style={[styles.screenPadded, { flex: 1, justifyContent: "center" }]}>
+      <View style={{ flex: 1 }}>
+        <SelectedEventBanner />
+        <View style={[styles.screenPadded, { flex: 1, justifyContent: "center" }]}>
         <EmptyState
           title="Aún no hay nada aquí"
           message="Selecciona un evento en la pestaña Evento."
-          icon="scan-outline"
           hintArrowToEvento
         />
+        </View>
       </View>
     );
   }
 
   return (
-    <View style={scanStyles.container}>
+    <View style={{ flex: 1 }}>
+      <SelectedEventBanner />
+    <View style={[scanStyles.container, { flex: 1 }]}>
       {scanning && (
         <CameraView
           style={StyleSheet.absoluteFillObject}
@@ -104,11 +109,14 @@ export default function ScanScreen() {
               if (res.ok) {
                 const name = res.attendeeName ?? "Asistente";
                 setResultOk(true);
-                setResult(
+                const msg =
                   res.status === "already_checked_in"
                     ? `${name} — Ya registrado`
-                    : `${name} — Check-in registrado`
-                );
+                    : `${name} — Check-in registrado`;
+                setResult(msg);
+                if (res.status !== "already_checked_in") {
+                  void showLocalNotification("Check-in registrado", name);
+                }
               } else {
                 setResultOk(false);
                 setResult((res as { error?: string }).error ?? "Error");
@@ -137,24 +145,34 @@ export default function ScanScreen() {
       </View>
 
       {result ? (
-        <View
-          style={[
-            scanStyles.toast,
-            {
-              backgroundColor: resultOk
-                ? "rgba(45, 106, 79, 0.95)"
-                : "rgba(196, 71, 43, 0.95)",
-            },
-          ]}
-        >
+        <View style={[scanStyles.toast, { backgroundColor: "rgba(34, 32, 34, 0.88)" }]}>
           {resultOk ? (
-            <Ionicons name="checkmark-circle" size={22} color={webBrand.white} />
+            <View
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 14,
+                backgroundColor: colors.success,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons name="checkmark" size={18} color={webBrand.white} />
+            </View>
           ) : (
-            <Ionicons name="alert-circle" size={22} color={webBrand.white} />
+            <Ionicons name="alert-circle" size={22} color="#f87171" />
           )}
-          <Text style={scanStyles.toastText}>{result}</Text>
+          <Text
+            style={[
+              scanStyles.toastText,
+              { color: resultOk ? "#4ade80" : "#fca5a5" },
+            ]}
+          >
+            {result}
+          </Text>
         </View>
       ) : null}
+    </View>
     </View>
   );
 }

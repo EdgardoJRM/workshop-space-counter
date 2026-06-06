@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { hashPassToken } from "@/lib/pass-tokens";
+import { notifyOrganizationStaffAsync } from "@/lib/notify-staff-push";
 import { createPrintJobForCheckin } from "@/lib/print-jobs";
 import { RegistrationStatus } from "@prisma/client";
 
@@ -23,7 +24,7 @@ type RegistrationWithRelations = {
   attendeeEmail: string | null;
   workshopDateId: string;
   attendee: { name: string | null; email: string };
-  workshopDate: { workshop: { label: string } };
+  workshopDate: { workshop: { label: string; organizationId: string } };
   checkins: { createdAt: Date }[];
 };
 
@@ -79,6 +80,16 @@ async function performCheckinOnRegistration(
     printError =
       "Check-in guardado, pero no se pudo encolar el label. Ejecuta el SQL de PrintJob en Supabase o usa Reimprimir en admin.";
   }
+
+  notifyOrganizationStaffAsync(
+    reg.workshopDate.workshop.organizationId,
+    {
+      title: "Check-in",
+      body: `${attendeeName} — ${reg.workshopDate.workshop.label}`,
+      data: { type: "checkin", registrationId: reg.id },
+    },
+    { excludeEmail: meta.checkedInBy }
+  );
 
   return {
     ok: true,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -6,9 +6,13 @@ import {
   Text,
   TextInput,
   View,
+  type ScrollView as ScrollViewRef,
 } from "react-native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { WorkshopPicker } from "@/components/WorkshopPicker";
+import { ProgressBarSuccess } from "@/components/ProgressBar";
+import { StatusBadge } from "@/components/StatusBadge";
+import { WorkshopDropdown } from "@/components/WorkshopDropdown";
 import {
   deleteAdminDate,
   fetchAdminDates,
@@ -34,6 +38,7 @@ const emptyForm = {
 export default function AdminDatesScreen() {
   const { workshop } = useSession();
   const { colors, styles } = useAppTheme();
+  const navigation = useNavigation();
   const [rows, setRows] = useState<AdminDateRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +46,7 @@ export default function AdminDatesScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [createForm, setCreateForm] = useState(emptyForm);
   const [editForm, setEditForm] = useState(emptyForm);
+  const scrollRef = useRef<ScrollViewRef>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,9 +61,40 @@ export default function AdminDatesScreen() {
     }
   }, [workshop]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load])
+  );
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable
+          onPress={() => {
+            setShowCreate((v) => !v);
+            setEditingId(null);
+            setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 50);
+          }}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 4,
+            backgroundColor: colors.accent,
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+            borderRadius: 8,
+            marginRight: 8,
+          }}
+        >
+          <Ionicons name="add" size={16} color={colors.onAccent} />
+          <Text style={{ fontSize: 13, fontWeight: "700", color: colors.onAccent }}>
+            Nueva fecha
+          </Text>
+        </Pressable>
+      ),
+    });
+  }, [navigation, colors.accent, colors.onAccent]);
 
   async function activate(id: string) {
     try {
@@ -92,6 +129,7 @@ export default function AdminDatesScreen() {
   }
 
   function startEdit(row: AdminDateRow) {
+    setShowCreate(false);
     setEditingId(row.id);
     setEditForm({
       title: row.title,
@@ -100,6 +138,7 @@ export default function AdminDatesScreen() {
       mapsUrl: row.mapsUrl ?? "",
       capacity: String(row.capacity),
     });
+    setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 50);
   }
 
   async function saveEdit(dateId: string) {
@@ -144,41 +183,35 @@ export default function AdminDatesScreen() {
   }
 
   return (
-    <ScrollView style={styles.screenPadded} keyboardShouldPersistTaps="handled">
-      <WorkshopPicker />
+    <ScrollView
+      ref={scrollRef}
+      style={styles.screenPadded}
+      keyboardShouldPersistTaps="handled"
+    >
+      <WorkshopDropdown />
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-      <Pressable
-        style={[
-          styles.btnPrimary,
-          {
-            marginBottom: 16,
-            alignSelf: "flex-end",
-            paddingHorizontal: 16,
-            paddingVertical: 10,
-            marginTop: 0,
-            flexDirection: "row",
-            gap: 6,
-          },
-        ]}
-        onPress={() => setShowCreate(!showCreate)}
-      >
-        <Ionicons name="add" size={18} color={colors.onAccent} />
-        <Text style={[styles.btnPrimaryText, { fontSize: 14 }]}>
-          {showCreate ? "Cancelar" : "Nueva fecha"}
-        </Text>
-      </Pressable>
 
       {showCreate ? (
         <View style={[styles.card, { marginBottom: 16 }]}>
-          <Text style={styles.sectionLabel}>Nueva fecha</Text>
-          <Text style={styles.label}>Título</Text>
+          <Pressable
+            onPress={() => setShowCreate(false)}
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 12,
+            }}
+          >
+            <Text style={[styles.title, { fontSize: 17 }]}>Crear nueva fecha</Text>
+            <Ionicons name="chevron-down" size={20} color={colors.textSubtle} />
+          </Pressable>
+          <Text style={styles.fieldLabel}>Título del evento</Text>
           <TextInput
             style={styles.input}
             value={createForm.title}
             onChangeText={(v) => setCreateForm((f) => ({ ...f, title: v }))}
           />
-          <Text style={styles.label}>Fecha y hora (AAAA-MM-DDTHH:mm)</Text>
+          <Text style={styles.fieldLabel}>Fecha y hora</Text>
           <TextInput
             style={styles.input}
             placeholder="2026-06-15T14:00"
@@ -192,7 +225,7 @@ export default function AdminDatesScreen() {
             value={createForm.venue}
             onChangeText={(v) => setCreateForm((f) => ({ ...f, venue: v }))}
           />
-          <Text style={styles.label}>Google Maps (URL)</Text>
+          <Text style={styles.fieldLabel}>Maps URL (opcional)</Text>
           <TextInput
             style={styles.input}
             autoCapitalize="none"
@@ -206,11 +239,19 @@ export default function AdminDatesScreen() {
             value={createForm.capacity}
             onChangeText={(v) => setCreateForm((f) => ({ ...f, capacity: v }))}
           />
-          <Pressable style={styles.btnPrimary} onPress={() => void create()}>
+          <Pressable
+            style={[styles.btnPrimary, styles.btnWithIcon]}
+            onPress={() => void create()}
+          >
+            <Ionicons name="calendar-outline" size={20} color={colors.onAccent} />
             <Text style={styles.btnPrimaryText}>Crear fecha</Text>
           </Pressable>
         </View>
       ) : null}
+
+      <Text style={[styles.title, { fontSize: 17, marginBottom: 12, marginTop: 4 }]}>
+        Fechas del taller
+      </Text>
 
       {loading ? (
         <ActivityIndicator color={colors.accent} />
@@ -275,33 +316,78 @@ export default function AdminDatesScreen() {
               </>
             ) : (
               <>
-                <Text style={styles.rowTitle}>{row.title}</Text>
-                <Text style={styles.rowMeta}>
-                  {new Date(row.startsAt).toLocaleString("es-PR")}
-                </Text>
-                {row.venue ? <Text style={styles.rowMeta}>{row.venue}</Text> : null}
-                <Text style={styles.rowMeta}>
-                  {row.soldCount}/{row.capacity} vendidos · {row.checkedInCount} check-in
-                </Text>
-                {row.isActive ? (
-                  <View style={[styles.badge, styles.badgeSuccess, { marginTop: 8 }]}>
-                    <Text style={[styles.badgeText, styles.badgeSuccessText]}>Activa</Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                  }}
+                >
+                  <StatusBadge
+                    label={row.isActive ? "Activa" : "Inactiva"}
+                    variant={row.isActive ? "success" : "muted"}
+                  />
+                  <Ionicons name="chevron-forward" size={18} color={colors.textSubtle} />
+                </View>
+                <Text style={[styles.rowTitle, { marginTop: 10 }]}>{row.title}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 }}>
+                  <Ionicons name="calendar-outline" size={14} color={colors.textSubtle} />
+                  <Text style={styles.rowMeta}>
+                    {new Date(row.startsAt).toLocaleDateString("es-PR", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
+                  <Ionicons name="time-outline" size={14} color={colors.textSubtle} />
+                  <Text style={styles.rowMeta}>
+                    {new Date(row.startsAt).toLocaleTimeString("es-PR", {
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
+                  </Text>
+                </View>
+                {row.venue ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
+                    <Ionicons name="location-outline" size={14} color={colors.textSubtle} />
+                    <Text style={styles.rowMeta}>{row.venue}</Text>
                   </View>
-                ) : (
+                ) : null}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
+                  <Ionicons name="people-outline" size={14} color={colors.textSubtle} />
+                  <Text style={styles.rowMeta}>
+                    {row.soldCount} / {row.capacity} vendidos
+                  </Text>
+                </View>
+                <View style={{ marginTop: 4 }}>
+                  <ProgressBarSuccess value={row.soldCount} max={row.capacity || 1} />
+                </View>
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
                   <Pressable
-                    style={[styles.btnSecondary, { marginTop: 10, alignSelf: "flex-start" }]}
-                    onPress={() => void activate(row.id)}
+                    style={[styles.btnOutline, { flexDirection: "row", gap: 4 }]}
+                    onPress={() => startEdit(row)}
                   >
-                    <Text style={styles.btnSecondaryText}>Activar</Text>
-                  </Pressable>
-                )}
-                <View style={{ flexDirection: "row", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-                  <Pressable style={styles.btnOutline} onPress={() => startEdit(row)}>
-                    <Text style={styles.btnOutlineText}>Editar</Text>
+                    <Ionicons name="pencil-outline" size={14} color={colors.link} />
+                    <Text style={[styles.btnOutlineText, { color: colors.link }]}>Editar</Text>
                   </Pressable>
                   {row.soldCount === 0 && row.checkedInCount === 0 ? (
-                    <Pressable style={styles.btnDanger} onPress={() => removeDate(row)}>
+                    <Pressable
+                      style={[styles.btnDanger, { flexDirection: "row", gap: 4 }]}
+                      onPress={() => removeDate(row)}
+                    >
+                      <Ionicons name="trash-outline" size={14} color="#dc2626" />
                       <Text style={styles.btnDangerText}>Eliminar</Text>
+                    </Pressable>
+                  ) : !row.isActive ? (
+                    <Pressable
+                      style={[styles.btnOutline, { flexDirection: "row", gap: 4 }]}
+                      onPress={() => void activate(row.id)}
+                    >
+                      <Ionicons name="play-outline" size={14} color={colors.accent} />
+                      <Text style={styles.btnOutlineText}>Activar</Text>
                     </Pressable>
                   ) : null}
                 </View>

@@ -200,10 +200,21 @@ export type EmailTemplateRow = {
   active: boolean;
 };
 
+export type EmailLogRow = {
+  id: string;
+  templateName: string;
+  attendeeEmail: string;
+  attendeeName: string | null;
+  workshopLabel: string;
+  sentAt: string;
+  status: string;
+  error: string | null;
+};
+
 export async function fetchEmailTemplates() {
   return adminFetch<{
     templates: EmailTemplateRow[];
-    logs: unknown[];
+    logs: EmailLogRow[];
   }>("/api/admin/email-templates");
 }
 

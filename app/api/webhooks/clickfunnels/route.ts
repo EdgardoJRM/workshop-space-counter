@@ -6,6 +6,7 @@ import {
   verifyWebhookSecret,
 } from "@/lib/clickfunnels";
 import { resolveOrganizationForWebhook } from "@/lib/organization";
+import { notifyOrganizationStaffAsync } from "@/lib/notify-staff-push";
 import { processClickFunnelsPurchase } from "@/lib/registrations";
 
 export const dynamic = "force-dynamic";
@@ -126,6 +127,15 @@ export async function POST(request: Request) {
         processedAt: new Date(),
       },
     });
+
+    if (!result.duplicate) {
+      const who = purchase.name?.trim() || purchase.email;
+      notifyOrganizationStaffAsync(org.id, {
+        title: "Nuevo registro",
+        body: `${who} se registró vía ClickFunnels`,
+        data: { type: "registration", registrationId: result.registrationId },
+      });
+    }
 
     return NextResponse.json({
       ok: true,

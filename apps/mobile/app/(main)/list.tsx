@@ -8,19 +8,25 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { EmptyState } from "@/components/EmptyState";
+import { SelectedEventBanner } from "@/components/SelectedEventBanner";
 import { SearchField } from "@/components/SearchField";
 import { StatusBadge } from "@/components/StatusBadge";
 import { checkinById, fetchRegistrations, reprintLabel } from "@/lib/api";
-import { getSelectedEventId } from "./index";
+import { useSelectedEvent } from "@/lib/event-context";
 import type { RegistrationRow } from "@/lib/types";
 import { useAppTheme } from "@/lib/useAppTheme";
+import { webBrand } from "@/lib/ui";
 
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[1][0]).toUpperCase();
+function formatCheckinTime(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  try {
+    return new Date(iso).toLocaleTimeString("es-PR", {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return null;
   }
-  return name.slice(0, 2).toUpperCase();
 }
 
 function AttendeeRow({
@@ -33,6 +39,7 @@ function AttendeeRow({
   onReprint: () => void;
 }) {
   const { colors, styles } = useAppTheme();
+  const checkinTime = formatCheckinTime(item.checkedInAt);
 
   return (
     <View
@@ -57,9 +64,7 @@ function AttendeeRow({
           {item.checkedIn ? (
             <Ionicons name="checkmark" size={22} color={colors.success} />
           ) : (
-            <Text style={{ fontWeight: "700", color: colors.text }}>
-              {initials(item.name || item.email)}
-            </Text>
+            <Ionicons name="time-outline" size={22} color="#b45309" />
           )}
         </View>
         <View style={{ flex: 1 }}>
@@ -71,7 +76,12 @@ function AttendeeRow({
             }}
           >
             <Text style={styles.rowTitle}>{item.name || item.email}</Text>
-            <Ionicons name="chevron-forward" size={18} color={colors.textSubtle} />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              {checkinTime ? (
+                <Text style={{ fontSize: 12, color: colors.textSubtle }}>{checkinTime}</Text>
+              ) : null}
+              <Ionicons name="chevron-forward" size={18} color={colors.textSubtle} />
+            </View>
           </View>
           <Text style={styles.rowMeta}>{item.email}</Text>
           <View style={{ marginTop: 8 }}>
@@ -93,23 +103,43 @@ function AttendeeRow({
         }}
       >
         {!item.checkedIn ? (
-          <Pressable style={styles.btnOutline} onPress={onCheckin}>
-            <Text style={[styles.btnOutlineText, { color: colors.accent }]}>
+          <Pressable
+            style={{
+              borderRadius: 10,
+              paddingHorizontal: 16,
+              paddingVertical: 10,
+              borderWidth: 1.5,
+              borderColor: colors.accent,
+            }}
+            onPress={onCheckin}
+          >
+            <Text style={{ fontSize: 14, fontWeight: "600", color: colors.accent }}>
               Check-in manual
             </Text>
           </Pressable>
-        ) : null}
-        <Pressable
-          style={{
-            padding: 10,
-            borderRadius: 10,
-            borderWidth: 1,
-            borderColor: colors.border,
-          }}
-          onPress={onReprint}
-        >
-          <Ionicons name="print-outline" size={20} color={colors.textMuted} />
-        </Pressable>
+        ) : (
+          <>
+            <Pressable
+              style={{
+                padding: 10,
+                borderRadius: 10,
+                backgroundColor: webBrand.off,
+              }}
+              onPress={onReprint}
+            >
+              <Ionicons name="print-outline" size={20} color={colors.textMuted} />
+            </Pressable>
+            <Pressable
+              style={{
+                padding: 10,
+                borderRadius: 10,
+                backgroundColor: webBrand.off,
+              }}
+            >
+              <Ionicons name="ellipsis-horizontal" size={20} color={colors.textMuted} />
+            </Pressable>
+          </>
+        )}
       </View>
     </View>
   );
@@ -117,28 +147,27 @@ function AttendeeRow({
 
 export default function ListScreen() {
   const { colors, styles } = useAppTheme();
-  const [eventId, setEventId] = useState<string | null>(null);
+  const { selectedEventId: eventId } = useSelectedEvent();
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<RegistrationRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const id = await getSelectedEventId();
-    setEventId(id);
-    if (!id) {
+    if (!eventId) {
       setRows([]);
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
-      const data = await fetchRegistrations(id, q.trim() || undefined);
+      const data = await fetchRegistrations(eventId, q.trim() || undefined);
       setRows(data.registrations);
     } finally {
       setLoading(false);
     }
-  }, [q]);
+  }, [q, eventId]);
 
   useEffect(() => {
     const t = setTimeout(() => void load(), 300);
@@ -173,19 +202,20 @@ export default function ListScreen() {
 
   if (!eventId) {
     return (
-      <View style={[styles.screenPadded, { justifyContent: "center", flex: 1 }]}>
-        <EmptyState
-          title="Aún no hay nada aquí"
-          message="Selecciona un evento en la pestaña Evento."
-          hintArrowToEvento
-        />
+      <View style={{ flex: 1 }}>
+        <SelectedEventBanner />
+        <View style={[styles.screenPadded, { justifyContent: "center", flex: 1 }]}>
+          <EmptyState hintArrowToEvento />
+        </View>
       </View>
     );
   }
 
   return (
-    <View style={styles.screenPadded}>
-      <SearchField value={q} onChangeText={setQ} />
+    <View style={{ flex: 1 }}>
+      <SelectedEventBanner />
+      <View style={[styles.screenPadded, { flex: 1 }]}>
+      <SearchField value={q} onChangeText={setQ} placeholder="Buscar nombre o email…" />
 
       <View
         style={{
@@ -198,6 +228,10 @@ export default function ListScreen() {
         <Text style={styles.rowMeta}>
           {rows.length} asistentes · Actualizado ahora
         </Text>
+        <Pressable style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          <Ionicons name="share-outline" size={16} color={colors.link} />
+          <Text style={styles.link}>Exportar</Text>
+        </Pressable>
       </View>
 
       {msg ? (
@@ -225,6 +259,12 @@ export default function ListScreen() {
           data={rows}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
+          onEndReached={() => {
+            if (rows.length > 0) {
+              setLoadingMore(true);
+              setTimeout(() => setLoadingMore(false), 800);
+            }
+          }}
           renderItem={({ item }) => (
             <AttendeeRow
               item={item}
@@ -238,8 +278,17 @@ export default function ListScreen() {
               Sin resultados.
             </Text>
           }
+          ListFooterComponent={
+            loadingMore && rows.length > 0 ? (
+              <View style={{ flexDirection: "row", justifyContent: "center", gap: 8, padding: 16 }}>
+                <ActivityIndicator size="small" color={colors.textSubtle} />
+                <Text style={styles.rowMeta}>Cargando más asistentes…</Text>
+              </View>
+            ) : null
+          }
         />
       )}
+      </View>
     </View>
   );
 }

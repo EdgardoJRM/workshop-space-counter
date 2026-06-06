@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
+import { AppLogo } from "@/components/AppLogo";
 import { exchangeMagicToken } from "@/lib/api";
 import { saveSession } from "@/lib/storage";
 import { useSession } from "@/lib/session-context";
@@ -37,16 +38,18 @@ export default function AuthDeepLinkScreen() {
     <View style={[styles.centered, { backgroundColor: colors.header }]}>
       {!error ? (
         <>
-          <ActivityIndicator size="large" color={colors.accent} />
+          <AppLogo size={80} rounded="ios" />
+          <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 24 }} />
           <Text style={{ fontSize: 16, color: colors.onHeader, marginTop: 16 }}>
             Entrando…
           </Text>
         </>
       ) : (
-        <View style={[styles.card, { width: "100%", maxWidth: 340 }]}>
+        <View style={[styles.card, { width: "100%", maxWidth: 340, alignItems: "center" }]}>
+          <AppLogo size={56} rounded="ios" style={{ marginBottom: 16 }} />
           <Text style={[styles.errorText, { textAlign: "center" }]}>{error}</Text>
           <Pressable
-            style={[styles.btnPrimary, { marginTop: 16 }]}
+            style={[styles.btnPrimary, { marginTop: 16, width: "100%" }]}
             onPress={() => router.replace("/")}
           >
             <Text style={styles.btnPrimaryText}>Volver al login</Text>

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getLabelTemplateForWorkshop } from "@/lib/label-template";
 import { PrintJobStatus } from "@prisma/client";
+import { notifyOrganizationStaffAsync } from "@/lib/notify-staff-push";
 import type { Prisma } from "@prisma/client";
 
 export type PrintJobPayload = {
@@ -183,13 +184,19 @@ export async function completePrintJobWithRetry(
 
   const maxAttempts = 3;
   if (job.attempts >= maxAttempts) {
-    return prisma.printJob.update({
+    const failed = await prisma.printJob.update({
       where: { id: jobId },
       data: {
         status: PrintJobStatus.FAILED,
         error: errorMessage ?? "Error de impresión",
       },
     });
+    notifyOrganizationStaffAsync(job.organizationId, {
+      title: "Error de impresión",
+      body: errorMessage ?? "Un label no pudo imprimirse tras varios intentos.",
+      data: { type: "print_failed", jobId },
+    });
+    return failed;
   }
 
   return prisma.printJob.update({

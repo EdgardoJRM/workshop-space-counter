@@ -1,15 +1,22 @@
-import { Text, View, type ViewStyle } from "react-native";
+import { Image, View, type ImageStyle, type ViewStyle } from "react-native";
 import { useAppTheme } from "@/lib/useAppTheme";
-import { webBrand } from "@/lib/ui";
+
+/** Hernandez Pass mark — mismo arte que `assets/icon.png` (App Store). */
+const logoSource = require("@/assets/icon.png");
 
 export function AppLogo({
   size = 36,
   style,
+  rounded = "ios",
 }: {
   size?: number;
   style?: ViewStyle;
+  /** ios = esquinas ~22% como icono de app; circle = avatar redondo en header */
+  rounded?: "ios" | "circle";
 }) {
   const { colors } = useAppTheme();
+  const radius =
+    rounded === "circle" ? size / 2 : Math.round(size * 0.223);
 
   return (
     <View
@@ -17,26 +24,24 @@ export function AppLogo({
         {
           width: size,
           height: size,
-          borderRadius: size / 2,
+          borderRadius: radius,
+          overflow: "hidden",
           backgroundColor: colors.header,
-          borderWidth: 2,
-          borderColor: "rgba(255,255,255,0.35)",
-          alignItems: "center",
-          justifyContent: "center",
         },
         style,
       ]}
     >
-      <Text
-        style={{
-          color: webBrand.white,
-          fontSize: size * 0.38,
-          fontWeight: "700",
-          letterSpacing: -0.5,
-        }}
-      >
-        HP
-      </Text>
+      <Image
+        source={logoSource}
+        style={
+          {
+            width: size,
+            height: size,
+          } as ImageStyle
+        }
+        resizeMode="cover"
+        accessibilityLabel="Hernandez Pass"
+      />
     </View>
   );
 }

@@ -91,8 +91,15 @@ Misma funcionalidad que el admin web:
 - Plantilla de labels Rollo
 - Emparejar impresora Mac
 - Webhook ClickFunnels (copiar URL)
-- Emails post-evento
+- Emails / automatizaciones post-evento
 - Marca / white-label
+- Push notifications (check-in, registros, errores de impresión)
+
+### Push notifications (producción)
+
+1. Ejecuta el SQL en `docs/PUSH_NOTIFICATIONS_SQL.md` en Supabase (tabla `MobilePushToken`).
+2. Redeploy del backend (ruta `POST /api/mobile/push/register`).
+3. Build nativo con `expo-notifications` (TestFlight); el simulador no recibe push remotos.
 
 ---
 

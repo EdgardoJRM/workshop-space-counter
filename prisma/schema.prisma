@@ -68,6 +68,7 @@ model Organization {
   webhookEvents  WebhookEvent[]
   printerAgents  PrinterAgent[]
   pairingCodes   PrinterPairingCode[]
+  pushTokens     MobilePushToken[]
 }
 
 model OrganizationMember {
@@ -294,4 +295,17 @@ model WebhookEvent {
 
   @@unique([organizationId, provider, externalId])
   @@index([organizationId, status])
+}
+
+model MobilePushToken {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  expoPushToken  String   @unique
+  platform       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId, email])
 }

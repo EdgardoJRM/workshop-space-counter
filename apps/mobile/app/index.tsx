@@ -13,6 +13,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { AppLogo } from "@/components/AppLogo";
+import { AuthHeroSheet } from "@/components/AuthHeroSheet";
 import { bootstrap, fetchOrgBranding, requestMagicLink } from "@/lib/api";
 import { getAccessToken, getOrgSlug, saveOrgSlug } from "@/lib/storage";
 import { useBrand } from "@/lib/theme";
@@ -41,7 +42,7 @@ export default function LoginScreen() {
             return;
           }
         } catch {
-          /* session expired */
+          /* expired */
         }
       }
       const savedSlug = await getOrgSlug();
@@ -50,7 +51,7 @@ export default function LoginScreen() {
         const org = await fetchOrgBranding(savedSlug ?? orgSlug);
         setBrand(org);
       } catch {
-        /* preview optional */
+        /* optional */
       }
       setLoading(false);
     })();
@@ -89,7 +90,8 @@ export default function LoginScreen() {
   if (loading) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.header }]}>
-        <ActivityIndicator size="large" color={colors.accent} />
+        <AppLogo size={88} rounded="ios" />
+        <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 24 }} />
       </View>
     );
   }
@@ -97,54 +99,42 @@ export default function LoginScreen() {
   if (sentEmail) {
     return (
       <KeyboardAvoidingView
-        style={{ flex: 1, backgroundColor: colors.header }}
+        style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView contentContainerStyle={{ flexGrow: 1 }} bounces={false}>
-          <View style={[styles.hero, { paddingTop: 56, minHeight: 140 }]}>
-            <Text style={[styles.heroTitle, { fontSize: 22 }]}>Acceso seguro</Text>
-          </View>
-          <View
-            style={{
-              flex: 1,
-              backgroundColor: colors.background,
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
-              marginTop: -16,
-              paddingHorizontal: 20,
-              paddingTop: 28,
-              paddingBottom: 32,
-            }}
+          <AuthHeroSheet
+            heroMinHeight={160}
+            hero={
+              <Text style={[styles.heroTitle, { fontSize: 22, textAlign: "center" }]}>
+                Acceso seguro
+              </Text>
+            }
           >
             <View style={[styles.card, { alignItems: "center" }]}>
-              <View
-                style={{
-                  width: 72,
-                  height: 72,
-                  borderRadius: 36,
-                  backgroundColor: "rgba(63, 94, 120, 0.1)",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginBottom: 16,
-                }}
-              >
-                <Ionicons name="mail-outline" size={36} color={colors.primary} />
+              <View style={{ marginBottom: 16, alignItems: "center" }}>
+                <Ionicons name="mail-outline" size={56} color={colors.header} />
+                <View style={{ marginTop: -12 }}>
+                  <Ionicons name="shield-checkmark" size={28} color={colors.header} />
+                </View>
               </View>
-              <Text style={[styles.title, { textAlign: "center" }]}>Revisa tu correo</Text>
-              <Text style={[styles.subtitle, { textAlign: "center", marginTop: 8 }]}>
+              <Text style={[styles.title, { textAlign: "center", fontSize: 24 }]}>
+                Revisa tu correo
+              </Text>
+              <Text style={[styles.subtitle, { textAlign: "center", marginTop: 10 }]}>
                 Te enviamos un magic link para entrar a {brand.appTitle}.
               </Text>
               <Text
                 style={{
-                  fontSize: 16,
+                  fontSize: 17,
                   fontWeight: "700",
-                  color: colors.primary,
-                  marginTop: 12,
+                  color: colors.header,
+                  marginTop: 14,
                 }}
               >
                 {sentEmail}
               </Text>
-              <Text style={[styles.subtitle, { textAlign: "center", marginTop: 8 }]}>
+              <Text style={[styles.subtitle, { textAlign: "center", marginTop: 10 }]}>
                 Abre el enlace desde tu iPhone para continuar.
               </Text>
               <View
@@ -160,7 +150,6 @@ export default function LoginScreen() {
                   Organización: <Text style={{ fontWeight: "700" }}>{orgSlug}</Text>
                 </Text>
               </View>
-
               <View
                 style={{
                   flexDirection: "row",
@@ -177,24 +166,21 @@ export default function LoginScreen() {
                   <Text style={styles.link}>Volver</Text>
                 </Pressable>
               </View>
-
               <Pressable
                 style={[styles.btnPrimary, { width: "100%" }]}
                 onPress={() => void Linking.openURL("message:")}
               >
-                <Text style={styles.btnPrimaryText}>Abrir mi correo</Text>
+                <Text style={styles.btnStaffText}>Abrir mi correo</Text>
               </Pressable>
-
               <Pressable
                 style={[styles.btnOutline, { width: "100%", marginTop: 10 }]}
                 onPress={() => void onSendLink("staff")}
                 disabled={sending}
               >
-                <Text style={styles.btnOutlineText}>
+                <Text style={styles.btnStaffText}>
                   {sending ? "Enviando…" : "Reenviar enlace"}
                 </Text>
               </Pressable>
-
               <View
                 style={{
                   flexDirection: "row",
@@ -203,13 +189,12 @@ export default function LoginScreen() {
                   marginTop: 20,
                 }}
               >
-                <Ionicons name="shield-checkmark-outline" size={16} color={colors.textSubtle} />
-                <Text style={{ fontSize: 12, color: colors.textSubtle }}>
+                <Ionicons name="lock-closed-outline" size={14} color={colors.textSubtle} />
+                <Text style={{ fontSize: 12, color: colors.textSubtle, textAlign: "center" }}>
                   Solo personal autorizado puede acceder.
                 </Text>
               </View>
             </View>
-
             <Text
               style={{
                 textAlign: "center",
@@ -220,7 +205,7 @@ export default function LoginScreen() {
             >
               pass.edgardohernandez.com
             </Text>
-          </View>
+          </AuthHeroSheet>
         </ScrollView>
       </KeyboardAvoidingView>
     );
@@ -228,7 +213,7 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.header }}
+      style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
@@ -236,76 +221,66 @@ export default function LoginScreen() {
         contentContainerStyle={{ flexGrow: 1 }}
         bounces={false}
       >
-        <View style={[styles.hero, { alignItems: "center", paddingTop: 56 }]}>
-          <AppLogo size={72} style={{ marginBottom: 16, borderWidth: 0 }} />
-          <Text style={[styles.heroTitle, { textAlign: "center" }]}>{brand.appTitle}</Text>
-          <Text style={[styles.heroSubtitle, { textAlign: "center" }]}>
-            Acceso de staff para eventos
-          </Text>
-        </View>
-
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: colors.background,
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
-            marginTop: -16,
-            paddingHorizontal: 20,
-            paddingTop: 28,
-            paddingBottom: 32,
-          }}
+        <AuthHeroSheet
+          hero={
+            <View style={{ alignItems: "center", marginTop: 8 }}>
+              <AppLogo size={92} rounded="ios" style={{ marginBottom: 12 }} />
+              <Text style={[styles.heroTitle, { fontSize: 26, textAlign: "center" }]}>
+                {brand.appTitle}
+              </Text>
+              <Text
+                style={[
+                  styles.heroSubtitle,
+                  { textAlign: "center", marginTop: 6, color: colors.link },
+                ]}
+              >
+                Acceso de staff para eventos
+              </Text>
+            </View>
+          }
         >
           <View style={styles.card}>
-            <Text style={styles.sectionLabel}>Iniciar sesión</Text>
-            <Text style={[styles.subtitle, { marginBottom: 4 }]}>
+            <Text style={styles.loginKicker}>Iniciar sesión</Text>
+            <Text style={[styles.subtitle, { marginBottom: 16 }]}>
               Entra con tus credenciales del evento
             </Text>
-
-            <Text style={styles.label}>Código del negocio</Text>
+            <Text style={[styles.fieldLabel, { marginTop: 0 }]}>Código del negocio</Text>
             <TextInput
               style={styles.input}
               autoCapitalize="none"
-              autoCorrect={false}
               value={orgSlug}
               onChangeText={setOrgSlug}
               onBlur={() => void onPreviewOrg(orgSlug)}
-              placeholder="ej. hernandez"
+              placeholder="hernandez"
               placeholderTextColor={colors.textSubtle}
             />
-
-            <Text style={styles.label}>Email del staff</Text>
+            <Text style={styles.fieldLabel}>Email del staff</Text>
             <TextInput
               style={styles.input}
               autoCapitalize="none"
-              autoCorrect={false}
               keyboardType="email-address"
               value={email}
               onChangeText={setEmail}
               placeholder="tu@correo.com"
               placeholderTextColor={colors.textSubtle}
             />
-
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
             <Pressable
               style={[styles.btnPrimary, sending && { opacity: 0.7 }]}
               onPress={() => void onSendLink("staff")}
               disabled={sending}
             >
-              <Text style={styles.btnPrimaryText}>
+              <Text style={styles.btnStaffText}>
                 {sending ? "Enviando…" : "Entrar como Staff"}
               </Text>
             </Pressable>
-
             <Pressable
-              style={[styles.btnSecondary, { marginTop: 10, width: "100%" }, sending && { opacity: 0.7 }]}
+              style={[styles.btnSecondary, sending && { opacity: 0.7 }]}
               onPress={() => void onSendLink("admin")}
               disabled={sending}
             >
               <Text style={styles.btnSecondaryText}>Entrar como Admin</Text>
             </Pressable>
-
             <View
               style={{
                 flexDirection: "row",
@@ -315,13 +290,12 @@ export default function LoginScreen() {
                 justifyContent: "center",
               }}
             >
-              <Ionicons name="shield-checkmark-outline" size={16} color={colors.textSubtle} />
+              <Ionicons name="shield-checkmark-outline" size={14} color={colors.textSubtle} />
               <Text style={{ fontSize: 12, color: colors.textSubtle, textAlign: "center" }}>
                 Recibirás un enlace seguro para acceder.
               </Text>
             </View>
           </View>
-
           <Text
             style={{
               textAlign: "center",
@@ -332,7 +306,7 @@ export default function LoginScreen() {
           >
             pass.edgardohernandez.com
           </Text>
-        </View>
+        </AuthHeroSheet>
       </ScrollView>
     </KeyboardAvoidingView>
   );

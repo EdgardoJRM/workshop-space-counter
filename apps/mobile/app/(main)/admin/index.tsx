@@ -1,5 +1,5 @@
-import { ScrollView, Text, View } from "react-native";
-import { router } from "expo-router";
+import { ScrollView, Text } from "react-native";
+import { type Href, router } from "expo-router";
 import { AdminHubCard } from "@/components/AdminHubCard";
 import { useAppTheme } from "@/lib/useAppTheme";
 
@@ -7,10 +7,10 @@ const HUB_ITEMS = [
   {
     kicker: "TALLER",
     kickerVariant: "gold" as const,
-    title: "Cupos",
+    title: "Cupos / Contador ClickFunnels",
     description: "Gestiona el cupo total y el contador en vivo.",
     icon: "ticket-outline" as const,
-    href: "/(main)/admin/spaces",
+    route: "spaces",
   },
   {
     kicker: "TALLER",
@@ -18,7 +18,7 @@ const HUB_ITEMS = [
     title: "Fechas",
     description: "Crear, editar y activar fechas del evento.",
     icon: "calendar-outline" as const,
-    href: "/(main)/admin/dates",
+    route: "dates",
   },
   {
     kicker: "TALLER",
@@ -26,7 +26,7 @@ const HUB_ITEMS = [
     title: "Registros",
     description: "Ver lista, check-in manual, CSV y reenvío.",
     icon: "people-outline" as const,
-    href: "/(main)/admin/registrations",
+    route: "registrations",
   },
   {
     kicker: "TALLER",
@@ -34,7 +34,7 @@ const HUB_ITEMS = [
     title: "Labels",
     description: "Plantilla y diseño para rollo 3×2.",
     icon: "pricetag-outline" as const,
-    href: "/(main)/admin/labels",
+    route: "labels",
   },
   {
     kicker: "SISTEMA",
@@ -42,7 +42,7 @@ const HUB_ITEMS = [
     title: "Emparejar impresora",
     description: "Conecta la impresora con tu código Mac.",
     icon: "print-outline" as const,
-    href: "/(main)/admin/pairing",
+    route: "pairing",
   },
   {
     kicker: "SISTEMA",
@@ -50,15 +50,15 @@ const HUB_ITEMS = [
     title: "Webhook ClickFunnels",
     description: "Configura la URL y el secreto de integración.",
     icon: "link-outline" as const,
-    href: "/(main)/admin/webhook",
+    route: "webhook",
   },
   {
     kicker: "SISTEMA",
     kickerVariant: "blue" as const,
-    title: "Emails",
-    description: "Secuencia automática post-evento.",
+    title: "Emails / Automatizaciones",
+    description: "Plantillas post-evento, delays y historial de envíos.",
     icon: "mail-outline" as const,
-    href: "/(main)/admin/emails",
+    route: "emails",
   },
   {
     kicker: "SISTEMA",
@@ -66,9 +66,13 @@ const HUB_ITEMS = [
     title: "Marca / white-label",
     description: "Personaliza nombre, colores y logo.",
     icon: "color-palette-outline" as const,
-    href: "/(main)/admin/branding",
+    route: "branding",
   },
-];
+] as const;
+
+function openAdminScreen(route: string) {
+  router.push(`/admin/${route}` as Href);
+}
 
 export default function AdminHubScreen() {
   const { styles } = useAppTheme();
@@ -81,13 +85,13 @@ export default function AdminHubScreen() {
 
       {HUB_ITEMS.map((item) => (
         <AdminHubCard
-          key={item.href}
+          key={item.route}
           kicker={item.kicker}
           kickerVariant={item.kickerVariant}
           title={item.title}
           description={item.description}
           icon={item.icon}
-          onPress={() => router.push(item.href)}
+          onPress={() => openAdminScreen(item.route)}
         />
       ))}
     </ScrollView>

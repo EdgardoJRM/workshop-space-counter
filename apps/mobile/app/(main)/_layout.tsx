@@ -1,55 +1,66 @@
 import { Tabs } from "expo-router";
-import { Platform } from "react-native";
+import { Platform, Pressable } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { HeaderHelpButton } from "@/components/HeaderHelpButton";
 import { HeaderLogoButton } from "@/components/HeaderLogoButton";
-import { TabBarIcon, type TabIconName } from "@/components/TabBarIcon";
+import { TabBarIcon, tabBarActiveColor, type TabIconName } from "@/components/TabBarIcon";
+import { PushNotificationRegistrar } from "@/components/PushNotificationRegistrar";
+import { EventProvider } from "@/lib/event-context";
 import { useSession } from "@/lib/session-context";
 import { useAppTheme } from "@/lib/useAppTheme";
 import { webBrand } from "@/lib/ui";
 
 function tabIcon(name: TabIconName) {
-  return ({
-    color,
-    focused,
-  }: {
-    color: string;
-    focused: boolean;
-  }) => <TabBarIcon name={name} color={color} focused={focused} />;
+  function TabIcon({ color, focused }: { color: string; focused: boolean }) {
+    return <TabBarIcon name={name} color={color} focused={focused} />;
+  }
+  TabIcon.displayName = `TabIcon(${name})`;
+  return TabIcon;
 }
 
-export default function MainLayout() {
+function MainTabs() {
   const { colors, brand } = useAppTheme();
   const { isAdmin, loaded } = useSession();
 
-  const headerLogo = { headerLeft: () => <HeaderLogoButton /> };
+  const headerHelp = {
+    headerRight: () => <HeaderHelpButton />,
+  };
 
   return (
     <Tabs
-      screenOptions={{
-        headerStyle: {
-          backgroundColor: colors.header,
-          ...Platform.select({
-            ios: { shadowColor: "transparent" },
-            default: { elevation: 0 },
-          }),
-        },
-        headerTintColor: colors.onHeader,
-        headerTitleStyle: {
-          fontWeight: "700",
-          fontSize: 17,
-        },
-        tabBarStyle: {
-          backgroundColor: webBrand.white,
-          borderTopColor: colors.border,
-          borderTopWidth: 1,
-          paddingTop: 8,
-          height: Platform.OS === "ios" ? 88 : 64,
-        },
-        tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.textSubtle,
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: "600",
-        },
+      screenOptions={({ route }) => {
+        const tabName = route.name as TabIconName;
+        const isScan = route.name === "scan";
+        const activeColor = tabBarActiveColor(tabName, colors);
+
+        return {
+          headerStyle: {
+            backgroundColor: colors.header,
+            ...Platform.select({
+              ios: { shadowColor: "transparent" },
+              default: { elevation: 0 },
+            }),
+          },
+          headerTintColor: colors.onHeader,
+          headerTitleStyle: {
+            fontWeight: "700",
+            fontSize: 17,
+          },
+          headerShown: route.name !== "admin",
+          tabBarStyle: {
+            backgroundColor: isScan ? "#000000" : webBrand.white,
+            borderTopColor: isScan ? "#222" : colors.border,
+            borderTopWidth: 1,
+            paddingTop: 8,
+            height: Platform.OS === "ios" ? 88 : 64,
+          },
+          tabBarActiveTintColor: activeColor,
+          tabBarInactiveTintColor: isScan ? "rgba(255,255,255,0.55)" : colors.textSubtle,
+          tabBarLabelStyle: {
+            fontSize: 11,
+            fontWeight: "600",
+          },
+        };
       }}
     >
       <Tabs.Screen
@@ -66,7 +77,12 @@ export default function MainLayout() {
           title: "Escanear",
           tabBarLabel: "Escanear",
           tabBarIcon: tabIcon("scan"),
-          ...headerLogo,
+          headerLeft: () => (
+            <Pressable style={{ marginLeft: 12 }} hitSlop={8}>
+              <Ionicons name="flash-outline" size={22} color={colors.onHeader} />
+            </Pressable>
+          ),
+          ...headerHelp,
         }}
       />
       <Tabs.Screen
@@ -75,7 +91,24 @@ export default function MainLayout() {
           title: "Lista",
           tabBarLabel: "Lista",
           tabBarIcon: tabIcon("list"),
-          ...headerLogo,
+          headerLeft: () => <HeaderLogoButton />,
+          headerRight: () => (
+            <Pressable
+              style={{
+                marginRight: 12,
+                width: 34,
+                height: 34,
+                borderRadius: 17,
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.5)",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              hitSlop={8}
+            >
+              <Ionicons name="funnel-outline" size={18} color={colors.onHeader} />
+            </Pressable>
+          ),
         }}
       />
       <Tabs.Screen
@@ -84,19 +117,28 @@ export default function MainLayout() {
           title: "Impresora",
           tabBarLabel: "Impresora",
           tabBarIcon: tabIcon("printer"),
-          ...headerLogo,
+          headerLeft: () => <HeaderLogoButton />,
+          ...headerHelp,
         }}
       />
       <Tabs.Screen
         name="admin"
         options={{
-          title: "Admin",
           tabBarLabel: "Admin",
           tabBarIcon: tabIcon("admin"),
-          headerLeft: () => <HeaderLogoButton />,
+          headerShown: false,
           href: loaded && isAdmin ? undefined : null,
         }}
       />
     </Tabs>
+  );
+}
+
+export default function MainLayout() {
+  return (
+    <EventProvider>
+      <PushNotificationRegistrar />
+      <MainTabs />
+    </EventProvider>
   );
 }

@@ -88,6 +88,17 @@ export async function POST(request: Request) {
   const dateId = typeof body.dateId === "string" ? body.dateId : null;
 
   if (dateId) {
+    const existingDate = await prisma.workshopDate.findFirst({
+      where: {
+        id: dateId,
+        workshop: { organizationId: auth.organizationId },
+      },
+      select: { workshopId: true },
+    });
+    if (!existingDate) {
+      return NextResponse.json({ error: "Date not found" }, { status: 404 });
+    }
+
     const capacity =
       typeof body.capacity === "number" && body.capacity >= 0
         ? Math.floor(body.capacity)
@@ -96,16 +107,10 @@ export async function POST(request: Request) {
       typeof body.isActive === "boolean" ? body.isActive : undefined;
 
     if (isActive === true) {
-      const existing = await prisma.workshopDate.findUnique({
-        where: { id: dateId },
-        select: { workshopId: true },
+      await prisma.workshopDate.updateMany({
+        where: { workshopId: existingDate.workshopId, isActive: true },
+        data: { isActive: false },
       });
-      if (existing) {
-        await prisma.workshopDate.updateMany({
-          where: { workshopId: existing.workshopId, isActive: true },
-          data: { isActive: false },
-        });
-      }
     }
 
     const updated = await prisma.workshopDate.update({
