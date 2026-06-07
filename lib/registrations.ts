@@ -34,16 +34,32 @@ function formatEventDate(d: Date): string {
 
 async function resolveWorkshopDateIdForSlug(
   workshopSlug: WorkshopSlug,
-  workshopDateId?: string | null
+  workshopDateId?: string | null,
+  organizationId?: string | null
 ): Promise<string | null> {
   if (workshopDateId) {
-    const found = await prisma.workshopDate.findUnique({
-      where: { id: workshopDateId },
+    const found = await prisma.workshopDate.findFirst({
+      where: {
+        id: workshopDateId,
+        workshop: {
+          slug: workshopSlug,
+          ...(organizationId ? { organizationId } : {}),
+        },
+      },
     });
     if (found) return found.id;
   }
 
-  const active = await getActiveWorkshopDate(workshopSlug);
+  const orgId =
+    organizationId ??
+    (
+      await prisma.workshop.findFirst({
+        where: { slug: workshopSlug },
+        select: { organizationId: true },
+      })
+    )?.organizationId;
+
+  const active = await getActiveWorkshopDate(workshopSlug, orgId ?? undefined);
   return active?.id ?? null;
 }
 

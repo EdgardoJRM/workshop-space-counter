@@ -102,7 +102,7 @@ export async function createManualRegistration(body: {
   workshopDateId?: string;
   sendPassEmail?: boolean;
 }) {
-  return adminFetch<{ ok: boolean; registrationId: string }>(
+  return adminFetch<{ ok: boolean; registrationId: string; duplicate?: boolean }>(
     "/api/admin/registrations",
     { method: "POST", body: JSON.stringify(body) }
   );

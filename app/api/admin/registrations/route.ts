@@ -274,7 +274,10 @@ export async function POST(request: Request) {
     const dateRow = await prisma.workshopDate.findFirst({
       where: {
         id: workshopDateId,
-        workshop: { slug: workshopSlug as WorkshopSlug },
+        workshop: {
+          slug: workshopSlug as WorkshopSlug,
+          organizationId: auth.organizationId,
+        },
       },
     });
     if (!dateRow) {

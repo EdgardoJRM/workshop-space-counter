@@ -17,12 +17,15 @@ import {
   adminReprintLabel,
   cancelRegistration,
   createManualRegistration,
+  fetchAdminDates,
   fetchAdminRegistrations,
   importCsv,
   resendPassEmail,
   updateRegistration,
+  type AdminDateRow,
   type AdminRegistrationRow,
 } from "@/lib/admin-api";
+import { WorkshopDropdown } from "@/components/WorkshopDropdown";
 import { confirmDestructive } from "@/lib/confirm-alert";
 import { useSession } from "@/lib/session-context";
 import { useAppTheme } from "@/lib/useAppTheme";
@@ -51,6 +54,17 @@ function regStatusLabel(r: AdminRegistrationRow): string {
   return "Pendiente";
 }
 
+function formatEventDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString("es-PR", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  } catch {
+    return iso;
+  }
+}
+
 export default function AdminRegistrationsScreen() {
   const { workshop } = useSession();
   const { colors, styles } = useAppTheme();
@@ -59,8 +73,14 @@ export default function AdminRegistrationsScreen() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [ok, setOk] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [dates, setDates] = useState<AdminDateRow[]>([]);
+  const [workshopDateId, setWorkshopDateId] = useState("");
+  const [loadingDates, setLoadingDates] = useState(true);
+  const [sendPassEmail, setSendPassEmail] = useState(true);
   const [csv, setCsv] = useState(
     "email,nombre\nmaria@ejemplo.com,María Rodríguez\njuan@ejemplo.com,Juan Pérez"
   );
@@ -87,6 +107,24 @@ export default function AdminRegistrationsScreen() {
   }, [load]);
 
   useEffect(() => {
+    void (async () => {
+      setLoadingDates(true);
+      try {
+        const data = await fetchAdminDates(workshop);
+        setDates(data.dates);
+        const active = data.dates.find((d) => d.isActive) ?? data.dates[0];
+        setWorkshopDateId(active?.id ?? "");
+      } catch (e) {
+        setDates([]);
+        setWorkshopDateId("");
+        setError(e instanceof Error ? e.message : "No se pudieron cargar las fechas");
+      } finally {
+        setLoadingDates(false);
+      }
+    })();
+  }, [workshop]);
+
+  useEffect(() => {
     const q = search.trim().toLowerCase();
     if (!q) {
       setFiltered(rows);
@@ -102,22 +140,46 @@ export default function AdminRegistrationsScreen() {
   }, [rows, search]);
 
   async function manualRegister() {
+    setError(null);
+    setOk(null);
     if (!email.includes("@")) {
       setError("Email inválido");
       return;
     }
+    if (!workshopDateId) {
+      setError("No hay fecha del evento. Créala en Admin → Fechas y márcala como activa.");
+      return;
+    }
     setBusy("manual");
     try {
-      await createManualRegistration({
+      const res = await createManualRegistration({
         workshop,
         email: email.trim().toLowerCase(),
         name: name.trim() || undefined,
+        phone: phone.trim() || undefined,
+        workshopDateId,
+        sendPassEmail,
       });
       setEmail("");
       setName("");
+      setPhone("");
+      setOk(
+        res.duplicate
+          ? "Esa persona ya estaba registrada en esta fecha."
+          : sendPassEmail
+            ? "Registrado y pase enviado por email."
+            : "Registrado correctamente."
+      );
       void load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error");
+      const msg = e instanceof Error ? e.message : "Error";
+      if (msg.includes("fecha activa") || msg.includes("NO_DATE")) {
+        setError("No hay fecha activa para este taller. Ve a Admin → Fechas.");
+      } else if (msg.includes("cupos") || msg.includes("SOLD_OUT")) {
+        setError("No hay cupos disponibles en esa fecha.");
+      } else {
+        setError(msg);
+      }
     } finally {
       setBusy(null);
     }
@@ -205,7 +267,47 @@ export default function AdminRegistrationsScreen() {
 
   return (
     <ScrollView style={styles.screenPadded} keyboardShouldPersistTaps="handled">
+      <WorkshopDropdown />
+
       <SectionCard icon="person-add-outline" title="Registro manual">
+        <Text style={styles.label}>Fecha del evento</Text>
+        {loadingDates ? (
+          <ActivityIndicator color={colors.accent} style={{ marginVertical: 8 }} />
+        ) : dates.length === 0 ? (
+          <Text style={styles.errorText}>
+            Sin fechas para este taller. Créalas en Admin → Fechas.
+          </Text>
+        ) : (
+          <View style={{ gap: 8, marginBottom: 12 }}>
+            {dates.map((d) => {
+              const selected = d.id === workshopDateId;
+              return (
+                <Pressable
+                  key={d.id}
+                  onPress={() => setWorkshopDateId(d.id)}
+                  style={[
+                    styles.rowCard,
+                    {
+                      borderWidth: 2,
+                      borderColor: selected ? colors.accent : colors.border,
+                      marginBottom: 0,
+                      padding: 12,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.rowTitle, { fontSize: 14 }]}>{d.title}</Text>
+                  <Text style={styles.rowMeta}>{formatEventDate(d.startsAt)}</Text>
+                  {d.isActive ? (
+                    <Text style={[styles.rowMeta, { color: colors.success, marginTop: 4 }]}>
+                      Fecha activa
+                    </Text>
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
         <FieldInput
           label="Email"
           value={email}
@@ -222,10 +324,35 @@ export default function AdminRegistrationsScreen() {
           placeholder="Nombre del asistente"
           leftIcon={<Ionicons name="person-outline" size={18} color={colors.textSubtle} />}
         />
+        <FieldInput
+          label="Teléfono (opcional)"
+          value={phone}
+          onChangeText={setPhone}
+          placeholder="7875551234"
+          keyboardType="phone-pad"
+          leftIcon={<Ionicons name="call-outline" size={18} color={colors.textSubtle} />}
+        />
+
+        <Pressable
+          onPress={() => setSendPassEmail((v) => !v)}
+          style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 }}
+        >
+          <Ionicons
+            name={sendPassEmail ? "checkbox" : "square-outline"}
+            size={22}
+            color={sendPassEmail ? colors.accent : colors.textSubtle}
+          />
+          <Text style={{ flex: 1, fontSize: 14, color: colors.text }}>
+            Enviar pase por email
+          </Text>
+        </Pressable>
+
+        {ok ? <Text style={styles.okText}>{ok}</Text> : null}
+
         <Pressable
           style={[styles.btnPrimary, styles.btnWithIcon]}
           onPress={() => void manualRegister()}
-          disabled={busy === "manual"}
+          disabled={busy === "manual" || loadingDates || !workshopDateId}
         >
           <Ionicons name="person-add-outline" size={20} color={colors.onAccent} />
           <Text style={styles.btnPrimaryText}>
