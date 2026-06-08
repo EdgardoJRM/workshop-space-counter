@@ -5,8 +5,9 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Hernandez Pass",
-  description: "Pases, registros y contador de espacios para talleres",
+  title: "Hernandez Pass — Event registrations, QR check-in & name tags",
+  description:
+    "Hernandez Pass helps event teams manage registrations, QR passes, check-in, capacity, and name tags for live workshops and events.",
 };
 
 export default function RootLayout({
@@ -15,7 +16,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
+    <html lang="en">
       <body className={inter.className}>{children}</body>
     </html>
   );
