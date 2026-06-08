@@ -1,19 +1,103 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import type { WorkshopSlug } from "@/lib/workshop-keys";
-import { DEFAULT_WORKSHOP, isWorkshopSlug } from "@/lib/workshop-keys";
+import { isWorkshopSlug, resolveWorkshopFromFunnelText } from "@/lib/workshop-keys";
 
 /** ClickFunnels rechaza firmas más viejas que esto (docs oficiales). */
-const CF_SIGNATURE_TOLERANCE_SEC = 600;
+export const CF_SIGNATURE_TOLERANCE_SEC = 600;
+
+export type WebhookAuthDiagnosis = {
+  reason:
+    | "missing_secret"
+    | "missing_cf_headers"
+    | "invalid_timestamp"
+    | "timestamp_skew"
+    | "signature_mismatch"
+    | "legacy_secret_mismatch"
+    | "ok";
+  hasCfSignature: boolean;
+  hasCfTimestamp: boolean;
+  timestampSkewSec: number | null;
+};
 
 export type ClickFunnelsPurchase = {
   externalOrderId: string;
   email: string;
   name: string | null;
   phone: string | null;
-  workshopSlug: WorkshopSlug;
+  /** null = funnel sin token reconocido; admin debe asignar taller en la app. */
+  workshopSlug: WorkshopSlug | null;
   workshopDateId: string | null;
+  /** Total de boletos en la orden (suma de line_items.quantity). */
+  ticketQuantity: number;
   raw: Record<string, unknown>;
 };
+
+/** Suma quantity de line_items en payload V2; default 1. */
+export function parseClickFunnelsTicketQuantity(
+  raw: Record<string, unknown>
+): number {
+  const dataRoot =
+    raw.data && typeof raw.data === "object"
+      ? (raw.data as Record<string, unknown>)
+      : raw;
+
+  const lineItems = dataRoot.line_items ?? raw.line_items;
+  if (!Array.isArray(lineItems)) return 1;
+
+  let total = 0;
+  for (const item of lineItems) {
+    if (!item || typeof item !== "object") continue;
+    const qty = (item as Record<string, unknown>).quantity;
+    if (typeof qty === "number" && Number.isFinite(qty) && qty > 0) {
+      total += Math.floor(qty);
+    } else if (typeof qty === "string") {
+      const n = Number.parseInt(qty, 10);
+      if (Number.isFinite(n) && n > 0) total += n;
+    }
+  }
+
+  return total > 0 ? total : 1;
+}
+
+export function guestExternalOrderId(
+  baseOrderId: string,
+  guestIndex: number
+): string {
+  return `${baseOrderId}:guest:${guestIndex}`;
+}
+
+/** Textos del funnel/página en payloads V2 (para UI y mapeo). */
+export function extractClickFunnelsFunnelTexts(
+  raw: Record<string, unknown>
+): string[] {
+  const dataRoot =
+    raw.data && typeof raw.data === "object"
+      ? (raw.data as Record<string, unknown>)
+      : raw;
+
+  const funnelObjectName = (root: Record<string, unknown>, key: string) => {
+    const node = pickNested(root, [key]);
+    return node && typeof node === "object"
+      ? pickString(node as Record<string, unknown>, ["name"])
+      : null;
+  };
+
+  return [
+    pickString(dataRoot, ["funnel_name", "funnelName"]),
+    pickString(raw, ["funnel_name", "funnelName"]),
+    funnelObjectName(raw, "funnel"),
+    funnelObjectName(dataRoot, "funnel"),
+    pickString(dataRoot, ["origination_channel_name", "page_name"]),
+    funnelObjectName(raw, "page"),
+  ].filter((t): t is string => Boolean(t));
+}
+
+export function extractClickFunnelsFunnelLabel(
+  raw: Record<string, unknown>
+): string | null {
+  const texts = extractClickFunnelsFunnelTexts(raw);
+  return texts[0] ?? null;
+}
 
 function pickString(obj: Record<string, unknown>, keys: string[]): string | null {
   for (const key of keys) {
@@ -51,8 +135,10 @@ export function parseClickFunnelsPayload(body: unknown): ClickFunnelsPurchase | 
 
   const contact =
     (pickNested(dataRoot, ["contact"]) as Record<string, unknown> | undefined) ??
+    (pickNested(dataRoot, ["primary_contact"]) as Record<string, unknown> | undefined) ??
     (pickNested(dataRoot, ["purchase", "contact"]) as Record<string, unknown> | undefined) ??
     (pickNested(raw, ["contact"]) as Record<string, unknown> | undefined) ??
+    (pickNested(raw, ["primary_contact"]) as Record<string, unknown> | undefined) ??
     (pickNested(raw, ["purchase", "contact"]) as Record<string, unknown> | undefined) ??
     dataRoot;
 
@@ -80,9 +166,9 @@ export function parseClickFunnelsPayload(body: unknown): ClickFunnelsPurchase | 
       "purchase_id",
       "purchaseId",
       "transaction_id",
-      "event_id",
     ]) ??
     pickString(contact, ["id", "public_id"]) ??
+    pickString(raw, ["event_id"]) ??
     `cf-${email}-${Date.now()}`;
 
   const firstName = pickString(contact, ["first_name", "firstName", "name"]);
@@ -111,8 +197,13 @@ export function parseClickFunnelsPayload(body: unknown): ClickFunnelsPurchase | 
     (customAttrs ? pickString(customAttrs, ["workshop", "workshop_slug"]) : null) ??
     null;
 
-  const workshopSlug: WorkshopSlug =
-    workshopRaw && isWorkshopSlug(workshopRaw) ? workshopRaw : DEFAULT_WORKSHOP;
+  const funnelTexts = extractClickFunnelsFunnelTexts(raw);
+  const workshopFromFunnel = resolveWorkshopFromFunnelText(...funnelTexts);
+
+  const workshopSlug: WorkshopSlug | null =
+    workshopRaw && isWorkshopSlug(workshopRaw)
+      ? workshopRaw
+      : workshopFromFunnel;
 
   const workshopDateId =
     pickString(raw, ["workshop_date_id", "date_id", "event_date_id"]) ??
@@ -121,6 +212,8 @@ export function parseClickFunnelsPayload(body: unknown): ClickFunnelsPurchase | 
     (customAttrs ? pickString(customAttrs, ["workshop_date_id"]) : null) ??
     null;
 
+  const ticketQuantity = parseClickFunnelsTicketQuantity(raw);
+
   return {
     externalOrderId,
     email: email.toLowerCase(),
@@ -128,6 +221,7 @@ export function parseClickFunnelsPayload(body: unknown): ClickFunnelsPurchase | 
     phone,
     workshopSlug,
     workshopDateId,
+    ticketQuantity,
     raw,
   };
 }
@@ -209,4 +303,90 @@ export function verifyIncomingWebhook(
   }
 
   return verifyWebhookSecret(request, secret);
+}
+
+/** Diagnóstico de fallos 401 sin exponer secretos. */
+export function diagnoseWebhookAuthFailure(
+  request: Request,
+  secret: string,
+  rawBody: string
+): WebhookAuthDiagnosis {
+  if (!secret.trim()) {
+    return {
+      reason: "missing_secret",
+      hasCfSignature: false,
+      hasCfTimestamp: false,
+      timestampSkewSec: null,
+    };
+  }
+
+  const cfSignature = request.headers.get("x-webhook-clickfunnels-signature");
+  const cfTimestamp = request.headers.get("x-webhook-clickfunnels-timestamp");
+  const hasCfSignature = Boolean(cfSignature?.trim());
+  const hasCfTimestamp = Boolean(cfTimestamp?.trim());
+
+  if (hasCfSignature && hasCfTimestamp) {
+    const timestampInt = Number.parseInt(cfTimestamp!.trim(), 10);
+    if (!Number.isFinite(timestampInt)) {
+      return {
+        reason: "invalid_timestamp",
+        hasCfSignature,
+        hasCfTimestamp,
+        timestampSkewSec: null,
+      };
+    }
+
+    const timestampSkewSec = Math.abs(
+      Math.floor(Date.now() / 1000) - timestampInt
+    );
+    if (timestampSkewSec > CF_SIGNATURE_TOLERANCE_SEC) {
+      return {
+        reason: "timestamp_skew",
+        hasCfSignature,
+        hasCfTimestamp,
+        timestampSkewSec,
+      };
+    }
+
+    if (
+      verifyClickFunnelsSignature(
+        rawBody,
+        cfSignature!,
+        cfTimestamp!,
+        secret
+      )
+    ) {
+      return {
+        reason: "ok",
+        hasCfSignature,
+        hasCfTimestamp,
+        timestampSkewSec,
+      };
+    }
+
+    return {
+      reason: "signature_mismatch",
+      hasCfSignature,
+      hasCfTimestamp,
+      timestampSkewSec,
+    };
+  }
+
+  if (verifyWebhookSecret(request, secret)) {
+    return {
+      reason: "ok",
+      hasCfSignature,
+      hasCfTimestamp,
+      timestampSkewSec: null,
+    };
+  }
+
+  return {
+    reason: hasCfSignature || hasCfTimestamp
+      ? "signature_mismatch"
+      : "legacy_secret_mismatch",
+    hasCfSignature,
+    hasCfTimestamp,
+    timestampSkewSec: null,
+  };
 }

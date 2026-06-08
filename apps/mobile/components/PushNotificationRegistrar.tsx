@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { AppState, type AppStateStatus } from "react-native";
+import { usePushNotificationNavigation } from "@/lib/push-navigation";
 import { syncPushTokenWithServer } from "@/lib/push-notifications";
 import { useSession } from "@/lib/session-context";
 
@@ -12,6 +13,7 @@ function trySync() {
 /** Registra el dispositivo para push tras login (staff/admin). */
 export function PushNotificationRegistrar() {
   const { loaded, isStaff } = useSession();
+  usePushNotificationNavigation(loaded && isStaff);
 
   useEffect(() => {
     if (!loaded || !isStaff) return;

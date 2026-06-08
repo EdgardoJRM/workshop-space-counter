@@ -20,7 +20,44 @@ export function computeAvailable(capacity: number, soldCount: number): number {
 }
 
 /**
+ * Fecha marcada como en venta para webhooks/ClickFunnels (una por taller).
+ */
+export async function getSellingWorkshopDate(
+  slug: WorkshopSlug,
+  organizationId?: string
+) {
+  if (!isDatabaseConfigured()) return null;
+
+  const orgId =
+    organizationId ?? (await getDefaultOrganization())?.id ?? null;
+  if (!orgId) return null;
+
+  const workshop = await prisma.workshop.findUnique({
+    where: { organizationId_slug: { organizationId: orgId, slug } },
+    include: {
+      dates: {
+        where: { isSelling: true },
+        orderBy: { startsAt: "asc" },
+        take: 1,
+      },
+    },
+  });
+
+  return workshop?.dates[0] ?? null;
+}
+
+/** Prioridad: fecha explícita > fecha en venta. */
+export function pickWorkshopDateId(
+  explicitDateId: string | null | undefined,
+  sellingDateId: string | null | undefined
+): string | null {
+  if (explicitDateId) return explicitDateId;
+  return sellingDateId ?? null;
+}
+
+/**
  * Active date = isActive true, future or nearest; prefers soonest upcoming.
+ * Usado para UI/admin; no para routing de ventas.
  */
 export async function getActiveWorkshopDate(
   slug: WorkshopSlug,
@@ -55,7 +92,9 @@ export async function getCapacitySnapshot(
 ): Promise<CapacitySnapshot | null> {
   if (!isDatabaseConfigured() || !isWorkshopSlug(slug)) return null;
 
-  const date = await getActiveWorkshopDate(slug, organizationId);
+  const date =
+    (await getSellingWorkshopDate(slug, organizationId)) ??
+    (await getActiveWorkshopDate(slug, organizationId));
   if (!date) return null;
 
   const available = computeAvailable(date.capacity, date.soldCount);
@@ -85,7 +124,9 @@ export async function applyManualAvailable(
 ): Promise<CapacitySnapshot | null> {
   if (!isDatabaseConfigured()) return null;
 
-  const date = await getActiveWorkshopDate(slug, organizationId);
+  const date =
+    (await getSellingWorkshopDate(slug, organizationId)) ??
+    (await getActiveWorkshopDate(slug, organizationId));
   if (!date) return null;
 
   const soldCount = Math.max(0, date.capacity - available);

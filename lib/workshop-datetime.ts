@@ -31,6 +31,26 @@ export function parseStartsAtInput(value: unknown): Date | null {
   return parseWorkshopDatetimeLocal(trimmed);
 }
 
+/** Separa `YYYY-MM-DDTHH:mm` en fecha y hora para pickers nativos. */
+export function splitWorkshopDatetimeLocal(value: string): {
+  date: string;
+  time: string;
+} {
+  const trimmed = value.trim();
+  if (!trimmed) return { date: "", time: "10:00" };
+  const [date, timePart] = trimmed.split("T");
+  const time = (timePart ?? "10:00").slice(0, 5);
+  return { date: date ?? "", time: time || "10:00" };
+}
+
+/** Une fecha y hora en formato `datetime-local` (hora Puerto Rico). */
+export function joinWorkshopDatetimeLocal(date: string, time: string): string {
+  const d = date.trim();
+  if (!d) return "";
+  const t = (time.trim() || "10:00").slice(0, 5);
+  return `${d}T${t}`;
+}
+
 /** Valor para `<input type="datetime-local">` en hora Puerto Rico. */
 export function toWorkshopDatetimeLocalInput(iso: string): string {
   const parts = new Intl.DateTimeFormat("en-CA", {

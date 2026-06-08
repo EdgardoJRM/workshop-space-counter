@@ -38,6 +38,47 @@ export async function getDefaultOrganization(): Promise<OrganizationContext | nu
   return { id: first.id, slug: first.slug, name: first.name, plan: first.plan };
 }
 
+export type WebhookSecretSource = "org" | "env";
+
+export type WebhookSecretResolution = {
+  secret: string | null;
+  secretSource: WebhookSecretSource | null;
+};
+
+/**
+ * Resolves the webhook secret for an organization.
+ * When Vercel env and DB differ, env wins and DB is synced (fixes rotation drift).
+ */
+export async function resolveWebhookSecretForOrganization(
+  organizationId: string
+): Promise<WebhookSecretResolution> {
+  if (!isDatabaseConfigured()) {
+    const envOnly = process.env.CLICKFUNNELS_WEBHOOK_SECRET?.trim() || null;
+    return envOnly
+      ? { secret: envOnly, secretSource: "env" }
+      : { secret: null, secretSource: null };
+  }
+
+  const envSecret = process.env.CLICKFUNNELS_WEBHOOK_SECRET?.trim() || null;
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { clickfunnelsSecret: true },
+  });
+  const dbSecret = org?.clickfunnelsSecret?.trim() || null;
+
+  if (envSecret && dbSecret && envSecret !== dbSecret) {
+    await prisma.organization.update({
+      where: { id: organizationId },
+      data: { clickfunnelsSecret: envSecret },
+    });
+    return { secret: envSecret, secretSource: "env" };
+  }
+
+  if (dbSecret) return { secret: dbSecret, secretSource: "org" };
+  if (envSecret) return { secret: envSecret, secretSource: "env" };
+  return { secret: null, secretSource: null };
+}
+
 export async function resolveOrganizationForWebhook(
   request: Request
 ): Promise<OrganizationContext | null> {
@@ -155,7 +196,8 @@ export async function ensureDefaultOrganization(): Promise<OrganizationContext> 
       updates.legacyPrintAgentToken = envToken;
     }
     const envWebhook = process.env.CLICKFUNNELS_WEBHOOK_SECRET?.trim();
-    if (envWebhook && !org.clickfunnelsSecret) {
+    const dbWebhook = org.clickfunnelsSecret?.trim();
+    if (envWebhook && envWebhook !== dbWebhook) {
       updates.clickfunnelsSecret = envWebhook;
     }
     if (Object.keys(updates).length > 0) {

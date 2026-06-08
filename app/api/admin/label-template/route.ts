@@ -95,17 +95,36 @@ export async function POST(request: Request) {
       ? body.mediaSize.trim()
       : DEFAULT_LABEL_TEMPLATE.mediaSize;
 
-  await upsertLabelTemplate(
-    workshopSlug as WorkshopSlug | null,
-    {
-      fontLarge,
-      fontSmall,
-      mediaSize,
-      showEmail: body.showEmail === true,
-      showWorkshop: body.showWorkshop === true,
-    },
-    auth.organizationId
-  );
+  try {
+    await upsertLabelTemplate(
+      workshopSlug as WorkshopSlug | null,
+      {
+        fontLarge,
+        fontSmall,
+        mediaSize,
+        showEmail: body.showEmail === true,
+        showWorkshop: body.showWorkshop === true,
+      },
+      auth.organizationId
+    );
+  } catch (error) {
+    console.error("[label-template] save failed", error);
+    const message =
+      error instanceof Error ? error.message : "No se pudo guardar la plantilla";
+    const isMissingTable =
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error.code === "P2021" || error.code === "42P01");
+    return NextResponse.json(
+      {
+        error: isMissingTable
+          ? "Falta la tabla LabelTemplate en la base de datos. Ejecuta scripts/ensure-label-template-table.sql"
+          : message,
+      },
+      { status: isMissingTable ? 503 : 500 }
+    );
+  }
 
   return NextResponse.json({ ok: true });
 }

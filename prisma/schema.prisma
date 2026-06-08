@@ -40,6 +40,12 @@ enum WebhookEventStatus {
   DUPLICATE
 }
 
+enum GuestInfoRequestStatus {
+  PENDING
+  COMPLETED
+  EXPIRED
+}
+
 model Organization {
   id                     String   @id @default(cuid())
   slug                   String   @unique
@@ -68,7 +74,8 @@ model Organization {
   webhookEvents  WebhookEvent[]
   printerAgents  PrinterAgent[]
   pairingCodes   PrinterPairingCode[]
-  pushTokens     MobilePushToken[]
+  pushTokens        MobilePushToken[]
+  guestInfoRequests GuestInfoRequest[]
 }
 
 model OrganizationMember {
@@ -138,11 +145,13 @@ model WorkshopDate {
   soldCount      Int      @default(0)
   checkedInCount Int      @default(0)
   isActive       Boolean  @default(true)
+  isSelling      Boolean  @default(false) // Fecha que recibe ventas/webhooks de ClickFunnels
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   registrations  Registration[]
 
   @@index([workshopId, isActive])
+  @@index([workshopId, isSelling])
   @@index([startsAt])
 }
 
@@ -182,6 +191,7 @@ model Registration {
   checkins        Checkin[]
   emailLogs       EmailLog[]
   printJobs       PrintJob[]
+  guestInfoRequestAsBuyer GuestInfoRequest? @relation("BuyerRegistration")
 
   @@unique([externalOrderId])
   @@index([workshopDateId])
@@ -279,6 +289,27 @@ model LabelTemplate {
 
   @@unique([organizationId, workshopSlug])
   @@index([organizationId])
+}
+
+model GuestInfoRequest {
+  id                  String                 @id @default(cuid())
+  organizationId      String
+  organization        Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  buyerRegistrationId String                 @unique
+  buyerRegistration   Registration           @relation("BuyerRegistration", fields: [buyerRegistrationId], references: [id], onDelete: Cascade)
+  externalOrderId     String
+  tokenHash           String                 @unique
+  slotsNeeded         Int
+  slotsCompleted      Int                    @default(0)
+  status              GuestInfoRequestStatus @default(PENDING)
+  workshopSlug        String
+  workshopDateId      String?
+  expiresAt           DateTime
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  @@unique([organizationId, externalOrderId])
+  @@index([organizationId, status])
 }
 
 model WebhookEvent {

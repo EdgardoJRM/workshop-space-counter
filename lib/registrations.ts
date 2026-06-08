@@ -5,12 +5,92 @@ import {
   hashPassToken,
 } from "@/lib/pass-tokens";
 import { sendPassEmail } from "@/lib/email";
-import { incrementSoldCount, getActiveWorkshopDate } from "@/lib/capacity";
+import {
+  incrementSoldCount,
+  getSellingWorkshopDate,
+} from "@/lib/capacity";
 import type { ClickFunnelsPurchase } from "@/lib/clickfunnels";
+import { sanitizeJsonForPrisma } from "@/lib/webhook-events";
 import type { WorkshopSlug } from "@/lib/workshop-keys";
 import { isWorkshopSlug } from "@/lib/workshop-keys";
-import { RegistrationStatus } from "@prisma/client";
+import { Prisma, RegistrationStatus, type Attendee } from "@prisma/client";
 import { formatWorkshopDateTime } from "@/lib/workshop-datetime";
+
+function isUniqueConstraintError(err: unknown): boolean {
+  return (
+    err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002"
+  );
+}
+
+/** Avoids upsert on compound unique when production DB lacks SaaS indexes yet. */
+async function findOrCreateAttendee(input: {
+  organizationId: string;
+  email: string;
+  name: string | null;
+  phone: string | null;
+  metadata?: object;
+}): Promise<Attendee> {
+  const email = input.email.trim().toLowerCase();
+
+  let attendee = await prisma.attendee.findFirst({
+    where: { organizationId: input.organizationId, email },
+  });
+
+  if (!attendee) {
+    const legacy = await prisma.attendee.findFirst({
+      where: { email },
+    });
+    if (legacy) {
+      attendee = await prisma.attendee.update({
+        where: { id: legacy.id },
+        data: {
+          organizationId: input.organizationId,
+          name: input.name ?? legacy.name,
+          phone: input.phone ?? legacy.phone,
+          ...(input.metadata ? { metadata: input.metadata } : {}),
+        },
+      });
+    }
+  }
+
+  if (attendee) {
+    return prisma.attendee.update({
+      where: { id: attendee.id },
+      data: {
+        name: input.name ?? undefined,
+        phone: input.phone ?? undefined,
+        ...(input.metadata ? { metadata: input.metadata } : {}),
+      },
+    });
+  }
+
+  try {
+    return await prisma.attendee.create({
+      data: {
+        organizationId: input.organizationId,
+        email,
+        name: input.name,
+        phone: input.phone,
+        metadata: input.metadata,
+      },
+    });
+  } catch (err) {
+    if (!isUniqueConstraintError(err)) throw err;
+    const existing = await prisma.attendee.findFirst({
+      where: { email },
+    });
+    if (!existing) throw err;
+    return prisma.attendee.update({
+      where: { id: existing.id },
+      data: {
+        organizationId: input.organizationId,
+        name: input.name ?? undefined,
+        phone: input.phone ?? undefined,
+        ...(input.metadata ? { metadata: input.metadata } : {}),
+      },
+    });
+  }
+}
 
 export type ProcessPurchaseResult =
   | { ok: true; registrationId: string; passToken: string; duplicate: boolean }
@@ -59,8 +139,11 @@ async function resolveWorkshopDateIdForSlug(
       })
     )?.organizationId;
 
-  const active = await getActiveWorkshopDate(workshopSlug, orgId ?? undefined);
-  return active?.id ?? null;
+  const selling = await getSellingWorkshopDate(
+    workshopSlug,
+    orgId ?? undefined
+  );
+  return selling?.id ?? null;
 }
 
 export async function registerAttendee(
@@ -91,7 +174,7 @@ export async function registerAttendee(
   if (!workshopDateId) {
     return {
       ok: false,
-      error: "No hay fecha activa para este taller",
+      error: "No hay fecha en venta para este taller",
       code: "NO_DATE",
     };
   }
@@ -137,26 +220,16 @@ export async function registerAttendee(
   const sendEmail = input.sendPassEmail !== false;
 
   const organizationId = workshopDate.workshop.organizationId;
+  const metadata = input.metadata
+    ? sanitizeJsonForPrisma(input.metadata)
+    : undefined;
 
-  const attendee = await prisma.attendee.upsert({
-    where: {
-      organizationId_email: {
-        organizationId,
-        email: input.email,
-      },
-    },
-    create: {
-      organizationId,
-      email: input.email,
-      name: input.name,
-      phone: input.phone,
-      metadata: input.metadata,
-    },
-    update: {
-      name: input.name ?? undefined,
-      phone: input.phone ?? undefined,
-      ...(input.metadata ? { metadata: input.metadata } : {}),
-    },
+  const attendee = await findOrCreateAttendee({
+    organizationId,
+    email: input.email,
+    name: input.name,
+    phone: input.phone,
+    metadata,
   });
 
   const registration = await prisma.registration.create({
@@ -168,7 +241,7 @@ export async function registerAttendee(
       attendeeEmail: input.email,
       attendeePhone: input.phone,
       source: input.source,
-      metadata: input.metadata,
+      metadata,
       status: RegistrationStatus.CONFIRMED,
       pass: {
         create: {
@@ -221,8 +294,20 @@ export async function registerAttendee(
 export async function processClickFunnelsPurchase(
   purchase: ClickFunnelsPurchase
 ): Promise<ProcessPurchaseResult> {
-  if (!isWorkshopSlug(purchase.workshopSlug)) {
+  if (!purchase.workshopSlug || !isWorkshopSlug(purchase.workshopSlug)) {
     return { ok: false, error: "Invalid workshop", code: "INVALID_WORKSHOP" };
+  }
+
+  if (purchase.ticketQuantity > 1) {
+    const { ensureCapacityForTickets } = await import("@/lib/guest-info");
+    const capacity = await ensureCapacityForTickets(
+      purchase.workshopSlug,
+      purchase.workshopDateId,
+      purchase.ticketQuantity
+    );
+    if (!capacity.ok) {
+      return { ok: false, error: capacity.error, code: capacity.code };
+    }
   }
 
   return registerAttendee({
@@ -233,7 +318,7 @@ export async function processClickFunnelsPurchase(
     workshopDateId: purchase.workshopDateId,
     externalOrderId: purchase.externalOrderId,
     source: "clickfunnels",
-    metadata: purchase.raw as object,
+    metadata: sanitizeJsonForPrisma(purchase.raw),
     sendPassEmail: true,
   });
 }

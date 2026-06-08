@@ -2,9 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { WorkshopSlug } from "@/lib/workshop-keys";
+import { WorkshopDateTimeFields } from "@/components/admin/WorkshopDateTimeFields";
 import {
   formatWorkshopDateTime,
+  joinWorkshopDatetimeLocal,
   parseWorkshopDatetimeLocal,
+  splitWorkshopDatetimeLocal,
   toWorkshopDatetimeLocalInput,
 } from "@/lib/workshop-datetime";
 
@@ -20,6 +23,7 @@ type DateRow = {
   soldCount: number;
   available: number;
   isActive: boolean;
+  isSelling: boolean;
   checkedInCount: number;
 };
 
@@ -78,6 +82,64 @@ export function DatesPanel({ slug }: DatesPanelProps) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  function templateRow(list: DateRow[]): DateRow | null {
+    return (
+      list.find((d) => d.isSelling) ??
+      list.find((d) => d.isActive) ??
+      list[list.length - 1] ??
+      null
+    );
+  }
+
+  function defaultStartsAt(from?: DateRow | null): string {
+    const base = new Date();
+    base.setDate(base.getDate() + 14);
+    base.setHours(10, 0, 0, 0);
+    if (from) {
+      const { time } = splitWorkshopDatetimeLocal(
+        toWorkshopDatetimeLocalInput(from.startsAt)
+      );
+      const { date } = splitWorkshopDatetimeLocal(
+        toWorkshopDatetimeLocalInput(base.toISOString())
+      );
+      return joinWorkshopDatetimeLocal(date, time);
+    }
+    return toWorkshopDatetimeLocalInput(base.toISOString());
+  }
+
+  function openCreateForm(source?: DateRow | null) {
+    const src = source ?? templateRow(rows);
+    setCreateForm({
+      title: src?.title ?? "",
+      startsAt: defaultStartsAt(src),
+      venue: src?.venue ?? "",
+      mapsUrl: src?.mapsUrl ?? "",
+      capacity: src ? String(src.capacity) : "25",
+    });
+    setShowCreate(true);
+  }
+
+  function openDuplicate(row: DateRow) {
+    const current = splitWorkshopDatetimeLocal(
+      toWorkshopDatetimeLocalInput(row.startsAt)
+    );
+    const next = parseWorkshopDatetimeLocal(
+      joinWorkshopDatetimeLocal(current.date, current.time)
+    );
+    if (next) next.setDate(next.getDate() + 7);
+
+    setCreateForm({
+      title: row.title,
+      startsAt: next
+        ? toWorkshopDatetimeLocalInput(next.toISOString())
+        : defaultStartsAt(row),
+      venue: row.venue ?? "",
+      mapsUrl: row.mapsUrl ?? "",
+      capacity: String(row.capacity),
+    });
+    setShowCreate(true);
+  }
 
   async function postDate(body: Record<string, unknown>) {
     const res = await fetch("/api/admin/dates", {
@@ -161,6 +223,19 @@ export function DatesPanel({ slug }: DatesPanelProps) {
     }
   }
 
+  async function handleSetSelling(dateId: string) {
+    setSavingId(dateId);
+    setError(null);
+    try {
+      await postDate({ dateId, isSelling: true });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al marcar en venta");
+    } finally {
+      setSavingId(null);
+    }
+  }
+
   return (
     <div className="pb-4">
       <div className="rounded-2xl border border-brand-grey/30 bg-white p-4 shadow-sm">
@@ -168,7 +243,10 @@ export function DatesPanel({ slug }: DatesPanelProps) {
           <h2 className="text-sm font-semibold text-brand-slate">Fechas del taller</h2>
           <button
             type="button"
-            onClick={() => setShowCreate((v) => !v)}
+            onClick={() => {
+              if (showCreate) setShowCreate(false);
+              else openCreateForm();
+            }}
             className="rounded-lg bg-brand-yellow px-3 py-1.5 text-xs font-semibold text-brand-charcoal"
           >
             {showCreate ? "Cancelar" : "Nueva fecha"}
@@ -183,6 +261,10 @@ export function DatesPanel({ slug }: DatesPanelProps) {
 
         {showCreate && (
           <form onSubmit={(e) => void handleCreate(e)} className="mt-4 space-y-3 border-t border-brand-grey/20 pt-4">
+            <p className="text-xs text-brand-grey">
+              Se copian título, lugar y cupos de la fecha en venta (o la más reciente).
+              Solo ajusta la fecha y hora.
+            </p>
             <label className="block text-xs font-medium text-brand-charcoal">
               Título
               <input
@@ -193,16 +275,11 @@ export function DatesPanel({ slug }: DatesPanelProps) {
                 placeholder="Ej. Sesión en vivo — marzo"
               />
             </label>
-            <label className="block text-xs font-medium text-brand-charcoal">
-              Fecha y hora
-              <input
-                type="datetime-local"
-                required
-                value={createForm.startsAt}
-                onChange={(e) => setCreateForm((f) => ({ ...f, startsAt: e.target.value }))}
-                className="mt-1 w-full rounded-lg border border-brand-grey/40 px-3 py-2 text-sm"
-              />
-            </label>
+            <WorkshopDateTimeFields
+              required
+              value={createForm.startsAt}
+              onChange={(startsAt) => setCreateForm((f) => ({ ...f, startsAt }))}
+            />
             <label className="block text-xs font-medium text-brand-charcoal">
               Lugar (dirección o nombre del venue)
               <input
@@ -262,11 +339,9 @@ export function DatesPanel({ slug }: DatesPanelProps) {
                       onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
                       className="w-full rounded border px-2 py-1 text-sm"
                     />
-                    <input
-                      type="datetime-local"
+                    <WorkshopDateTimeFields
                       value={editForm.startsAt}
-                      onChange={(e) => setEditForm((f) => ({ ...f, startsAt: e.target.value }))}
-                      className="w-full rounded border px-2 py-1 text-sm"
+                      onChange={(startsAt) => setEditForm((f) => ({ ...f, startsAt }))}
                     />
                     <input
                       type="text"
@@ -317,11 +392,18 @@ export function DatesPanel({ slug }: DatesPanelProps) {
                           <p className="text-brand-grey">{row.venue}</p>
                         )}
                       </div>
-                      {row.isActive ? (
-                        <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">
-                          Activa
-                        </span>
-                      ) : null}
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        {row.isSelling ? (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">
+                            En venta
+                          </span>
+                        ) : null}
+                        {row.isActive ? (
+                          <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">
+                            Activa
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
                     <p className="mt-2 text-xs text-brand-grey">
                       Cupos: {row.soldCount}/{row.capacity} vendidos · {row.available} disponibles ·{" "}
@@ -335,6 +417,13 @@ export function DatesPanel({ slug }: DatesPanelProps) {
                       >
                         Editar
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => openDuplicate(row)}
+                        className="text-xs font-semibold text-brand-blue underline"
+                      >
+                        Duplicar
+                      </button>
                       {!row.isActive && (
                         <button
                           type="button"
@@ -343,6 +432,16 @@ export function DatesPanel({ slug }: DatesPanelProps) {
                           className="text-xs font-semibold text-brand-charcoal underline disabled:opacity-50"
                         >
                           Activar
+                        </button>
+                      )}
+                      {!row.isSelling && (
+                        <button
+                          type="button"
+                          onClick={() => void handleSetSelling(row.id)}
+                          disabled={savingId === row.id}
+                          className="text-xs font-semibold text-amber-800 underline disabled:opacity-50"
+                        >
+                          Marcar en venta
                         </button>
                       )}
                     </div>

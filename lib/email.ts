@@ -340,6 +340,71 @@ export async function sendHtmlEmail(
   }
 }
 
+export type GuestInfoRequestEmailParams = {
+  to: string;
+  buyerName: string;
+  workshopLabel: string;
+  eventDate: string;
+  ticketQuantity: number;
+  slotsNeeded: number;
+  guestInfoUrl: string;
+  buyerPassUrl: string;
+};
+
+export async function sendGuestInfoRequestEmail(
+  params: GuestInfoRequestEmailParams
+): Promise<{ ok: true; id?: string } | { ok: false; error: string }> {
+  const name = escapeHtml(params.buyerName);
+  const workshop = escapeHtml(params.workshopLabel);
+  const eventDate = escapeHtml(params.eventDate);
+  const guestUrl = escapeHtml(params.guestInfoUrl);
+  const passUrl = escapeHtml(params.buyerPassUrl);
+  const slots = params.slotsNeeded;
+  const slotWord = slots === 1 ? "persona" : "personas";
+
+  const htmlBody = `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="utf-8"/></head>
+<body style="margin:0;padding:0;background:#f4f5f6;font-family:Arial,Helvetica,sans-serif;">
+  <div style="max-width:560px;margin:0 auto;padding:24px 16px;">
+    <div style="background:#fff;border-radius:14px;padding:28px 24px;border:1px solid #e5e7eb;">
+      <p style="color:#3f5e78;font-size:11px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 10px;">Registro de invitados</p>
+      <h1 style="color:#1a1a1a;font-size:22px;line-height:1.3;margin:0 0 12px;">Hola, ${name}</h1>
+      <p style="color:#444;font-size:15px;line-height:1.55;margin:0 0 16px;">
+        Compraste <strong>${params.ticketQuantity} boletos</strong> para <strong>${workshop}</strong> (${eventDate}).
+        Tu pase ya está listo; falta la información de <strong>${slots} ${slotWord}</strong> adicional(es).
+      </p>
+      <p style="text-align:center;margin:22px 0;">
+        <a href="${guestUrl}" style="display:inline-block;background:#c9a227;color:#1a1a1a;font-size:15px;font-weight:700;padding:14px 26px;border-radius:10px;text-decoration:none;">Completar datos de invitados</a>
+      </p>
+      <p style="color:#666;font-size:14px;line-height:1.5;margin:0 0 8px;">
+        Si aún no lo abriste, aquí está tu pase:
+        <a href="${passUrl}" style="color:#3f5e78;font-weight:600;">Ver mi pase</a>
+      </p>
+      <p style="color:#888;font-size:12px;line-height:1.5;margin:18px 0 0;">
+        Este enlace expira en 14 días. Si tienes problemas, responde a este correo o contacta soporte.
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  const textBody = [
+    `Hola, ${params.buyerName}`,
+    "",
+    `Compraste ${params.ticketQuantity} boletos para ${params.workshopLabel} (${params.eventDate}).`,
+    `Tu pase: ${params.buyerPassUrl}`,
+    `Completa los datos de ${slots} invitado(s): ${params.guestInfoUrl}`,
+  ].join("\n");
+
+  return sendHtmlEmail({
+    to: params.to,
+    subject: `Completa los datos de tus invitados — ${params.workshopLabel}`,
+    htmlBody,
+    textBody,
+  });
+}
+
 /** Reemplaza {{name}}, {{email}}, {{workshop}}, {{eventDate}}, {{venue}} */
 export function renderEmailTemplate(
   body: string,

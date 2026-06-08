@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { AdminFeedbackBanner, type AdminFeedback } from "@/components/admin/AdminFeedbackBanner";
 import type { WorkshopSlug } from "@/lib/workshop-keys";
 import { formatWorkshopDateTime } from "@/lib/workshop-datetime";
 
@@ -9,11 +10,20 @@ type DateOption = {
   title: string;
   startsAt: string;
   isActive: boolean;
+  isSelling: boolean;
+};
+
+export type ManualRegisterResult = {
+  registrationId?: string;
+  email: string;
+  name: string | null;
+  duplicate: boolean;
+  sendEmail: boolean;
 };
 
 export type ManualRegisterPanelProps = {
   slug: WorkshopSlug;
-  onRegistered: () => void;
+  onRegistered: (result: ManualRegisterResult) => void;
 };
 
 export function ManualRegisterPanel({ slug, onRegistered }: ManualRegisterPanelProps) {
@@ -25,8 +35,7 @@ export function ManualRegisterPanel({ slug, onRegistered }: ManualRegisterPanelP
   const [workshopDateId, setWorkshopDateId] = useState("");
   const [sendEmail, setSendEmail] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<AdminFeedback | null>(null);
   const [open, setOpen] = useState(false);
 
   const loadDates = useCallback(async () => {
@@ -41,8 +50,11 @@ export function ManualRegisterPanel({ slug, onRegistered }: ManualRegisterPanelP
       if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
       const list = data.dates ?? [];
       setDates(list);
-      const active = list.find((d) => d.isActive);
-      setWorkshopDateId((prev) => prev || active?.id || list[0]?.id || "");
+      const selling =
+        list.find((d) => d.isSelling) ??
+        list.find((d) => d.isActive) ??
+        list[0];
+      setWorkshopDateId((prev) => prev || selling?.id || "");
     } catch {
       setDates([]);
     } finally {
@@ -57,8 +69,10 @@ export function ManualRegisterPanel({ slug, onRegistered }: ManualRegisterPanelP
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    setError(null);
-    setSuccess(null);
+    setFeedback(null);
+
+    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedName = name.trim() || null;
 
     try {
       const res = await fetch("/api/admin/registrations", {
@@ -66,8 +80,8 @@ export function ManualRegisterPanel({ slug, onRegistered }: ManualRegisterPanelP
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           workshop: slug,
-          name: name.trim() || null,
-          email: email.trim(),
+          name: trimmedName,
+          email: trimmedEmail,
           phone: phone.trim() || null,
           workshopDateId: workshopDateId || null,
           sendPassEmail: sendEmail,
@@ -81,23 +95,44 @@ export function ManualRegisterPanel({ slug, onRegistered }: ManualRegisterPanelP
       if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
 
       if (data.duplicate) {
-        setSuccess("Ya estaba registrado en esa fecha. No se creó un duplicado.");
+        setFeedback({
+          type: "info",
+          title: "Ya estaba registrado",
+          message: `${trimmedEmail} ya tenía pase en esta fecha. No se creó duplicado.`,
+        });
       } else {
-        setSuccess(sendEmail ? "Registrado y pase enviado por email." : "Registrado sin enviar email.");
+        setFeedback({
+          type: "success",
+          title: "Persona registrada",
+          message: sendEmail
+            ? `${trimmedName ?? trimmedEmail} quedó registrado y se envió el pase por email.`
+            : `${trimmedName ?? trimmedEmail} quedó registrado sin enviar email.`,
+        });
         setName("");
         setEmail("");
         setPhone("");
       }
-      onRegistered();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al registrar");
+
+      onRegistered({
+        registrationId: data.registrationId,
+        email: trimmedEmail,
+        name: trimmedName,
+        duplicate: Boolean(data.duplicate),
+        sendEmail,
+      });
+    } catch (err) {
+      setFeedback({
+        type: "error",
+        title: "No se pudo registrar",
+        message: err instanceof Error ? err.message : "Error al registrar",
+      });
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <section className="mb-6 rounded-xl border border-brand-grey/20 bg-brand-off/40 p-4">
+    <section className="mb-6 rounded-2xl border border-brand-grey/20 bg-white p-4 shadow-sm">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -109,9 +144,14 @@ export function ManualRegisterPanel({ slug, onRegistered }: ManualRegisterPanelP
 
       {open && (
         <form onSubmit={(e) => void handleSubmit(e)} className="mt-4 space-y-3">
+          <AdminFeedbackBanner
+            feedback={feedback}
+            onDismiss={() => setFeedback(null)}
+          />
+
           <p className="text-xs text-brand-grey">
-            Crea un registro y pase como si hubiera comprado en ClickFunnels. Usa la fecha del
-            evento que elijas (por defecto la fecha activa).
+            Crea un registro y pase como si hubiera comprado en ClickFunnels. Por defecto
+            usa la fecha marcada como en venta.
           </p>
 
           <label className="block text-xs font-medium text-brand-charcoal">
@@ -130,7 +170,7 @@ export function ManualRegisterPanel({ slug, onRegistered }: ManualRegisterPanelP
               {dates.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.title} — {formatWorkshopDateTime(new Date(d.startsAt))}
-                  {d.isActive ? " · activa" : ""}
+                  {d.isSelling ? " · en venta" : d.isActive ? " · activa" : ""}
                 </option>
               ))}
             </select>
@@ -180,23 +220,12 @@ export function ManualRegisterPanel({ slug, onRegistered }: ManualRegisterPanelP
             Enviar pase por email
           </label>
 
-          {error && (
-            <p className="text-sm text-red-600" role="alert">
-              {error}
-            </p>
-          )}
-          {success && (
-            <p className="text-sm text-green-700" role="status">
-              {success}
-            </p>
-          )}
-
           <button
             type="submit"
             disabled={saving || loadingDates || !dates.length || !email.trim()}
-            className="rounded-lg bg-brand-blue px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            className="w-full rounded-lg bg-brand-blue px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
           >
-            {saving ? "Registrando…" : "Registrar"}
+            {saving ? "Registrando…" : "Registrar persona"}
           </button>
         </form>
       )}

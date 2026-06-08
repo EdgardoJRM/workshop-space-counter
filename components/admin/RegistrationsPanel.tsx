@@ -1,10 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AdminFeedbackBanner, type AdminFeedback } from "@/components/admin/AdminFeedbackBanner";
 import { CsvImportPanel } from "@/components/admin/CsvImportPanel";
-import { ManualRegisterPanel } from "@/components/admin/ManualRegisterPanel";
+import {
+  ManualRegisterPanel,
+  type ManualRegisterResult,
+} from "@/components/admin/ManualRegisterPanel";
+import { RegistrationListCard } from "@/components/admin/RegistrationListCard";
 import type { WorkshopSlug } from "@/lib/workshop-keys";
-import { formatWorkshopDateTime } from "@/lib/workshop-datetime";
 
 type RegistrationRow = {
   id: string;
@@ -24,31 +28,22 @@ type RegistrationRow = {
   printPrintedAt: string | null;
 };
 
-function printStatusLabel(status: string | null): string {
-  switch (status) {
-    case "PENDING":
-      return "Label pendiente";
-    case "PROCESSING":
-      return "Imprimiendo…";
-    case "PRINTED":
-      return "Label impreso";
-    case "FAILED":
-      return "Error de impresión";
-    default:
-      return "Sin label";
-  }
-}
-
 export type RegistrationsPanelProps = {
   slug: WorkshopSlug;
 };
 
 export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
   const [rows, setRows] = useState<RegistrationRow[]>([]);
+  const [filtered, setFiltered] = useState<RegistrationRow[]>([]);
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<AdminFeedback | null>(null);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [reprintingId, setReprintingId] = useState<string | null>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const cardRefs = useRef<Record<string, HTMLLIElement | null>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -76,8 +71,52 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) {
+      setFiltered(rows);
+      return;
+    }
+    setFiltered(
+      rows.filter(
+        (r) =>
+          r.attendeeEmail.toLowerCase().includes(q) ||
+          (r.attendeeName ?? "").toLowerCase().includes(q) ||
+          (r.attendeePhone ?? "").includes(q)
+      )
+    );
+  }, [rows, search]);
+
+  useEffect(() => {
+    if (!highlightId) return;
+    const node = cardRefs.current[highlightId];
+    if (node) {
+      node.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+    const timer = window.setTimeout(() => setHighlightId(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [highlightId, filtered]);
+
+  function handleManualRegistered(result: ManualRegisterResult) {
+    if (result.duplicate) {
+      const existing = rows.find(
+        (r) => r.attendeeEmail.toLowerCase() === result.email.toLowerCase()
+      );
+      if (existing) setHighlightId(existing.id);
+    } else if (result.registrationId) {
+      setHighlightId(result.registrationId);
+      setFeedback({
+        type: "success",
+        title: "Registro confirmado",
+        message: `${result.name ?? result.email} aparece en la lista de abajo.`,
+      });
+    }
+    void load();
+  }
+
   async function reprintLabel(id: string) {
     setReprintingId(id);
+    setFeedback(null);
     try {
       const res = await fetch("/api/admin/print-jobs", {
         method: "POST",
@@ -86,9 +125,18 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(data.error ?? "Error al encolar impresión");
+      setFeedback({
+        type: "success",
+        title: "Label encolado",
+        message: "La impresión se procesará en la impresora conectada.",
+      });
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Error");
+      setFeedback({
+        type: "error",
+        title: "No se pudo reimprimir",
+        message: e instanceof Error ? e.message : "Error",
+      });
     } finally {
       setReprintingId(null);
     }
@@ -96,6 +144,7 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
 
   async function resend(id: string) {
     setResendingId(id);
+    setFeedback(null);
     try {
       const res = await fetch("/api/admin/resend-email", {
         method: "POST",
@@ -104,9 +153,18 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(data.error ?? "Error al reenviar");
+      setFeedback({
+        type: "success",
+        title: "Pase reenviado",
+        message: "El correo con el pase fue enviado de nuevo.",
+      });
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Error");
+      setFeedback({
+        type: "error",
+        title: "No se pudo reenviar",
+        message: e instanceof Error ? e.message : "Error",
+      });
     } finally {
       setResendingId(null);
     }
@@ -114,8 +172,34 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
 
   return (
     <div>
-      <ManualRegisterPanel slug={slug} onRegistered={() => void load()} />
-      <CsvImportPanel slug={slug} onImported={() => void load()} />
+      <AdminFeedbackBanner
+        feedback={feedback}
+        onDismiss={() => setFeedback(null)}
+      />
+
+      <ManualRegisterPanel slug={slug} onRegistered={handleManualRegistered} />
+      <CsvImportPanel
+        slug={slug}
+        onImported={() => {
+          setFeedback({
+            type: "success",
+            title: "Importación completada",
+            message: "Los registros nuevos ya están en la lista.",
+          });
+          void load();
+        }}
+      />
+
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-sm font-semibold text-brand-slate">Registros recientes</h2>
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar por nombre o email…"
+          className="w-full rounded-lg border border-brand-grey/30 bg-white px-3 py-2 text-sm sm:max-w-xs"
+        />
+      </div>
 
       {loading && (
         <p className="text-sm text-brand-grey">Cargando registros…</p>
@@ -125,88 +209,27 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
           {error}
         </p>
       )}
-      {!loading && !error && !rows.length && (
-        <p className="text-sm text-brand-grey">Sin registros aún.</p>
+      {!loading && !error && !filtered.length && (
+        <p className="text-sm text-brand-grey">
+          {search.trim() ? "Sin resultados para esa búsqueda." : "Sin registros aún."}
+        </p>
       )}
 
-      {!loading && rows.length > 0 && (
-        <ul className="mt-4 space-y-3">
-          {rows.map((r) => (
-            <li
+      {!loading && filtered.length > 0 && (
+        <ul ref={listRef} className="space-y-3">
+          {filtered.map((r) => (
+            <RegistrationListCard
               key={r.id}
-              className="rounded-lg border border-brand-grey/20 bg-white p-3 text-sm"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="font-medium text-brand-ink">
-                    {r.attendeeName ?? r.attendeeEmail}
-                  </p>
-                  <p className="text-xs text-brand-grey">{r.attendeeEmail}</p>
-                  {r.attendeePhone && (
-                    <p className="text-xs text-brand-grey">{r.attendeePhone}</p>
-                  )}
-                </div>
-                {r.source && (
-                  <span className="shrink-0 rounded-full bg-brand-off px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-brand-grey">
-                    {r.source}
-                  </span>
-                )}
-              </div>
-              <p className="mt-1 text-brand-charcoal">
-                <span className="text-brand-grey">Evento:</span>{" "}
-                {formatWorkshopDateTime(new Date(r.eventDate))}
-              </p>
-              <p className="text-xs text-brand-grey">
-                Registrado:{" "}
-                {formatWorkshopDateTime(new Date(r.registeredAt))}
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                {r.checkedIn ? (
-                  <span className="rounded-full bg-brand-blue/15 px-2 py-0.5 text-xs text-brand-blue">
-                    Check-in
-                  </span>
-                ) : (
-                  <span className="rounded-full bg-brand-off px-2 py-0.5 text-xs text-brand-charcoal">
-                    Pendiente
-                  </span>
-                )}
-                {r.emailedAt ? (
-                  <span className="text-xs text-brand-grey">Email enviado</span>
-                ) : (
-                  <span className="text-xs text-amber-700">
-                    {r.emailError ?? "Email pendiente"}
-                  </span>
-                )}
-                <span
-                  className={`text-xs ${
-                    r.printStatus === "FAILED"
-                      ? "text-red-600"
-                      : r.printStatus === "PRINTED"
-                        ? "text-brand-grey"
-                        : "text-brand-charcoal"
-                  }`}
-                  title={r.printError ?? undefined}
-                >
-                  {printStatusLabel(r.printStatus)}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => void reprintLabel(r.id)}
-                  disabled={reprintingId === r.id}
-                  className="text-xs font-medium text-brand-blue underline disabled:opacity-50"
-                >
-                  {reprintingId === r.id ? "Encolando…" : "Reimprimir label"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void resend(r.id)}
-                  disabled={resendingId === r.id}
-                  className="ml-auto text-xs font-medium text-brand-blue underline disabled:opacity-50"
-                >
-                  {resendingId === r.id ? "Enviando…" : "Reenviar pase"}
-                </button>
-              </div>
-            </li>
+              ref={(el) => {
+                cardRefs.current[r.id] = el;
+              }}
+              row={r}
+              highlighted={highlightId === r.id}
+              resending={resendingId === r.id}
+              reprinting={reprintingId === r.id}
+              onResend={() => void resend(r.id)}
+              onReprint={() => void reprintLabel(r.id)}
+            />
           ))}
         </ul>
       )}

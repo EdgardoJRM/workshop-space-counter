@@ -25,7 +25,6 @@ import {
   type AdminDateRow,
   type AdminRegistrationRow,
 } from "@/lib/admin-api";
-import { WorkshopDropdown } from "@/components/WorkshopDropdown";
 import { confirmDestructive } from "@/lib/confirm-alert";
 import { useSession } from "@/lib/session-context";
 import { useAppTheme } from "@/lib/useAppTheme";

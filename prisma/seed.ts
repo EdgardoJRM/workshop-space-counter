@@ -54,6 +54,7 @@ async function main() {
           capacity: DEFAULT_CAPACITIES[meta.slug] ?? 25,
           soldCount: 0,
           isActive: true,
+          isSelling: true,
         },
       });
     }

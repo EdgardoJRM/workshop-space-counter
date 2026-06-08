@@ -15,7 +15,9 @@
     "env:pull:production": "vercel env pull .env.vercel.production --environment=production --yes",
     "env:sync": "node scripts/sync-env-from-vercel.mjs",
     "verify:ses": "node scripts/verify-ses.mjs",
-    "verify:ses:send": "node scripts/verify-ses.mjs --send-test"
+    "verify:ses:send": "node scripts/verify-ses.mjs --send-test",
+    "test": "node --import tsx --test lib/**/*.test.ts",
+    "sync:webhook-secret": "node scripts/sync-webhook-secret.mjs"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"

@@ -16,7 +16,7 @@ import { fetchSpaces, updateSpaces } from "@/lib/admin-api";
 import { useSession } from "@/lib/session-context";
 import { useAppTheme } from "@/lib/useAppTheme";
 
-const SLIDER_MAX = 200;
+const SLIDER_MAX = 25;
 
 function formatRelative(iso: string): string {
   const sec = Math.round((Date.now() - new Date(iso).getTime()) / 1000);

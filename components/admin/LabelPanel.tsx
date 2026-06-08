@@ -11,6 +11,26 @@ type TemplateForm = {
   showWorkshop: boolean;
 };
 
+const MEDIA_OPTIONS = [
+  { value: "3x2", label: "3×2″ — rollo estándar (CUPS)" },
+  { value: "w62h29", label: "62×29 mm" },
+  { value: "w62h100", label: "62×100 mm" },
+  { value: "w29h90", label: "29×90 mm" },
+] as const;
+
+async function readJsonResponse<T>(res: Response): Promise<T & { error?: string }> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text) as T & { error?: string };
+  } catch {
+    throw new Error(
+      text.startsWith("<")
+        ? `Error del servidor (${res.status}). Revisa la sesión o la base de datos.`
+        : text.slice(0, 200) || `Error ${res.status}`
+    );
+  }
+}
+
 export type LabelPanelProps = {
   slug: WorkshopSlug;
 };
@@ -34,8 +54,7 @@ export function LabelPanel({ slug }: LabelPanelProps) {
     try {
       const params = new URLSearchParams({ w: slug });
       const res = await fetch(`/api/admin/label-template?${params}`);
-      const data = (await res.json()) as {
-        error?: string;
+      const data = await readJsonResponse<{
         template?: {
           fontLarge: number;
           fontSmall: number;
@@ -43,7 +62,7 @@ export function LabelPanel({ slug }: LabelPanelProps) {
           showEmail: boolean;
           showWorkshop: boolean;
         };
-      };
+      }>(res);
       if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
       const t = data.template;
       if (t) {
@@ -74,19 +93,26 @@ export function LabelPanel({ slug }: LabelPanelProps) {
     try {
       const fontLarge = Number.parseInt(form.fontLarge, 10);
       const fontSmall = Number.parseInt(form.fontSmall, 10);
+      if (!Number.isInteger(fontLarge) || fontLarge < 40 || fontLarge > 240) {
+        throw new Error("Fuente nombre: entero entre 40 y 240");
+      }
+      if (!Number.isInteger(fontSmall) || fontSmall < 20 || fontSmall > 120) {
+        throw new Error("Fuente apellido: entero entre 20 y 120");
+      }
+
       const res = await fetch("/api/admin/label-template", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           workshop: slug,
-          fontLarge: Number.isInteger(fontLarge) ? fontLarge : 160,
-          fontSmall: Number.isInteger(fontSmall) ? fontSmall : 80,
+          fontLarge,
+          fontSmall,
           mediaSize: form.mediaSize.trim() || "3x2",
           showEmail: form.showEmail,
           showWorkshop: form.showWorkshop,
         }),
       });
-      const data = (await res.json()) as { error?: string };
+      const data = await readJsonResponse<{ error?: string }>(res);
       if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
       setSuccess("Plantilla guardada para este taller.");
     } catch (e) {
@@ -142,15 +168,19 @@ export function LabelPanel({ slug }: LabelPanelProps) {
 
           <label className="block text-xs font-medium text-brand-charcoal">
             Tamaño papel CUPS
-            <input
-              type="text"
+            <select
               value={form.mediaSize}
               onChange={(e) =>
                 setForm((f) => ({ ...f, mediaSize: e.target.value }))
               }
               className="mt-1 w-full rounded-lg border border-brand-grey/30 bg-white px-3 py-2 text-sm"
-              placeholder="3x2"
-            />
+            >
+              {MEDIA_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
           </label>
 
           <label className="flex items-center gap-2 text-sm text-brand-charcoal">

@@ -16,7 +16,17 @@ async function adminFetch<T>(
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const res = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
-  const data = (await res.json()) as T & { error?: string };
+  const text = await res.text();
+  let data: T & { error?: string };
+  try {
+    data = JSON.parse(text) as T & { error?: string };
+  } catch {
+    throw new Error(
+      text.startsWith("<")
+        ? `Error del servidor (${res.status})`
+        : text.slice(0, 160) || `HTTP ${res.status}`
+    );
+  }
   if (!res.ok) {
     throw new Error(data.error ?? `HTTP ${res.status}`);
   }
@@ -49,6 +59,7 @@ export type AdminDateRow = {
   soldCount: number;
   available: number;
   isActive: boolean;
+  isSelling: boolean;
   checkedInCount: number;
 };
 
@@ -187,8 +198,49 @@ export async function fetchWebhookInfo() {
   return adminFetch<{
     webhookUrl: string;
     secretConfigured: boolean;
+    secretSource: "org" | "env" | null;
     organizationSlug: string;
   }>("/api/admin/webhook-info");
+}
+
+export async function testWebhook() {
+  return adminFetch<{
+    ok: boolean;
+    status: number;
+    message: string;
+    response?: unknown;
+  }>("/api/admin/webhook-info", { method: "POST" });
+}
+
+export type PendingPurchaseRow = {
+  id: string;
+  externalOrderId: string;
+  email: string;
+  name: string | null;
+  phone: string | null;
+  funnelLabel: string | null;
+  createdAt: string;
+};
+
+export async function fetchPendingPurchases() {
+  return adminFetch<{ pending: PendingPurchaseRow[]; count: number }>(
+    "/api/admin/pending-purchases"
+  );
+}
+
+export async function resolvePendingPurchase(
+  webhookEventId: string,
+  workshopSlug: WorkshopSlug
+) {
+  return adminFetch<{
+    ok: boolean;
+    duplicate?: boolean;
+    registrationId?: string;
+    passUrl?: string;
+  }>("/api/admin/pending-purchases", {
+    method: "POST",
+    body: JSON.stringify({ webhookEventId, workshopSlug }),
+  });
 }
 
 export type EmailTemplateRow = {

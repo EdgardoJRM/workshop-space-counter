@@ -1,6 +1,13 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getDefaultOrganization } from "@/lib/organization";
 import type { WorkshopSlug } from "@/lib/workshop-keys";
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002"
+  );
+}
 
 export type LabelTemplateConfig = {
   fontLarge: number;
@@ -84,6 +91,7 @@ async function loadLabelTemplateForWorkshop(
   return DEFAULT_LABEL_TEMPLATE;
 }
 
+/** Avoids prisma upsert when production DB lacks compound unique index yet. */
 export async function upsertLabelTemplate(
   workshopSlug: WorkshopSlug | null,
   config: LabelTemplateConfig,
@@ -97,33 +105,30 @@ export async function upsertLabelTemplate(
     showWorkshop: config.showWorkshop,
   };
 
-  if (workshopSlug === null) {
-    const existing = await prisma.labelTemplate.findFirst({
-      where: { organizationId, workshopSlug: null },
-    });
-    if (existing) {
-      return prisma.labelTemplate.update({
-        where: { id: existing.id },
-        data,
-      });
-    }
-    return prisma.labelTemplate.create({
-      data: { organizationId, workshopSlug: null, ...data },
+  let existing = await prisma.labelTemplate.findFirst({
+    where: { organizationId, workshopSlug },
+  });
+
+  if (existing) {
+    return prisma.labelTemplate.update({
+      where: { id: existing.id },
+      data,
     });
   }
 
-  return prisma.labelTemplate.upsert({
-    where: {
-      organizationId_workshopSlug: {
-        organizationId,
-        workshopSlug,
-      },
-    },
-    create: {
-      organizationId,
-      workshopSlug,
-      ...data,
-    },
-    update: data,
-  });
+  try {
+    return await prisma.labelTemplate.create({
+      data: { organizationId, workshopSlug, ...data },
+    });
+  } catch (error) {
+    if (!isUniqueConstraintError(error)) throw error;
+    existing = await prisma.labelTemplate.findFirst({
+      where: { organizationId, workshopSlug },
+    });
+    if (!existing) throw error;
+    return prisma.labelTemplate.update({
+      where: { id: existing.id },
+      data,
+    });
+  }
 }

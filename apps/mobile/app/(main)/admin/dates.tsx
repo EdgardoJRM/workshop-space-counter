@@ -12,6 +12,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { ProgressBarSuccess } from "@/components/ProgressBar";
 import { StatusBadge } from "@/components/StatusBadge";
+import { WorkshopDateTimePicker } from "@/components/WorkshopDateTimePicker";
 import { WorkshopDropdown } from "@/components/WorkshopDropdown";
 import {
   deleteAdminDate,
@@ -22,7 +23,9 @@ import {
 import { confirmDestructive } from "@/lib/confirm-alert";
 import { useSession } from "@/lib/session-context";
 import {
+  joinWorkshopDatetimeLocal,
   parseWorkshopDatetimeLocal,
+  splitWorkshopDatetimeLocal,
   toWorkshopDatetimeLocalInput,
 } from "@/lib/workshop-datetime";
 import { useAppTheme } from "@/lib/useAppTheme";
@@ -34,6 +37,31 @@ const emptyForm = {
   mapsUrl: "",
   capacity: "25",
 };
+
+function templateRow(list: AdminDateRow[]): AdminDateRow | null {
+  return (
+    list.find((d) => d.isSelling) ??
+    list.find((d) => d.isActive) ??
+    list[list.length - 1] ??
+    null
+  );
+}
+
+function defaultStartsAt(from?: AdminDateRow | null): string {
+  const base = new Date();
+  base.setDate(base.getDate() + 14);
+  base.setHours(10, 0, 0, 0);
+  if (from) {
+    const { time } = splitWorkshopDatetimeLocal(
+      toWorkshopDatetimeLocalInput(from.startsAt)
+    );
+    const { date } = splitWorkshopDatetimeLocal(
+      toWorkshopDatetimeLocalInput(base.toISOString())
+    );
+    return joinWorkshopDatetimeLocal(date, time);
+  }
+  return toWorkshopDatetimeLocalInput(base.toISOString());
+}
 
 export default function AdminDatesScreen() {
   const { workshop } = useSession();
@@ -67,14 +95,53 @@ export default function AdminDatesScreen() {
     }, [load])
   );
 
+  function openCreateForm(source?: AdminDateRow | null) {
+    const src = source ?? templateRow(rows);
+    setCreateForm({
+      title: src?.title ?? "",
+      startsAt: defaultStartsAt(src),
+      venue: src?.venue ?? "",
+      mapsUrl: src?.mapsUrl ?? "",
+      capacity: src ? String(src.capacity) : "25",
+    });
+    setShowCreate(true);
+    setEditingId(null);
+    setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 50);
+  }
+
+  function openDuplicate(row: AdminDateRow) {
+    const current = splitWorkshopDatetimeLocal(
+      toWorkshopDatetimeLocalInput(row.startsAt)
+    );
+    const next = parseWorkshopDatetimeLocal(
+      joinWorkshopDatetimeLocal(current.date, current.time)
+    );
+    if (next) next.setDate(next.getDate() + 7);
+
+    setCreateForm({
+      title: row.title,
+      startsAt: next
+        ? toWorkshopDatetimeLocalInput(next.toISOString())
+        : defaultStartsAt(row),
+      venue: row.venue ?? "",
+      mapsUrl: row.mapsUrl ?? "",
+      capacity: String(row.capacity),
+    });
+    setShowCreate(true);
+    setEditingId(null);
+    setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 50);
+  }
+
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
         <Pressable
           onPress={() => {
-            setShowCreate((v) => !v);
-            setEditingId(null);
-            setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 50);
+            if (showCreate) {
+              setShowCreate(false);
+            } else {
+              openCreateForm();
+            }
           }}
           style={{
             flexDirection: "row",
@@ -94,11 +161,20 @@ export default function AdminDatesScreen() {
         </Pressable>
       ),
     });
-  }, [navigation, colors.accent, colors.onAccent]);
+  }, [navigation, colors.accent, colors.onAccent, showCreate, rows]);
 
   async function activate(id: string) {
     try {
       await saveAdminDate({ dateId: id, isActive: true, workshop });
+      void load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error");
+    }
+  }
+
+  async function setSelling(id: string) {
+    try {
+      await saveAdminDate({ dateId: id, isSelling: true, workshop });
       void load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
@@ -205,6 +281,11 @@ export default function AdminDatesScreen() {
             <Text style={[styles.title, { fontSize: 17 }]}>Crear nueva fecha</Text>
             <Ionicons name="chevron-down" size={20} color={colors.textSubtle} />
           </Pressable>
+          {templateRow(rows) ? (
+            <Text style={[styles.rowMeta, { marginBottom: 12 }]}>
+              Datos copiados de la fecha en venta o activa. Solo cambia la fecha.
+            </Text>
+          ) : null}
           <Text style={styles.fieldLabel}>Título del evento</Text>
           <TextInput
             style={styles.input}
@@ -212,12 +293,9 @@ export default function AdminDatesScreen() {
             onChangeText={(v) => setCreateForm((f) => ({ ...f, title: v }))}
           />
           <Text style={styles.fieldLabel}>Fecha y hora</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="2026-06-15T14:00"
-            placeholderTextColor={colors.textSubtle}
+          <WorkshopDateTimePicker
             value={createForm.startsAt}
-            onChangeText={(v) => setCreateForm((f) => ({ ...f, startsAt: v }))}
+            onChange={(startsAt) => setCreateForm((f) => ({ ...f, startsAt }))}
           />
           <Text style={styles.label}>Lugar</Text>
           <TextInput
@@ -275,10 +353,9 @@ export default function AdminDatesScreen() {
                   onChangeText={(v) => setEditForm((f) => ({ ...f, title: v }))}
                 />
                 <Text style={styles.label}>Fecha y hora</Text>
-                <TextInput
-                  style={styles.input}
+                <WorkshopDateTimePicker
                   value={editForm.startsAt}
-                  onChangeText={(v) => setEditForm((f) => ({ ...f, startsAt: v }))}
+                  onChange={(startsAt) => setEditForm((f) => ({ ...f, startsAt }))}
                 />
                 <Text style={styles.label}>Lugar</Text>
                 <TextInput
@@ -323,10 +400,15 @@ export default function AdminDatesScreen() {
                     alignItems: "flex-start",
                   }}
                 >
-                  <StatusBadge
-                    label={row.isActive ? "Activa" : "Inactiva"}
-                    variant={row.isActive ? "success" : "muted"}
-                  />
+                  <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
+                    {row.isSelling ? (
+                      <StatusBadge label="En venta" variant="warning" />
+                    ) : null}
+                    <StatusBadge
+                      label={row.isActive ? "Activa" : "Inactiva"}
+                      variant={row.isActive ? "success" : "muted"}
+                    />
+                  </View>
                   <Ionicons name="chevron-forward" size={18} color={colors.textSubtle} />
                 </View>
                 <Text style={[styles.rowTitle, { marginTop: 10 }]}>{row.title}</Text>
@@ -373,6 +455,13 @@ export default function AdminDatesScreen() {
                     <Ionicons name="pencil-outline" size={14} color={colors.link} />
                     <Text style={[styles.btnOutlineText, { color: colors.link }]}>Editar</Text>
                   </Pressable>
+                  <Pressable
+                    style={[styles.btnOutline, { flexDirection: "row", gap: 4 }]}
+                    onPress={() => openDuplicate(row)}
+                  >
+                    <Ionicons name="copy-outline" size={14} color={colors.link} />
+                    <Text style={[styles.btnOutlineText, { color: colors.link }]}>Duplicar</Text>
+                  </Pressable>
                   {row.soldCount === 0 && row.checkedInCount === 0 ? (
                     <Pressable
                       style={[styles.btnDanger, { flexDirection: "row", gap: 4 }]}
@@ -388,6 +477,15 @@ export default function AdminDatesScreen() {
                     >
                       <Ionicons name="play-outline" size={14} color={colors.accent} />
                       <Text style={styles.btnOutlineText}>Activar</Text>
+                    </Pressable>
+                  ) : null}
+                  {!row.isSelling ? (
+                    <Pressable
+                      style={[styles.btnOutline, { flexDirection: "row", gap: 4 }]}
+                      onPress={() => void setSelling(row.id)}
+                    >
+                      <Ionicons name="cart-outline" size={14} color={colors.accent} />
+                      <Text style={styles.btnOutlineText}>En venta</Text>
                     </Pressable>
                   ) : null}
                 </View>

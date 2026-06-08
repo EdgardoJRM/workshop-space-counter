@@ -47,6 +47,7 @@ export async function GET(request: Request) {
       soldCount: d.soldCount,
       available: Math.max(0, d.capacity - d.soldCount),
       isActive: d.isActive,
+      isSelling: d.isSelling,
       checkedInCount: d.checkedInCount,
     })),
   });
@@ -61,6 +62,7 @@ type PostBody = {
   mapsUrl?: unknown;
   capacity?: unknown;
   isActive?: unknown;
+  isSelling?: unknown;
   dateId?: unknown;
 };
 
@@ -105,6 +107,8 @@ export async function POST(request: Request) {
         : undefined;
     const isActive =
       typeof body.isActive === "boolean" ? body.isActive : undefined;
+    const isSelling =
+      typeof body.isSelling === "boolean" ? body.isSelling : undefined;
 
     if (isActive === true) {
       await prisma.workshopDate.updateMany({
@@ -113,11 +117,19 @@ export async function POST(request: Request) {
       });
     }
 
+    if (isSelling === true) {
+      await prisma.workshopDate.updateMany({
+        where: { workshopId: existingDate.workshopId, isSelling: true },
+        data: { isSelling: false },
+      });
+    }
+
     const updated = await prisma.workshopDate.update({
       where: { id: dateId },
       data: {
         ...(capacity !== undefined ? { capacity } : {}),
         ...(isActive !== undefined ? { isActive } : {}),
+        ...(isSelling !== undefined ? { isSelling } : {}),
         ...(typeof body.title === "string" ? { title: body.title } : {}),
         ...(typeof body.venue === "string" ? { venue: body.venue } : {}),
         ...(typeof body.mapsUrl === "string" ? { mapsUrl: body.mapsUrl } : {}),
@@ -132,11 +144,11 @@ export async function POST(request: Request) {
       include: { workshop: true },
     });
 
-    if (isWorkshopSlug(updated.workshop.slug)) {
-      await syncCapacityToRedis(
-        updated.workshop.slug,
-        auth.organizationId
-      );
+    if (
+      isWorkshopSlug(updated.workshop.slug) &&
+      (isSelling === true || updated.isSelling)
+    ) {
+      await syncCapacityToRedis(updated.workshop.slug, auth.organizationId);
     }
 
     return NextResponse.json({ ok: true, date: updated });
@@ -171,10 +183,23 @@ export async function POST(request: Request) {
       ? Math.floor(body.capacity)
       : 25;
 
-  if (body.isActive === true) {
+  const isActive = body.isActive !== false;
+  const isSelling =
+    typeof body.isSelling === "boolean"
+      ? body.isSelling
+      : body.isSelling === undefined && isActive;
+
+  if (isActive === true) {
     await prisma.workshopDate.updateMany({
       where: { workshopId: workshop.id, isActive: true },
       data: { isActive: false },
+    });
+  }
+
+  if (isSelling === true) {
+    await prisma.workshopDate.updateMany({
+      where: { workshopId: workshop.id, isSelling: true },
+      data: { isSelling: false },
     });
   }
 
@@ -189,11 +214,12 @@ export async function POST(request: Request) {
       venue: typeof body.venue === "string" ? body.venue : null,
       mapsUrl: typeof body.mapsUrl === "string" ? body.mapsUrl : null,
       capacity,
-      isActive: body.isActive !== false,
+      isActive,
+      isSelling,
     },
   });
 
-  if (created.isActive) {
+  if (created.isSelling) {
     await syncCapacityToRedis(workshopSlug, auth.organizationId);
   }
 
@@ -243,7 +269,7 @@ export async function DELETE(request: Request) {
 
   await prisma.workshopDate.delete({ where: { id: dateId } });
 
-  if (existing.isActive && isWorkshopSlug(existing.workshop.slug)) {
+  if (existing.isSelling && isWorkshopSlug(existing.workshop.slug)) {
     await syncCapacityToRedis(existing.workshop.slug, auth.organizationId);
   }
 

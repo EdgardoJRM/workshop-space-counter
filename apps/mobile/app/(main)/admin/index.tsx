@@ -47,6 +47,14 @@ const HUB_ITEMS = [
   {
     kicker: "SISTEMA",
     kickerVariant: "blue" as const,
+    title: "Compras sin taller",
+    description: "Asigna evento cuando el funnel no trae vcanva / vdtv.",
+    icon: "help-circle-outline" as const,
+    route: "pending-purchases",
+  },
+  {
+    kicker: "SISTEMA",
+    kickerVariant: "blue" as const,
     title: "Webhook ClickFunnels",
     description: "Configura la URL y el secreto de integración.",
     icon: "link-outline" as const,

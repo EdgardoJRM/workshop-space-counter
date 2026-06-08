@@ -36,6 +36,10 @@ export default function AdminStackLayout() {
       <Stack.Screen name="labels" options={{ title: "Labels" }} />
       <Stack.Screen name="pairing" options={{ title: "Emparejar impresora" }} />
       <Stack.Screen name="webhook" options={{ title: "Webhook ClickFunnels" }} />
+      <Stack.Screen
+        name="pending-purchases"
+        options={{ title: "Compras sin taller" }}
+      />
       <Stack.Screen name="emails" options={{ title: "Emails / Automatizaciones" }} />
       <Stack.Screen name="branding" options={{ title: "Marca / white-label" }} />
     </Stack>
