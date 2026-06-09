@@ -2,42 +2,54 @@ import Link from "next/link";
 
 const FEATURES = [
   {
-    title: "QR check-in",
+    title: "Check-in con QR",
     description:
-      "Staff scan attendee passes at the door. Fast validation with clear success and error feedback.",
+      "El staff escanea los pases en la puerta. Validación rápida con confirmación clara de éxito o error.",
   },
   {
-    title: "Registrations",
+    title: "Registros",
     description:
-      "View registrations, manual entry, resend passes, and export data from web or mobile admin.",
+      "Consulta registros, entrada manual, reenvío de pases y exportación desde el admin web o la app móvil.",
   },
   {
-    title: "Name tags",
+    title: "Etiquetas / name tags",
     description:
-      "Print and reprint 3×2″ labels with customizable templates for your event roll.",
+      "Imprime y reimprime labels 3×2″ con plantillas personalizables para tu evento.",
   },
   {
-    title: "Dates & capacity",
+    title: "Fechas y cupos",
     description:
-      "Create workshop dates, mark selling dates, duplicate events, and track sold vs available seats.",
+      "Crea fechas de taller, marca la fecha en venta, duplica eventos y controla vendidos vs disponibles.",
   },
   {
     title: "ClickFunnels",
     description:
-      "Connect purchases to registrations automatically. Sync capacity with your funnel in real time.",
+      "Conecta compras con registros automáticamente. Sincroniza cupos con tu funnel en tiempo real.",
   },
   {
-    title: "Staff & admin",
+    title: "Staff y admin",
     description:
-      "Secure magic-link access for organizers and on-site staff. Web dashboard plus iOS app.",
+      "Acceso seguro con magic link para organizadores y equipo en sitio. Panel web más app iOS.",
   },
 ] as const;
 
 const WORKFLOW = [
-  { step: "1", label: "Sell or register", detail: "Purchases from ClickFunnels or manual admin entry" },
-  { step: "2", label: "Issue pass", detail: "QR pass emailed to each attendee" },
-  { step: "3", label: "Check in", detail: "Staff scans at the door on phone or web" },
-  { step: "4", label: "Print labels", detail: "Name tags queued to your paired printer" },
+  {
+    step: "1",
+    label: "Vender o registrar",
+    detail: "Compras desde ClickFunnels o registro manual en admin",
+  },
+  { step: "2", label: "Emitir pase", detail: "Pase QR enviado por correo a cada asistente" },
+  {
+    step: "3",
+    label: "Check-in",
+    detail: "El staff escanea en la puerta desde el teléfono o la web",
+  },
+  {
+    step: "4",
+    label: "Imprimir etiquetas",
+    detail: "Name tags en cola hacia tu impresora emparejada",
+  },
 ] as const;
 
 export default function HomePage() {
@@ -51,53 +63,52 @@ export default function HomePage() {
         }}
       />
 
-      {/* Hero */}
       <section className="relative mx-auto max-w-5xl px-6 pb-16 pt-14 md:pt-20">
         <div className="max-w-2xl">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-blue">
-            Event operations
+            Operaciones de evento
           </p>
           <h1 className="mt-3 text-4xl font-semibold tracking-tight text-brand-slate md:text-5xl">
             Hernandez Pass
           </h1>
           <p className="mt-5 text-lg leading-relaxed text-brand-charcoal">
-            Registrations, QR passes, check-in, capacity, and name tags for live
-            workshops and events — in one place for your team.
+            Registros, pases QR, check-in, cupos y etiquetas para talleres y
+            eventos en vivo — todo en un solo lugar para tu equipo.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
               href="/login?intent=admin&next=/admin"
               className="inline-flex items-center justify-center rounded-xl bg-brand-gold px-6 py-3 text-sm font-semibold text-brand-ink shadow-md shadow-brand-gold/25 transition hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-2"
             >
-              Admin login
+              Acceso admin
             </Link>
             <Link
               href="/login?intent=staff&next=/staff/scan"
               className="inline-flex items-center justify-center rounded-xl border border-brand-grey/35 bg-white px-6 py-3 text-sm font-semibold text-brand-slate shadow-sm transition hover:bg-brand-off focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-2"
             >
-              Staff login
+              Acceso staff
             </Link>
             <Link
               href="/pricing"
               className="inline-flex items-center justify-center px-4 py-3 text-sm font-medium text-brand-blue underline-offset-4 hover:underline"
             >
-              View plans
+              Ver planes
             </Link>
           </div>
           <p className="mt-6 text-xs text-brand-grey">
-            Authorized organizers and event staff only.
+            Solo organizadores autorizados y personal del evento.
           </p>
         </div>
       </section>
 
-      {/* Features */}
       <section className="relative border-t border-brand-grey/15 bg-white/60 py-16 backdrop-blur-sm">
         <div className="mx-auto max-w-5xl px-6">
           <h2 className="text-2xl font-semibold tracking-tight text-brand-slate">
-            Built for event day
+            Hecho para el día del evento
           </h2>
           <p className="mt-2 max-w-xl text-sm text-brand-charcoal">
-            Everything your team needs before, during, and after the room fills up.
+            Todo lo que tu equipo necesita antes, durante y después de que se
+            llene la sala.
           </p>
           <ul className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {FEATURES.map((f) => (
@@ -115,11 +126,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Workflow */}
       <section className="relative py-16">
         <div className="mx-auto max-w-5xl px-6">
           <h2 className="text-2xl font-semibold tracking-tight text-brand-slate">
-            How it works
+            Cómo funciona
           </h2>
           <ol className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {WORKFLOW.map((w) => (
@@ -135,25 +145,25 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Footer CTA */}
       <section className="relative border-t border-brand-grey/15 bg-brand-slate py-14 text-white">
         <div className="mx-auto max-w-5xl px-6 text-center md:text-left">
-          <h2 className="text-xl font-semibold">Ready for your next event?</h2>
+          <h2 className="text-xl font-semibold">¿Listo para tu próximo evento?</h2>
           <p className="mt-2 text-sm text-white/80">
-            Sign in with your organizer email or download the iOS app for on-site staff.
+            Entra con el correo de organizador o descarga la app iOS para el
+            staff en sitio.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3 md:justify-start">
             <Link
               href="/login?intent=admin"
               className="rounded-xl bg-brand-gold px-5 py-2.5 text-sm font-semibold text-brand-ink hover:brightness-95"
             >
-              Get started
+              Comenzar
             </Link>
             <Link
               href="/support"
               className="rounded-xl border border-white/30 px-5 py-2.5 text-sm font-medium hover:bg-white/10"
             >
-              Support
+              Soporte
             </Link>
           </div>
         </div>

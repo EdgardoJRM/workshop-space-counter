@@ -22,10 +22,10 @@ export default function SiteLayout({
           </Link>
           <div className="ml-auto flex items-center gap-4 text-xs font-medium text-brand-charcoal">
             <a href="/support" className="hover:text-brand-blue">
-              Support
+              Soporte
             </a>
             <a href="/privacy" className="hover:text-brand-blue">
-              Privacy
+              Privacidad
             </a>
             <a href="/login?intent=admin" className="hover:text-brand-blue">
               Admin

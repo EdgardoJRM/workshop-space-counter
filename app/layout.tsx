@@ -5,9 +5,9 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Hernandez Pass — Event registrations, QR check-in & name tags",
+  title: "Hernandez Pass — Registros, check-in QR y etiquetas",
   description:
-    "Hernandez Pass helps event teams manage registrations, QR passes, check-in, capacity, and name tags for live workshops and events.",
+    "Hernandez Pass ayuda a equipos de eventos a gestionar registros, pases QR, check-in, cupos y etiquetas para talleres y eventos en vivo.",
 };
 
 export default function RootLayout({
@@ -16,7 +16,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="es">
       <body className={inter.className}>{children}</body>
     </html>
   );
