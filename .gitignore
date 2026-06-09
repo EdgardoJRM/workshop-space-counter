@@ -37,3 +37,4 @@ yarn-error.log*
 .env*
 !.env*.example
 !**/.env*.example
+tmp/
