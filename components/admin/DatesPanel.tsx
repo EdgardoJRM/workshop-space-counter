@@ -42,6 +42,7 @@ function formatDateTime(iso: string): string {
 
 export function DatesPanel({ slug }: DatesPanelProps) {
   const [rows, setRows] = useState<DateRow[]>([]);
+  const [certificatesEnabled, setCertificatesEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -70,8 +71,13 @@ export function DatesPanel({ slug }: DatesPanelProps) {
     try {
       const params = new URLSearchParams({ w: slug });
       const res = await fetch(`/api/admin/dates?${params}`);
-      const data = (await res.json()) as { error?: string; dates?: DateRow[] };
+      const data = (await res.json()) as {
+        error?: string;
+        certificatesEnabled?: boolean;
+        dates?: DateRow[];
+      };
       if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
+      setCertificatesEnabled(Boolean(data.certificatesEnabled));
       setRows(data.dates ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudieron cargar las fechas");
@@ -408,7 +414,10 @@ export function DatesPanel({ slug }: DatesPanelProps) {
                     </div>
                     <p className="mt-2 text-xs text-brand-grey">
                       Cupos: {row.soldCount}/{row.capacity} vendidos · {row.available} disponibles ·{" "}
-                      {row.checkedInCount} check-ins · {row.certificatesEmailedCount} certificados enviados
+                      {row.checkedInCount} check-ins
+                      {certificatesEnabled
+                        ? ` · ${row.certificatesEmailedCount} certificados enviados`
+                        : ""}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       <button

@@ -4,6 +4,7 @@ import { isWorkshopSlug, type WorkshopSlug } from "@/lib/workshop-keys";
 import { syncCapacityToRedis } from "@/lib/capacity";
 import { assertAdminApiAccess } from "@/lib/admin-api";
 import { parseStartsAtInput } from "@/lib/workshop-datetime";
+import { isCertificatesEnabled } from "@/lib/certificates";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,7 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({
+    certificatesEnabled: isCertificatesEnabled(),
     dates: dates.map((d) => ({
       id: d.id,
       workshopSlug: d.workshop.slug,

@@ -3,10 +3,23 @@ import { describe, it } from "node:test";
 import { RegistrationStatus } from "@prisma/client";
 import {
   formatCertificateDate,
+  isCertificatesEnabled,
   isWorkshopEndDueForCertificates,
   registrationEligibleForCertificate,
   workshopEndsAt,
 } from "./certificates";
+
+describe("isCertificatesEnabled", () => {
+  it("is off unless CERTIFICATES_ENABLED=true", () => {
+    const prev = process.env.CERTIFICATES_ENABLED;
+    delete process.env.CERTIFICATES_ENABLED;
+    assert.equal(isCertificatesEnabled(), false);
+    process.env.CERTIFICATES_ENABLED = "true";
+    assert.equal(isCertificatesEnabled(), true);
+    if (prev === undefined) delete process.env.CERTIFICATES_ENABLED;
+    else process.env.CERTIFICATES_ENABLED = prev;
+  });
+});
 
 describe("registrationEligibleForCertificate", () => {
   it("requires confirmed status and at least one check-in", () => {

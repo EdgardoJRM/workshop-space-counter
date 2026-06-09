@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma, isDatabaseConfigured } from "@/lib/prisma";
 import { assertAdminApiAccess } from "@/lib/admin-api";
-import { resendCertificateEmail } from "@/lib/certificates";
+import { isCertificatesEnabled, resendCertificateEmail } from "@/lib/certificates";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +29,13 @@ export async function POST(request: Request) {
   const auth = await assertAdminApiAccess(legacyToken || null, request);
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  if (!isCertificatesEnabled()) {
+    return NextResponse.json(
+      { error: "El envío de certificados está desactivado", code: "DISABLED" },
+      { status: 503 }
+    );
   }
 
   const registrationId =

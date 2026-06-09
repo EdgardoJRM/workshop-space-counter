@@ -14,6 +14,11 @@ import { RegistrationStatus } from "@prisma/client";
 
 export const DEFAULT_WORKSHOP_DURATION_HOURS = 8;
 
+/** Certificados desactivados por defecto. Activar con CERTIFICATES_ENABLED=true en Vercel. */
+export function isCertificatesEnabled(): boolean {
+  return process.env.CERTIFICATES_ENABLED?.trim().toLowerCase() === "true";
+}
+
 const TEMPLATE_PATH = path.join(
   process.cwd(),
   "assets/certificates/duplica-ventas-template.pdf"
@@ -276,6 +281,14 @@ export async function sendCertificateForRegistration(
   registrationId: string,
   options?: { forceResend?: boolean }
 ): Promise<{ ok: true } | { ok: false; error: string; code?: string }> {
+  if (!isCertificatesEnabled()) {
+    return {
+      ok: false,
+      error: "El envío de certificados está desactivado",
+      code: "DISABLED",
+    };
+  }
+
   const reg = await prisma.registration.findUnique({
     where: { id: registrationId },
     include: registrationInclude,
@@ -354,6 +367,10 @@ export async function processDueCertificates(options?: {
   windowMs?: number;
   durationHours?: number;
 }): Promise<ProcessCertificatesResult> {
+  if (!isCertificatesEnabled()) {
+    return { sent: 0, failed: 0, skipped: 0, datesProcessed: 0 };
+  }
+
   const now = options?.now ?? new Date();
   const windowMs = options?.windowMs ?? 25 * 60 * 60 * 1000;
   const durationHours = options?.durationHours ?? DEFAULT_WORKSHOP_DURATION_HOURS;

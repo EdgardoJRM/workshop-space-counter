@@ -44,6 +44,7 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [resendingCertificateId, setResendingCertificateId] = useState<string | null>(null);
+  const [certificatesEnabled, setCertificatesEnabled] = useState(false);
   const [reprintingId, setReprintingId] = useState<string | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const cardRefs = useRef<Record<string, HTMLLIElement | null>>({});
@@ -56,12 +57,14 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
       const res = await fetch(`/api/admin/registrations?${params}`);
       const data = (await res.json()) as {
         error?: string;
+        certificatesEnabled?: boolean;
         registrations?: RegistrationRow[];
       };
       if (res.status === 401) {
         throw new Error("Sesión expirada. Vuelve a iniciar sesión.");
       }
       if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
+      setCertificatesEnabled(Boolean(data.certificatesEnabled));
       setRows(data.registrations ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al cargar");
@@ -257,6 +260,7 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
               row={r}
               highlighted={highlightId === r.id}
               resending={resendingId === r.id}
+              certificatesEnabled={certificatesEnabled}
               resendingCertificate={resendingCertificateId === r.id}
               reprinting={reprintingId === r.id}
               onResend={() => void resend(r.id)}

@@ -3,6 +3,7 @@ import { prisma, isDatabaseConfigured } from "@/lib/prisma";
 import { isWorkshopSlug, type WorkshopSlug } from "@/lib/workshop-keys";
 import { assertAdminApiAccess } from "@/lib/admin-api";
 import { registerAttendee } from "@/lib/registrations";
+import { isCertificatesEnabled } from "@/lib/certificates";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,7 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.json({
+      certificatesEnabled: isCertificatesEnabled(),
       registrations: registrations.map((r) => mapRegistrationRow(r)),
     });
   } catch (err) {
@@ -73,6 +75,7 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.json({
+      certificatesEnabled: isCertificatesEnabled(),
       registrations: registrations.map((r) => mapRegistrationRowWithoutPrint(r)),
     });
   }

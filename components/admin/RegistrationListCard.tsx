@@ -63,6 +63,7 @@ function avatarClass(status: string, checkedIn: boolean): string {
 type Props = {
   row: RegistrationListCardRow;
   highlighted?: boolean;
+  certificatesEnabled?: boolean;
   resending?: boolean;
   resendingCertificate?: boolean;
   reprinting?: boolean;
@@ -75,6 +76,7 @@ export const RegistrationListCard = forwardRef<HTMLLIElement, Props>(function Re
   {
   row,
   highlighted,
+  certificatesEnabled,
   resending,
   resendingCertificate,
   reprinting,
@@ -158,7 +160,7 @@ export const RegistrationListCard = forwardRef<HTMLLIElement, Props>(function Re
             >
               {printStatusLabel(row.printStatus)}
             </span>
-            {row.checkedIn ? (
+            {certificatesEnabled && row.checkedIn ? (
               <span
                 className={`text-xs ${
                   row.certificateEmailedAt ? "text-brand-grey" : "text-amber-700"
@@ -192,7 +194,7 @@ export const RegistrationListCard = forwardRef<HTMLLIElement, Props>(function Re
           >
             {resending ? "Enviando…" : "Reenviar pase"}
           </button>
-          {row.checkedIn ? (
+          {certificatesEnabled && row.checkedIn ? (
             <button
               type="button"
               onClick={onResendCertificate}
