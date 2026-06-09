@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { hashPassToken } from "@/lib/pass-tokens";
+import { notifyLaBovedaCheckin } from "@/lib/la-boveda-webhook";
 import { notifyOrganizationStaffAsync } from "@/lib/notify-staff-push";
 import { createPrintJobForCheckin } from "@/lib/print-jobs";
 import { RegistrationStatus } from "@prisma/client";
@@ -24,7 +25,9 @@ type RegistrationWithRelations = {
   attendeeEmail: string | null;
   workshopDateId: string;
   attendee: { name: string | null; email: string };
-  workshopDate: { workshop: { label: string; organizationId: string } };
+  workshopDate: {
+    workshop: { label: string; organizationId: string; slug: string };
+  };
   checkins: { createdAt: Date }[];
 };
 
@@ -90,6 +93,14 @@ async function performCheckinOnRegistration(
     },
     { excludeEmail: meta.checkedInBy }
   );
+
+  void notifyLaBovedaCheckin({
+    registrationId: reg.id,
+    email: reg.attendee.email,
+    name: attendeeName,
+    workshopSlug: reg.workshopDate.workshop.slug,
+    checkedInAt: checkin.createdAt.toISOString(),
+  });
 
   return {
     ok: true,
