@@ -188,6 +188,7 @@ model Registration {
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
   pass            Pass?
+  certificate     Certificate?
   checkins        Checkin[]
   emailLogs       EmailLog[]
   printJobs       PrintJob[]
@@ -240,6 +241,19 @@ model Pass {
   revoked        Boolean      @default(false)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+}
+
+model Certificate {
+  id             String       @id @default(cuid())
+  registrationId String       @unique
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  tokenHash      String       @unique
+  emailedAt      DateTime?
+  emailError     String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([registrationId])
 }
 
 model Checkin {

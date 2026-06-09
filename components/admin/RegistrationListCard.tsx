@@ -19,6 +19,8 @@ export type RegistrationListCardRow = {
   emailedAt: string | null;
   emailError: string | null;
   checkedIn: boolean;
+  certificateEmailedAt: string | null;
+  certificateError: string | null;
   printStatus: string | null;
   printError: string | null;
 };
@@ -62,8 +64,10 @@ type Props = {
   row: RegistrationListCardRow;
   highlighted?: boolean;
   resending?: boolean;
+  resendingCertificate?: boolean;
   reprinting?: boolean;
   onResend: () => void;
+  onResendCertificate: () => void;
   onReprint: () => void;
 };
 
@@ -72,8 +76,10 @@ export const RegistrationListCard = forwardRef<HTMLLIElement, Props>(function Re
   row,
   highlighted,
   resending,
+  resendingCertificate,
   reprinting,
   onResend,
+  onResendCertificate,
   onReprint,
   },
   ref
@@ -152,6 +158,18 @@ export const RegistrationListCard = forwardRef<HTMLLIElement, Props>(function Re
             >
               {printStatusLabel(row.printStatus)}
             </span>
+            {row.checkedIn ? (
+              <span
+                className={`text-xs ${
+                  row.certificateEmailedAt ? "text-brand-grey" : "text-amber-700"
+                }`}
+                title={row.certificateError ?? undefined}
+              >
+                {row.certificateEmailedAt
+                  ? "Certificado enviado"
+                  : row.certificateError ?? "Certificado pendiente"}
+              </span>
+            ) : null}
           </div>
         </div>
       </div>
@@ -174,6 +192,16 @@ export const RegistrationListCard = forwardRef<HTMLLIElement, Props>(function Re
           >
             {resending ? "Enviando…" : "Reenviar pase"}
           </button>
+          {row.checkedIn ? (
+            <button
+              type="button"
+              onClick={onResendCertificate}
+              disabled={resendingCertificate}
+              className="rounded-lg border border-brand-gold px-3 py-1.5 text-xs font-semibold text-brand-charcoal disabled:opacity-50"
+            >
+              {resendingCertificate ? "Enviando…" : "Reenviar certificado"}
+            </button>
+          ) : null}
         </div>
       ) : null}
     </li>

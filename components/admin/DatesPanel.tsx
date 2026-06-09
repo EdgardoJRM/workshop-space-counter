@@ -25,6 +25,7 @@ type DateRow = {
   isActive: boolean;
   isSelling: boolean;
   checkedInCount: number;
+  certificatesEmailedCount: number;
 };
 
 export type DatesPanelProps = {
@@ -407,7 +408,7 @@ export function DatesPanel({ slug }: DatesPanelProps) {
                     </div>
                     <p className="mt-2 text-xs text-brand-grey">
                       Cupos: {row.soldCount}/{row.capacity} vendidos · {row.available} disponibles ·{" "}
-                      {row.checkedInCount} check-ins
+                      {row.checkedInCount} check-ins · {row.certificatesEmailedCount} certificados enviados
                     </p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       <button

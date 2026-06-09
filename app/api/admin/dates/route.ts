@@ -34,6 +34,29 @@ export async function GET(request: Request) {
     take: 50,
   });
 
+  const dateIds = dates.map((d) => d.id);
+  const emailedCertificates =
+    dateIds.length > 0
+      ? await prisma.certificate.findMany({
+          where: {
+            emailedAt: { not: null },
+            registration: { workshopDateId: { in: dateIds } },
+          },
+          select: {
+            registration: { select: { workshopDateId: true } },
+          },
+        })
+      : [];
+
+  const certificatesEmailedByDate = new Map<string, number>();
+  for (const cert of emailedCertificates) {
+    const workshopDateId = cert.registration.workshopDateId;
+    certificatesEmailedByDate.set(
+      workshopDateId,
+      (certificatesEmailedByDate.get(workshopDateId) ?? 0) + 1
+    );
+  }
+
   return NextResponse.json({
     dates: dates.map((d) => ({
       id: d.id,
@@ -49,6 +72,7 @@ export async function GET(request: Request) {
       isActive: d.isActive,
       isSelling: d.isSelling,
       checkedInCount: d.checkedInCount,
+      certificatesEmailedCount: certificatesEmailedByDate.get(d.id) ?? 0,
     })),
   });
 }

@@ -44,6 +44,7 @@ export async function GET(request: Request) {
         pass: true,
         workshopDate: { include: { workshop: true } },
         checkins: { take: 1, orderBy: { createdAt: "desc" } },
+        certificate: true,
         printJobs: { orderBy: { createdAt: "desc" }, take: 1 },
       },
     });
@@ -67,6 +68,7 @@ export async function GET(request: Request) {
         pass: true,
         workshopDate: { include: { workshop: true } },
         checkins: { take: 1, orderBy: { createdAt: "desc" } },
+        certificate: true,
       },
     });
 
@@ -85,6 +87,7 @@ function mapRegistrationRowWithoutPrint(
           pass: true;
           workshopDate: { include: { workshop: true } };
           checkins: true;
+          certificate: true;
         };
       }>
     >
@@ -105,6 +108,8 @@ function mapRegistrationRowWithoutPrint(
     emailError: r.pass?.emailError ?? null,
     checkedIn: r.checkins.length > 0,
     checkedInAt: r.checkins[0]?.createdAt.toISOString() ?? null,
+    certificateEmailedAt: r.certificate?.emailedAt?.toISOString() ?? null,
+    certificateError: r.certificate?.emailError ?? null,
     printStatus: null,
     printError: null,
     printPrintedAt: null,
@@ -120,6 +125,7 @@ function mapRegistrationRow(
           pass: true;
           workshopDate: { include: { workshop: true } };
           checkins: true;
+          certificate: true;
           printJobs: true;
         };
       }>
@@ -142,6 +148,8 @@ function mapRegistrationRow(
       emailError: r.pass?.emailError ?? null,
       checkedIn: r.checkins.length > 0,
       checkedInAt: r.checkins[0]?.createdAt.toISOString() ?? null,
+      certificateEmailedAt: r.certificate?.emailedAt?.toISOString() ?? null,
+      certificateError: r.certificate?.emailError ?? null,
       printStatus: latestPrint?.status ?? null,
       printError: latestPrint?.error ?? null,
       printPrintedAt: latestPrint?.printedAt?.toISOString() ?? null,

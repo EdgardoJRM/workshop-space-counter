@@ -405,6 +405,60 @@ export async function sendGuestInfoRequestEmail(
   });
 }
 
+export type CertificateEmailParams = {
+  to: string;
+  attendeeName: string;
+  workshopLabel: string;
+  eventDate: string;
+  certificateUrl: string;
+};
+
+export async function sendCertificateEmail(
+  params: CertificateEmailParams
+): Promise<{ ok: true; id?: string } | { ok: false; error: string }> {
+  const name = escapeHtml(params.attendeeName);
+  const workshop = escapeHtml(params.workshopLabel);
+  const eventDate = escapeHtml(params.eventDate);
+  const certificateUrl = escapeHtml(params.certificateUrl);
+
+  const htmlBody = `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="utf-8"/></head>
+<body style="margin:0;padding:0;background:#f4f5f6;font-family:Arial,Helvetica,sans-serif;">
+  <div style="max-width:560px;margin:0 auto;padding:24px 16px;">
+    <div style="background:#fff;border-radius:14px;padding:28px 24px;border:1px solid #e5e7eb;">
+      <p style="color:#3f5e78;font-size:11px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 10px;">Certificado de participación</p>
+      <h1 style="color:#1a1a1a;font-size:22px;line-height:1.3;margin:0 0 12px;">Hola, ${name}</h1>
+      <p style="color:#444;font-size:15px;line-height:1.55;margin:0 0 16px;">
+        Gracias por participar en <strong>${workshop}</strong> (${eventDate}).
+        Tu certificado de participación ya está disponible.
+      </p>
+      <p style="text-align:center;margin:22px 0;">
+        <a href="${certificateUrl}" style="display:inline-block;background:#c9a227;color:#1a1a1a;font-size:15px;font-weight:700;padding:14px 26px;border-radius:10px;text-decoration:none;">Ver mi certificado</a>
+      </p>
+      <p style="color:#888;font-size:12px;line-height:1.5;margin:18px 0 0;">
+        Certificado emitido por Hernandez Pass. Si tienes problemas, responde a este correo o contacta soporte.
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  const textBody = [
+    `Hola, ${params.attendeeName}`,
+    "",
+    `Gracias por participar en ${params.workshopLabel} (${params.eventDate}).`,
+    `Ver certificado: ${params.certificateUrl}`,
+  ].join("\n");
+
+  return sendHtmlEmail({
+    to: params.to,
+    subject: "Tu certificado de participación está listo",
+    htmlBody,
+    textBody,
+  });
+}
+
 /** Reemplaza {{name}}, {{email}}, {{workshop}}, {{eventDate}}, {{venue}} */
 export function renderEmailTemplate(
   body: string,

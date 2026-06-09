@@ -23,6 +23,8 @@ type RegistrationRow = {
   emailedAt: string | null;
   emailError: string | null;
   checkedIn: boolean;
+  certificateEmailedAt: string | null;
+  certificateError: string | null;
   printStatus: string | null;
   printError: string | null;
   printPrintedAt: string | null;
@@ -41,6 +43,7 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
   const [feedback, setFeedback] = useState<AdminFeedback | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [resendingId, setResendingId] = useState<string | null>(null);
+  const [resendingCertificateId, setResendingCertificateId] = useState<string | null>(null);
   const [reprintingId, setReprintingId] = useState<string | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const cardRefs = useRef<Record<string, HTMLLIElement | null>>({});
@@ -142,6 +145,34 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
     }
   }
 
+  async function resendCertificate(id: string) {
+    setResendingCertificateId(id);
+    setFeedback(null);
+    try {
+      const res = await fetch("/api/admin/resend-certificate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registrationId: id }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Error al reenviar certificado");
+      setFeedback({
+        type: "success",
+        title: "Certificado reenviado",
+        message: "El correo con el enlace al certificado fue enviado de nuevo.",
+      });
+      await load();
+    } catch (e) {
+      setFeedback({
+        type: "error",
+        title: "No se pudo reenviar certificado",
+        message: e instanceof Error ? e.message : "Error",
+      });
+    } finally {
+      setResendingCertificateId(null);
+    }
+  }
+
   async function resend(id: string) {
     setResendingId(id);
     setFeedback(null);
@@ -226,8 +257,10 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
               row={r}
               highlighted={highlightId === r.id}
               resending={resendingId === r.id}
+              resendingCertificate={resendingCertificateId === r.id}
               reprinting={reprintingId === r.id}
               onResend={() => void resend(r.id)}
+              onResendCertificate={() => void resendCertificate(r.id)}
               onReprint={() => void reprintLabel(r.id)}
             />
           ))}
