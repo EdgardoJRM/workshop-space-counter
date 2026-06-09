@@ -20,6 +20,7 @@ import {
   saveEmailTemplate,
   toggleEmailTemplate,
   type EmailLogRow,
+  type EmailTemplateAnchor,
   type EmailTemplateRow,
 } from "@/lib/admin-api";
 import { confirmDestructive } from "@/lib/confirm-alert";
@@ -36,20 +37,24 @@ const TEMPLATE_VARS = "{{name}}, {{email}}, {{workshop}}, {{eventDate}}, {{venue
 const emptyForm = {
   name: "",
   subject: "",
-  delayHours: "24",
+  delayHours: "0",
+  anchor: "checkin" as EmailTemplateAnchor,
   body: DEFAULT_EMAIL_BODY_PLAIN,
   active: true,
 };
 
 type FormState = typeof emptyForm;
 
-function formatDelay(hours: number): string {
-  if (hours === 0) return "Al momento del evento";
-  if (hours < 24) return `+${hours}h después del evento`;
+function formatDelay(hours: number, anchor: EmailTemplateAnchor = "event_start"): string {
+  const reference = anchor === "checkin" ? "del check-in" : "del evento";
+  if (hours === 0) {
+    return anchor === "checkin" ? "Al momento del check-in" : "Al momento del evento";
+  }
+  if (hours < 24) return `${hours}h después ${reference}`;
   const days = Math.floor(hours / 24);
   const rem = hours % 24;
-  if (rem === 0) return `+${days} día${days > 1 ? "s" : ""} después del evento`;
-  return `+${days}d ${rem}h después del evento`;
+  if (rem === 0) return `${days} día${days > 1 ? "s" : ""} después ${reference}`;
+  return `${days}d ${rem}h después ${reference}`;
 }
 
 function formatSentAt(iso: string): string {
@@ -128,7 +133,44 @@ function FormFields({
         value={form.subject}
         onChangeText={(v) => onChange({ ...form, subject: v })}
       />
-      <Text style={styles.fieldLabel}>Enviar</Text>
+      <Text style={styles.fieldLabel}>Referencia del tiempo</Text>
+      <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
+        {(
+          [
+            ["checkin", "Check-in (QR)"],
+            ["event_start", "Inicio evento"],
+          ] as const
+        ).map(([value, label]) => {
+          const selected = form.anchor === value;
+          return (
+            <Pressable
+              key={value}
+              onPress={() => onChange({ ...form, anchor: value })}
+              style={[
+                styles.input,
+                {
+                  flex: 1,
+                  paddingVertical: 10,
+                  borderColor: selected ? colors.accent : colors.border,
+                  backgroundColor: selected ? `${colors.accent}18` : colors.surface,
+                },
+              ]}
+            >
+              <Text
+                style={{
+                  color: selected ? colors.accent : colors.text,
+                  textAlign: "center",
+                  fontWeight: selected ? "700" : "500",
+                  fontSize: 13,
+                }}
+              >
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <Text style={styles.fieldLabel}>Delay (horas después)</Text>
       <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
         <TextInput
           style={[styles.input, { width: 72, textAlign: "center" }]}
@@ -137,11 +179,14 @@ function FormFields({
           keyboardType="number-pad"
         />
         <View style={[styles.input, { flex: 1, justifyContent: "center" }]}>
-          <Text style={{ color: colors.text }}>horas después del evento</Text>
+          <Text style={{ color: colors.text }}>horas después de la referencia</Text>
         </View>
       </View>
       <Text style={[styles.subtitle, { marginTop: 4 }]}>
-        Tiempo relativo al inicio del evento. {formatDelay(Number.parseInt(form.delayHours, 10) || 0)}
+        {formatDelay(Number.parseInt(form.delayHours, 10) || 0, form.anchor)}
+        {form.anchor === "checkin" && Number.parseInt(form.delayHours, 10) === 0
+          ? " — se envía al escanear."
+          : ""}
       </Text>
       <Text style={styles.fieldLabel}>Mensaje del correo</Text>
       <Text style={[styles.subtitle, { marginBottom: 8, marginTop: -4 }]}>
@@ -218,6 +263,7 @@ export default function AdminEmailsScreen() {
         subject: createForm.subject.trim(),
         htmlBody: plainTextToEmailHtml(createForm.body),
         delayHours: Number.parseInt(createForm.delayHours, 10) || 0,
+        anchor: createForm.anchor,
         active: createForm.active,
       });
       setCreateForm(emptyForm);
@@ -237,6 +283,7 @@ export default function AdminEmailsScreen() {
       name: t.name,
       subject: t.subject,
       delayHours: String(t.delayHours),
+      anchor: t.anchor ?? "event_start",
       body: emailHtmlToPlainText(t.htmlBody),
       active: t.active,
     });
@@ -265,6 +312,7 @@ export default function AdminEmailsScreen() {
         subject: editForm.subject.trim(),
         htmlBody: plainTextToEmailHtml(editForm.body),
         delayHours: Number.parseInt(editForm.delayHours, 10) || 0,
+        anchor: editForm.anchor,
         active: editForm.active,
       });
       setEditingId(null);
@@ -304,8 +352,8 @@ export default function AdminEmailsScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <InfoBanner>
-          Variables: {TEMPLATE_VARS}. El cron diario envía cuando el evento pasó hace el delay
-          configurado (ventana ~25h).
+          Variables: {TEMPLATE_VARS}. Elige si el delay es desde el check-in (escaneo) o desde el
+          inicio del evento. Con check-in y 0h, el email sale al escanear.
         </InfoBanner>
 
         {showCreate && !editingId ? (
@@ -418,7 +466,9 @@ export default function AdminEmailsScreen() {
                           variant={t.active ? "success" : "muted"}
                         />
                       </View>
-                      <Text style={styles.rowMeta}>{formatDelay(t.delayHours)}</Text>
+                      <Text style={styles.rowMeta}>
+                        {formatDelay(t.delayHours, t.anchor ?? "event_start")}
+                      </Text>
                       <Text style={styles.rowMeta}>{t.subject}</Text>
                       <Text style={[styles.rowMeta, { marginTop: 6 }]} numberOfLines={3}>
                         {emailHtmlToPlainText(t.htmlBody)}

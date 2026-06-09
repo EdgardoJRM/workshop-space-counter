@@ -19,6 +19,39 @@ export function isCertificatesEnabled(): boolean {
   return process.env.CERTIFICATES_ENABLED?.trim().toLowerCase() === "true";
 }
 
+export type CertificateSendMode = "checkin" | "post_workshop";
+
+/** Cuándo enviar el email del certificado. Por defecto: al hacer check-in. */
+export function getCertificateSendMode(): CertificateSendMode {
+  const mode = process.env.CERTIFICATES_SEND_ON?.trim().toLowerCase();
+  if (
+    mode === "post_workshop" ||
+    mode === "after_workshop" ||
+    mode === "cron"
+  ) {
+    return "post_workshop";
+  }
+  return "checkin";
+}
+
+/** Envía certificado tras check-in si el modo y el feature flag lo permiten. */
+export async function sendCertificateAfterCheckin(
+  registrationId: string
+): Promise<void> {
+  if (!isCertificatesEnabled() || getCertificateSendMode() !== "checkin") {
+    return;
+  }
+
+  const result = await sendCertificateForRegistration(registrationId);
+  if (!result.ok && result.code !== "EMAIL_FAILED") {
+    console.warn("[certificates] check-in send skipped", {
+      registrationId,
+      code: result.code,
+      error: result.error,
+    });
+  }
+}
+
 const TEMPLATE_PATH = path.join(
   process.cwd(),
   "assets/certificates/duplica-ventas-template.pdf"
@@ -367,7 +400,7 @@ export async function processDueCertificates(options?: {
   windowMs?: number;
   durationHours?: number;
 }): Promise<ProcessCertificatesResult> {
-  if (!isCertificatesEnabled()) {
+  if (!isCertificatesEnabled() || getCertificateSendMode() !== "post_workshop") {
     return { sent: 0, failed: 0, skipped: 0, datesProcessed: 0 };
   }
 

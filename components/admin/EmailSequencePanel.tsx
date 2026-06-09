@@ -7,12 +7,15 @@ import {
   plainTextToEmailHtml,
 } from "@/lib/email-template-text";
 
+type EmailAnchor = "event_start" | "checkin";
+
 type TemplateRow = {
   id: string;
   name: string;
   subject: string;
   htmlBody: string;
   delayHours: number;
+  anchor: EmailAnchor;
   active: boolean;
 };
 
@@ -31,17 +34,21 @@ const EMPTY_FORM = {
   name: "",
   subject: "",
   body: DEFAULT_EMAIL_BODY_PLAIN,
-  delayHours: "24",
+  delayHours: "0",
+  anchor: "checkin" as EmailAnchor,
   active: true,
 };
 
-function formatDelay(hours: number): string {
-  if (hours === 0) return "Al momento del evento";
-  if (hours < 24) return `${hours}h después`;
+function formatDelay(hours: number, anchor: EmailAnchor): string {
+  const reference = anchor === "checkin" ? "del check-in" : "del evento";
+  if (hours === 0) {
+    return anchor === "checkin" ? "Al momento del check-in" : "Al momento del evento";
+  }
+  if (hours < 24) return `${hours}h después ${reference}`;
   const days = Math.floor(hours / 24);
   const rem = hours % 24;
-  if (rem === 0) return `${days} día${days > 1 ? "s" : ""} después`;
-  return `${days}d ${rem}h después`;
+  if (rem === 0) return `${days} día${days > 1 ? "s" : ""} después ${reference}`;
+  return `${days}d ${rem}h después ${reference}`;
 }
 
 function formatSentAt(iso: string): string {
@@ -97,6 +104,7 @@ export function EmailSequencePanel() {
       subject: row.subject,
       body: emailHtmlToPlainText(row.htmlBody),
       delayHours: String(row.delayHours),
+      anchor: row.anchor ?? "event_start",
       active: row.active,
     });
   }
@@ -122,6 +130,7 @@ export function EmailSequencePanel() {
           subject: form.subject.trim(),
           htmlBody: plainTextToEmailHtml(form.body),
           delayHours: Number.isInteger(delayHours) ? delayHours : 0,
+          anchor: form.anchor,
           active: form.active,
         }),
       });
@@ -172,7 +181,8 @@ export function EmailSequencePanel() {
 
         <p className="mt-2 text-xs text-brand-grey">
           Variables: {"{{name}}"}, {"{{email}}"}, {"{{workshop}}"}, {"{{eventDate}}"}, {"{{venue}}"}.
-          El cron diario envía cuando el evento pasó hace el delay configurado (ventana ~25h).
+          Elige si el delay es desde el inicio del evento o desde el check-in (escaneo QR).
+          Con check-in y 0h, el email sale al escanear; con más horas, el cron diario lo envía después.
         </p>
 
         {error && (
@@ -202,7 +212,23 @@ export function EmailSequencePanel() {
               />
             </label>
             <label className="block text-xs font-medium">
-              Delay (horas después del inicio del evento)
+              Referencia del tiempo
+              <select
+                value={form.anchor}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    anchor: e.target.value as EmailAnchor,
+                  }))
+                }
+                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+              >
+                <option value="checkin">Check-in (escaneo QR)</option>
+                <option value="event_start">Inicio del evento</option>
+              </select>
+            </label>
+            <label className="block text-xs font-medium">
+              Delay (horas después de la referencia)
               <input
                 type="number"
                 min={0}
@@ -211,6 +237,9 @@ export function EmailSequencePanel() {
                 onChange={(e) => setForm((f) => ({ ...f, delayHours: e.target.value }))}
                 className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
               />
+              <span className="mt-1 block text-[11px] text-brand-grey">
+                {formatDelay(Number.parseInt(form.delayHours, 10) || 0, form.anchor)}
+              </span>
             </label>
             <label className="block text-xs font-medium">
               Mensaje del correo
@@ -263,7 +292,7 @@ export function EmailSequencePanel() {
                         <p className="font-semibold text-brand-charcoal">{t.name}</p>
                         <p className="text-xs text-brand-grey">{t.subject}</p>
                         <p className="mt-1 text-xs text-brand-blue">
-                          {formatDelay(t.delayHours)}
+                          {formatDelay(t.delayHours, t.anchor ?? "event_start")}
                         </p>
                       </div>
                       <span

@@ -243,12 +243,15 @@ export async function resolvePendingPurchase(
   });
 }
 
+export type EmailTemplateAnchor = "event_start" | "checkin";
+
 export type EmailTemplateRow = {
   id: string;
   name: string;
   subject: string;
   htmlBody: string;
   delayHours: number;
+  anchor: EmailTemplateAnchor;
   active: boolean;
 };
 

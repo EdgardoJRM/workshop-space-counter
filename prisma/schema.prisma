@@ -208,6 +208,8 @@ model EmailTemplate {
   subject        String
   htmlBody       String   @db.Text
   delayHours     Int
+  /// event_start | checkin
+  anchor         String   @default("event_start")
   active         Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

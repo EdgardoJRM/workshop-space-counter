@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma, isDatabaseConfigured } from "@/lib/prisma";
 import { assertAdminApiAccess } from "@/lib/admin-api";
+import { normalizeEmailTemplateAnchor } from "@/lib/email-sequence";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,7 @@ export async function GET(request: Request) {
       subject: t.subject,
       htmlBody: t.htmlBody,
       delayHours: t.delayHours,
+      anchor: normalizeEmailTemplateAnchor(t.anchor),
       active: t.active,
       createdAt: t.createdAt.toISOString(),
       updatedAt: t.updatedAt.toISOString(),
@@ -76,6 +78,7 @@ type PostBody = {
   subject?: unknown;
   htmlBody?: unknown;
   delayHours?: unknown;
+  anchor?: unknown;
   active?: unknown;
   action?: unknown;
 };
@@ -138,6 +141,7 @@ export async function POST(request: Request) {
       : null;
   const active =
     typeof body.active === "boolean" ? body.active : undefined;
+  const anchor = normalizeEmailTemplateAnchor(body.anchor);
 
   if (!name || !subject || !htmlBody || delayHours === null) {
     return NextResponse.json(
@@ -160,6 +164,7 @@ export async function POST(request: Request) {
         subject,
         htmlBody,
         delayHours,
+        anchor,
         ...(active !== undefined ? { active } : {}),
       },
     });
@@ -173,6 +178,7 @@ export async function POST(request: Request) {
       subject,
       htmlBody,
       delayHours,
+      anchor,
       active: active !== false,
     },
   });

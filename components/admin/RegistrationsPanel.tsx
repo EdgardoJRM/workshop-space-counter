@@ -45,6 +45,9 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [resendingCertificateId, setResendingCertificateId] = useState<string | null>(null);
   const [certificatesEnabled, setCertificatesEnabled] = useState(false);
+  const [certificatesSendMode, setCertificatesSendMode] = useState<"checkin" | "post_workshop">(
+    "checkin"
+  );
   const [reprintingId, setReprintingId] = useState<string | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const cardRefs = useRef<Record<string, HTMLLIElement | null>>({});
@@ -58,6 +61,7 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
       const data = (await res.json()) as {
         error?: string;
         certificatesEnabled?: boolean;
+        certificatesSendMode?: "checkin" | "post_workshop";
         registrations?: RegistrationRow[];
       };
       if (res.status === 401) {
@@ -65,6 +69,9 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
       }
       if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
       setCertificatesEnabled(Boolean(data.certificatesEnabled));
+      setCertificatesSendMode(
+        data.certificatesSendMode === "post_workshop" ? "post_workshop" : "checkin"
+      );
       setRows(data.registrations ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al cargar");
@@ -223,6 +230,15 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
           void load();
         }}
       />
+
+      {certificatesEnabled ? (
+        <p className="mb-3 text-xs text-brand-grey">
+          Certificados: envío automático{" "}
+          {certificatesSendMode === "checkin"
+            ? "al hacer check-in (escaneo QR)."
+            : "al terminar el taller (cron diario)."}
+        </p>
+      ) : null}
 
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-sm font-semibold text-brand-slate">Registros recientes</h2>

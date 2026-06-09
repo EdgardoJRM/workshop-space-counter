@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { isDatabaseConfigured } from "@/lib/prisma";
-import { isCertificatesEnabled, processDueCertificates } from "@/lib/certificates";
+import {
+  getCertificateSendMode,
+  isCertificatesEnabled,
+  processDueCertificates,
+} from "@/lib/certificates";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -37,10 +41,11 @@ async function runSendCertificates(request: Request) {
     );
   }
 
-  if (!isCertificatesEnabled()) {
+  if (!isCertificatesEnabled() || getCertificateSendMode() !== "post_workshop") {
     return NextResponse.json({
       ok: true,
       disabled: true,
+      mode: getCertificateSendMode(),
       sent: 0,
       failed: 0,
       skipped: 0,

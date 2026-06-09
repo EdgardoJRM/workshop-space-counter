@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { RegistrationStatus } from "@prisma/client";
 import {
   formatCertificateDate,
+  getCertificateSendMode,
   isCertificatesEnabled,
   isWorkshopEndDueForCertificates,
   registrationEligibleForCertificate,
@@ -18,6 +19,26 @@ describe("isCertificatesEnabled", () => {
     assert.equal(isCertificatesEnabled(), true);
     if (prev === undefined) delete process.env.CERTIFICATES_ENABLED;
     else process.env.CERTIFICATES_ENABLED = prev;
+  });
+});
+
+describe("getCertificateSendMode", () => {
+  it("defaults to checkin", () => {
+    const prev = process.env.CERTIFICATES_SEND_ON;
+    delete process.env.CERTIFICATES_SEND_ON;
+    assert.equal(getCertificateSendMode(), "checkin");
+    if (prev === undefined) delete process.env.CERTIFICATES_SEND_ON;
+    else process.env.CERTIFICATES_SEND_ON = prev;
+  });
+
+  it("supports post_workshop aliases", () => {
+    const prev = process.env.CERTIFICATES_SEND_ON;
+    process.env.CERTIFICATES_SEND_ON = "post_workshop";
+    assert.equal(getCertificateSendMode(), "post_workshop");
+    process.env.CERTIFICATES_SEND_ON = "cron";
+    assert.equal(getCertificateSendMode(), "post_workshop");
+    if (prev === undefined) delete process.env.CERTIFICATES_SEND_ON;
+    else process.env.CERTIFICATES_SEND_ON = prev;
   });
 });
 

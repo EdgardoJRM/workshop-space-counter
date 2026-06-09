@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { hashPassToken } from "@/lib/pass-tokens";
 import { notifyLaBovedaCheckin } from "@/lib/la-boveda-webhook";
 import { notifyOrganizationStaffAsync } from "@/lib/notify-staff-push";
+import { sendImmediateCheckinEmails } from "@/lib/email-sequence";
 import { createPrintJobForCheckin } from "@/lib/print-jobs";
 import { RegistrationStatus } from "@prisma/client";
 
@@ -100,6 +101,10 @@ async function performCheckinOnRegistration(
     name: attendeeName,
     workshopSlug: reg.workshopDate.workshop.slug,
     checkedInAt: checkin.createdAt.toISOString(),
+  });
+
+  void sendImmediateCheckinEmails(reg.id).catch((err) => {
+    console.error("[checkin] automated email failed", err);
   });
 
   return {
