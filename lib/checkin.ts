@@ -1,8 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { hashPassToken } from "@/lib/pass-tokens";
+import { sendDuplicaVentasCheckinResourcesEmail } from "@/lib/duplica-ventas-checkin-email";
 import { notifyLaBovedaCheckin } from "@/lib/la-boveda-webhook";
 import { notifyOrganizationStaffAsync } from "@/lib/notify-staff-push";
 import { sendImmediateCheckinEmails } from "@/lib/email-sequence";
+import { isWorkshopSlug } from "@/lib/workshop-keys";
 import { createPrintJobForCheckin } from "@/lib/print-jobs";
 import { RegistrationStatus } from "@prisma/client";
 
@@ -95,13 +97,28 @@ async function performCheckinOnRegistration(
     { excludeEmail: meta.checkedInBy }
   );
 
-  void notifyLaBovedaCheckin({
-    registrationId: reg.id,
-    email: reg.attendee.email,
-    name: attendeeName,
-    workshopSlug: reg.workshopDate.workshop.slug,
-    checkedInAt: checkin.createdAt.toISOString(),
-  });
+  const workshopSlug = reg.workshopDate.workshop.slug;
+  const isDuplicaVentas =
+    isWorkshopSlug(workshopSlug) && workshopSlug === "duplica-ventas";
+
+  if (isDuplicaVentas) {
+    void notifyLaBovedaCheckin({
+      registrationId: reg.id,
+      email: reg.attendeeEmail ?? reg.attendee.email,
+      name: attendeeName,
+      workshopSlug,
+      checkedInAt: checkin.createdAt.toISOString(),
+    }).catch((err) => {
+      console.error("[checkin] la-boveda webhook failed", err);
+    });
+
+    void sendDuplicaVentasCheckinResourcesEmail({
+      to: reg.attendeeEmail ?? reg.attendee.email,
+      attendeeName,
+    }).catch((err) => {
+      console.error("[checkin] duplica-ventas resources email failed", err);
+    });
+  }
 
   void sendImmediateCheckinEmails(reg.id).catch((err) => {
     console.error("[checkin] automated email failed", err);
