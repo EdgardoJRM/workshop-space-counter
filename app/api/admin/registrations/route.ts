@@ -3,6 +3,7 @@ import { prisma, isDatabaseConfigured } from "@/lib/prisma";
 import { isWorkshopSlug, type WorkshopSlug } from "@/lib/workshop-keys";
 import { assertAdminApiAccess } from "@/lib/admin-api";
 import { registerAttendee } from "@/lib/registrations";
+import { transferRegistrationOrderToWorkshopDate } from "@/lib/registration-transfer";
 import { getCertificateSendMode, isCertificatesEnabled } from "@/lib/certificates";
 
 export const dynamic = "force-dynamic";
@@ -254,6 +255,38 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ ok: true });
+  }
+
+  if (registrationId && action === "moveDate") {
+    const workshopDateId =
+      typeof body.workshopDateId === "string" ? body.workshopDateId.trim() : "";
+    if (!workshopDateId) {
+      return NextResponse.json(
+        { error: "workshopDateId is required" },
+        { status: 400 }
+      );
+    }
+
+    const result = await transferRegistrationOrderToWorkshopDate(
+      registrationId,
+      workshopDateId,
+      auth.organizationId
+    );
+
+    if (!result.ok) {
+      const status =
+        result.code === "NOT_FOUND"
+          ? 404
+          : result.code === "SOLD_OUT"
+            ? 409
+            : 400;
+      return NextResponse.json(
+        { ok: false, error: result.error, code: result.code },
+        { status }
+      );
+    }
+
+    return NextResponse.json(result);
   }
 
   const workshopSlug =

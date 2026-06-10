@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "@/constants/config";
+import { API_BASE_URL, DEFAULT_ORG_SLUG } from "@/constants/config";
 import { getAccessToken } from "./storage";
 import type {
   BootstrapResponse,
@@ -45,13 +45,42 @@ export async function fetchOrgBranding(
 
 export async function requestMagicLink(
   email: string,
-  orgSlug: string,
-  intent: "staff" | "admin" = "staff"
+  intent: "staff" | "admin" = "staff",
+  orgSlug: string = DEFAULT_ORG_SLUG
 ): Promise<void> {
   await apiFetch("/api/mobile/auth/magic-link", {
     method: "POST",
     body: JSON.stringify({ email, orgSlug, intent }),
   });
+}
+
+export async function isDemoLoginEnabled(): Promise<boolean> {
+  const res = await fetch(`${API_BASE_URL}/api/mobile/auth/demo`);
+  if (!res.ok) return false;
+  const data = (await res.json()) as { enabled?: boolean };
+  return Boolean(data.enabled);
+}
+
+export async function loginWithDemoCredentials(
+  email: string,
+  password: string
+): Promise<{
+  accessToken: string;
+  organization: OrganizationBranding;
+}> {
+  const res = await fetch(`${API_BASE_URL}/api/mobile/auth/demo`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error ?? "Demo login failed");
+  }
+  return {
+    accessToken: data.accessToken,
+    organization: data.organization,
+  };
 }
 
 export async function exchangeMagicToken(token: string): Promise<{

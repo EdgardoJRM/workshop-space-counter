@@ -5,6 +5,7 @@ import {
   type AuthRole,
 } from "@/lib/auth";
 import { sendMagicLinkEmail } from "@/lib/auth-email";
+import { getDefaultOrganization } from "@/lib/organization";
 import { getOrganizationBrandingBySlug } from "@/lib/organization-branding";
 import { isDatabaseConfigured } from "@/lib/prisma";
 
@@ -36,15 +37,21 @@ export async function POST(request: Request) {
   }
 
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-  const orgSlug =
+  const requestedOrgSlug =
     typeof body.orgSlug === "string" ? body.orgSlug.trim().toLowerCase() : "";
   const intent = parseIntent(body.intent);
 
-  if (!email || !email.includes("@") || !orgSlug) {
-    return NextResponse.json(
-      { error: "email and orgSlug are required" },
-      { status: 400 }
-    );
+  if (!email || !email.includes("@")) {
+    return NextResponse.json({ error: "email is required" }, { status: 400 });
+  }
+
+  let orgSlug = requestedOrgSlug;
+  if (!orgSlug) {
+    const defaultOrg = await getDefaultOrganization();
+    if (!defaultOrg) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    }
+    orgSlug = defaultOrg.slug;
   }
 
   const branding = await getOrganizationBrandingBySlug(orgSlug);

@@ -14,19 +14,31 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { AppLogo } from "@/components/AppLogo";
 import { AuthHeroSheet } from "@/components/AuthHeroSheet";
-import { bootstrap, fetchOrgBranding, requestMagicLink } from "@/lib/api";
-import { getAccessToken, getOrgSlug, saveOrgSlug } from "@/lib/storage";
+import { DEFAULT_ORG_SLUG } from "@/constants/config";
+import {
+  bootstrap,
+  fetchOrgBranding,
+  isDemoLoginEnabled,
+  loginWithDemoCredentials,
+  requestMagicLink,
+} from "@/lib/api";
+import { getAccessToken, saveSession } from "@/lib/storage";
+import { useSession } from "@/lib/session-context";
 import { useBrand } from "@/lib/theme";
 import { useAppTheme } from "@/lib/useAppTheme";
-import { webBrand } from "@/lib/ui";
 
 export default function LoginScreen() {
   const { brand, setBrand } = useBrand();
+  const { refreshSession } = useSession();
   const { colors, styles } = useAppTheme();
-  const [orgSlug, setOrgSlug] = useState("hernandez");
   const [email, setEmail] = useState("");
+  const [demoEmail, setDemoEmail] = useState("");
+  const [demoPassword, setDemoPassword] = useState("");
+  const [demoEnabled, setDemoEnabled] = useState(false);
+  const [showDemo, setShowDemo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
   const [sentEmail, setSentEmail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,45 +57,50 @@ export default function LoginScreen() {
           /* expired */
         }
       }
-      const savedSlug = await getOrgSlug();
-      if (savedSlug) setOrgSlug(savedSlug);
       try {
-        const org = await fetchOrgBranding(savedSlug ?? orgSlug);
+        const org = await fetchOrgBranding(DEFAULT_ORG_SLUG);
         setBrand(org);
       } catch {
         /* optional */
+      }
+      try {
+        setDemoEnabled(await isDemoLoginEnabled());
+      } catch {
+        setDemoEnabled(false);
       }
       setLoading(false);
     })();
   }, []);
 
-  async function onPreviewOrg(slug: string) {
-    try {
-      const org = await fetchOrgBranding(slug.trim().toLowerCase());
-      setBrand(org);
-      await saveOrgSlug(org.slug);
-      setOrgSlug(org.slug);
-      setError(null);
-    } catch {
-      setError("Negocio no encontrado");
-    }
-  }
-
   async function onSendLink(intent: "staff" | "admin") {
     setSending(true);
     setError(null);
     try {
-      await saveOrgSlug(orgSlug.trim().toLowerCase());
-      await requestMagicLink(
-        email.trim().toLowerCase(),
-        orgSlug.trim().toLowerCase(),
-        intent
-      );
+      await requestMagicLink(email.trim().toLowerCase(), intent);
       setSentEmail(email.trim().toLowerCase());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al enviar");
     } finally {
       setSending(false);
+    }
+  }
+
+  async function onDemoLogin() {
+    setDemoLoading(true);
+    setError(null);
+    try {
+      const { accessToken, organization } = await loginWithDemoCredentials(
+        demoEmail.trim().toLowerCase(),
+        demoPassword
+      );
+      await saveSession(accessToken, organization.slug);
+      setBrand(organization);
+      await refreshSession();
+      router.replace("/(main)");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo entrar");
+    } finally {
+      setDemoLoading(false);
     }
   }
 
@@ -137,19 +154,6 @@ export default function LoginScreen() {
               <Text style={[styles.subtitle, { textAlign: "center", marginTop: 10 }]}>
                 Abre el enlace desde tu iPhone para continuar.
               </Text>
-              <View
-                style={{
-                  marginTop: 16,
-                  paddingHorizontal: 14,
-                  paddingVertical: 8,
-                  borderRadius: 999,
-                  backgroundColor: webBrand.off,
-                }}
-              >
-                <Text style={{ fontSize: 13, color: colors.textMuted }}>
-                  Organización: <Text style={{ fontWeight: "700" }}>{orgSlug}</Text>
-                </Text>
-              </View>
               <View
                 style={{
                   flexDirection: "row",
@@ -244,17 +248,7 @@ export default function LoginScreen() {
             <Text style={[styles.subtitle, { marginBottom: 16 }]}>
               Entra con tus credenciales del evento
             </Text>
-            <Text style={[styles.fieldLabel, { marginTop: 0 }]}>Código del negocio</Text>
-            <TextInput
-              style={styles.input}
-              autoCapitalize="none"
-              value={orgSlug}
-              onChangeText={setOrgSlug}
-              onBlur={() => void onPreviewOrg(orgSlug)}
-              placeholder="hernandez"
-              placeholderTextColor={colors.textSubtle}
-            />
-            <Text style={styles.fieldLabel}>Email del staff</Text>
+            <Text style={[styles.fieldLabel, { marginTop: 0 }]}>Email del staff</Text>
             <TextInput
               style={styles.input}
               autoCapitalize="none"
@@ -295,6 +289,54 @@ export default function LoginScreen() {
                 Recibirás un enlace seguro para acceder.
               </Text>
             </View>
+            {demoEnabled ? (
+              <View style={{ marginTop: 24, paddingTop: 20, borderTopWidth: 1, borderTopColor: colors.border }}>
+                <Pressable onPress={() => setShowDemo((v) => !v)}>
+                  <Text style={[styles.link, { textAlign: "center" }]}>
+                    {showDemo ? "Ocultar acceso demo" : "Acceso demo para revisión"}
+                  </Text>
+                </Pressable>
+                {showDemo ? (
+                  <View style={{ marginTop: 14, gap: 0 }}>
+                    <Text style={[styles.subtitle, { marginBottom: 12, textAlign: "center" }]}>
+                      Para revisión de App Store. Usa las credenciales indicadas en TestFlight.
+                    </Text>
+                    <Text style={styles.fieldLabel}>Usuario demo</Text>
+                    <TextInput
+                      style={styles.input}
+                      autoCapitalize="none"
+                      keyboardType="email-address"
+                      value={demoEmail}
+                      onChangeText={setDemoEmail}
+                      placeholder="usuario@demo.com"
+                      placeholderTextColor={colors.textSubtle}
+                    />
+                    <Text style={styles.fieldLabel}>Contraseña</Text>
+                    <TextInput
+                      style={styles.input}
+                      secureTextEntry
+                      autoCapitalize="none"
+                      value={demoPassword}
+                      onChangeText={setDemoPassword}
+                      placeholder="••••••••"
+                      placeholderTextColor={colors.textSubtle}
+                    />
+                    <Pressable
+                      style={[
+                        styles.btnOutline,
+                        (demoLoading || !demoEmail.trim() || !demoPassword) && { opacity: 0.7 },
+                      ]}
+                      onPress={() => void onDemoLogin()}
+                      disabled={demoLoading || !demoEmail.trim() || !demoPassword}
+                    >
+                      <Text style={styles.btnStaffText}>
+                        {demoLoading ? "Entrando…" : "Entrar demo"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
           </View>
           <Text
             style={{
