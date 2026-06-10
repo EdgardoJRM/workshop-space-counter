@@ -128,7 +128,7 @@ export async function cancelRegistration(registrationId: string) {
 
 export async function updateRegistration(
   registrationId: string,
-  fields: { name?: string; phone?: string }
+  fields: { name?: string; phone?: string; email?: string }
 ) {
   return adminFetch<{ ok: boolean }>("/api/admin/registrations", {
     method: "POST",

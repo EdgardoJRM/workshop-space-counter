@@ -86,6 +86,7 @@ export default function AdminRegistrationsScreen() {
   const [busy, setBusy] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
   const [editPhone, setEditPhone] = useState("");
 
   const load = useCallback(async () => {
@@ -206,16 +207,25 @@ export default function AdminRegistrationsScreen() {
   function startEdit(r: AdminRegistrationRow) {
     setEditingId(r.id);
     setEditName(r.attendeeName ?? "");
+    setEditEmail(r.attendeeEmail);
     setEditPhone(r.attendeePhone ?? "");
   }
 
   async function saveEdit(registrationId: string) {
+    const nextEmail = editEmail.trim().toLowerCase();
+    if (!nextEmail.includes("@")) {
+      setError("Email inválido");
+      return;
+    }
     try {
       await updateRegistration(registrationId, {
         name: editName.trim() || undefined,
+        email: nextEmail,
         phone: editPhone.trim(),
       });
       setEditingId(null);
+      setError(null);
+      setOk("Registro actualizado.");
       void load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
@@ -445,6 +455,15 @@ export default function AdminRegistrationsScreen() {
             {editingId === r.id ? (
               <>
                 <Text style={styles.sectionLabel}>Editar registro</Text>
+                <FieldInput
+                  label="Email"
+                  value={editEmail}
+                  onChangeText={setEditEmail}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  placeholder="ejemplo@correo.com"
+                  leftIcon={<Ionicons name="mail-outline" size={18} color={colors.textSubtle} />}
+                />
                 <Text style={styles.label}>Nombre</Text>
                 <TextInput style={styles.input} value={editName} onChangeText={setEditName} />
                 <Text style={styles.label}>Teléfono</Text>

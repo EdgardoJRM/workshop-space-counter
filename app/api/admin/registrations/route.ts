@@ -4,6 +4,7 @@ import { isWorkshopSlug, type WorkshopSlug } from "@/lib/workshop-keys";
 import { assertAdminApiAccess } from "@/lib/admin-api";
 import { registerAttendee } from "@/lib/registrations";
 import { transferRegistrationOrderToWorkshopDate } from "@/lib/registration-transfer";
+import { correctOtoGuestMisread } from "@/lib/guest-info-correction";
 import { getCertificateSendMode, isCertificatesEnabled } from "@/lib/certificates";
 
 export const dynamic = "force-dynamic";
@@ -172,6 +173,7 @@ type ManualPostBody = {
   phone?: unknown;
   workshopDateId?: unknown;
   sendPassEmail?: unknown;
+  sendApologyEmail?: unknown;
 };
 
 export async function POST(request: Request) {
@@ -223,6 +225,16 @@ export async function POST(request: Request) {
       typeof body.name === "string" && body.name.trim() ? body.name.trim() : undefined;
     const phone =
       typeof body.phone === "string" ? body.phone.trim() || null : undefined;
+    const hasEmailField = body.email !== undefined;
+    const email = hasEmailField
+      ? typeof body.email === "string"
+        ? body.email.trim().toLowerCase()
+        : ""
+      : undefined;
+
+    if (hasEmailField && (!email || !email.includes("@"))) {
+      return NextResponse.json({ error: "Email inválido" }, { status: 400 });
+    }
 
     const reg = await prisma.registration.findFirst({
       where: {
@@ -231,9 +243,29 @@ export async function POST(request: Request) {
           workshop: { organizationId: auth.organizationId },
         },
       },
+      include: { attendee: true },
     });
     if (!reg) {
       return NextResponse.json({ error: "Registration not found" }, { status: 404 });
+    }
+
+    if (email !== undefined) {
+      const currentEmail = (reg.attendeeEmail ?? reg.attendee.email).trim().toLowerCase();
+      if (email !== currentEmail) {
+        const existing = await prisma.attendee.findFirst({
+          where: {
+            organizationId: auth.organizationId,
+            email,
+            id: { not: reg.attendeeId },
+          },
+        });
+        if (existing) {
+          return NextResponse.json(
+            { error: "Ese email ya está registrado en otra persona" },
+            { status: 409 }
+          );
+        }
+      }
     }
 
     await prisma.registration.update({
@@ -241,15 +273,17 @@ export async function POST(request: Request) {
       data: {
         ...(name !== undefined ? { attendeeName: name } : {}),
         ...(phone !== undefined ? { attendeePhone: phone } : {}),
+        ...(email !== undefined ? { attendeeEmail: email } : {}),
       },
     });
 
-    if (name !== undefined || phone !== undefined) {
+    if (name !== undefined || phone !== undefined || email !== undefined) {
       await prisma.attendee.update({
         where: { id: reg.attendeeId },
         data: {
           ...(name !== undefined ? { name } : {}),
           ...(phone !== undefined ? { phone } : {}),
+          ...(email !== undefined ? { email } : {}),
         },
       });
     }
@@ -280,6 +314,25 @@ export async function POST(request: Request) {
           : result.code === "SOLD_OUT"
             ? 409
             : 400;
+      return NextResponse.json(
+        { ok: false, error: result.error, code: result.code },
+        { status }
+      );
+    }
+
+    return NextResponse.json(result);
+  }
+
+  if (registrationId && action === "correctOtoGuestMisread") {
+    const sendApologyEmail = body.sendApologyEmail !== false;
+    const result = await correctOtoGuestMisread(
+      registrationId,
+      auth.organizationId,
+      { sendApologyEmail }
+    );
+
+    if (!result.ok) {
+      const status = result.code === "NOT_FOUND" ? 404 : 400;
       return NextResponse.json(
         { ok: false, error: result.error, code: result.code },
         { status }
