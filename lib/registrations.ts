@@ -22,6 +22,45 @@ function isUniqueConstraintError(err: unknown): boolean {
   );
 }
 
+export function normalizeRegistrationEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+/** One registration per email per workshop date — stable id across CF event types. */
+export function clickFunnelsExternalOrderId(
+  workshopDateId: string,
+  email: string
+): string {
+  return `cf:${workshopDateId}:${normalizeRegistrationEmail(email)}`;
+}
+
+function duplicateRegistrationResult(registrationId: string): ProcessPurchaseResult {
+  return {
+    ok: true,
+    registrationId,
+    passToken: "",
+    duplicate: true,
+  };
+}
+
+async function findConfirmedRegistrationByWorkshopDateAndEmail(
+  workshopDateId: string,
+  email: string
+): Promise<{ id: string } | null> {
+  const normalizedEmail = normalizeRegistrationEmail(email);
+  return prisma.registration.findFirst({
+    where: {
+      workshopDateId,
+      status: RegistrationStatus.CONFIRMED,
+      OR: [
+        { attendeeEmail: normalizedEmail },
+        { attendee: { email: normalizedEmail } },
+      ],
+    },
+    select: { id: true },
+  });
+}
+
 /** Avoids upsert on compound unique when production DB lacks SaaS indexes yet. */
 async function findOrCreateAttendee(input: {
   organizationId: string;
@@ -146,6 +185,25 @@ async function resolveWorkshopDateIdForSlug(
   return selling?.id ?? null;
 }
 
+export async function findExistingClickFunnelsRegistration(
+  purchase: Pick<ClickFunnelsPurchase, "email" | "workshopSlug" | "workshopDateId">
+): Promise<{ id: string } | null> {
+  if (!purchase.workshopSlug || !isWorkshopSlug(purchase.workshopSlug)) {
+    return null;
+  }
+
+  const workshopDateId = await resolveWorkshopDateIdForSlug(
+    purchase.workshopSlug,
+    purchase.workshopDateId
+  );
+  if (!workshopDateId) return null;
+
+  return findConfirmedRegistrationByWorkshopDateAndEmail(
+    workshopDateId,
+    purchase.email
+  );
+}
+
 export async function registerAttendee(
   input: RegisterAttendeeInput
 ): Promise<ProcessPurchaseResult> {
@@ -153,18 +211,15 @@ export async function registerAttendee(
     return { ok: false, error: "DATABASE_URL not configured", code: "NO_DB" };
   }
 
+  const email = normalizeRegistrationEmail(input.email);
+
   const existingReg = await prisma.registration.findUnique({
     where: { externalOrderId: input.externalOrderId },
-    include: { pass: true },
+    select: { id: true },
   });
 
-  if (existingReg?.pass) {
-    return {
-      ok: true,
-      registrationId: existingReg.id,
-      passToken: "",
-      duplicate: true,
-    };
+  if (existingReg) {
+    return duplicateRegistrationResult(existingReg.id);
   }
 
   const workshopDateId = await resolveWorkshopDateIdForSlug(
@@ -179,6 +234,15 @@ export async function registerAttendee(
     };
   }
 
+  const existingForDate = await findConfirmedRegistrationByWorkshopDateAndEmail(
+    workshopDateId,
+    email
+  );
+
+  if (existingForDate) {
+    return duplicateRegistrationResult(existingForDate.id);
+  }
+
   const workshopDate = await prisma.workshopDate.findUnique({
     where: { id: workshopDateId },
     include: { workshop: true },
@@ -186,27 +250,6 @@ export async function registerAttendee(
 
   if (!workshopDate) {
     return { ok: false, error: "Fecha de taller no encontrada", code: "NO_DATE" };
-  }
-
-  const existingForDate = await prisma.registration.findFirst({
-    where: {
-      workshopDateId,
-      OR: [
-        { attendeeEmail: input.email },
-        { attendee: { email: input.email } },
-      ],
-      status: RegistrationStatus.CONFIRMED,
-    },
-    include: { pass: true },
-  });
-
-  if (existingForDate?.pass) {
-    return {
-      ok: true,
-      registrationId: existingForDate.id,
-      passToken: "",
-      duplicate: true,
-    };
   }
 
   const available = workshopDate.capacity - workshopDate.soldCount;
@@ -226,35 +269,58 @@ export async function registerAttendee(
 
   const attendee = await findOrCreateAttendee({
     organizationId,
-    email: input.email,
+    email,
     name: input.name,
     phone: input.phone,
     metadata,
   });
 
-  const registration = await prisma.registration.create({
-    data: {
-      attendeeId: attendee.id,
-      workshopDateId,
-      externalOrderId: input.externalOrderId,
-      attendeeName: input.name,
-      attendeeEmail: input.email,
-      attendeePhone: input.phone,
-      source: input.source,
-      metadata,
-      status: RegistrationStatus.CONFIRMED,
-      pass: {
-        create: {
-          tokenHash,
+  let registration;
+  try {
+    registration = await prisma.registration.create({
+      data: {
+        attendeeId: attendee.id,
+        workshopDateId,
+        externalOrderId: input.externalOrderId,
+        attendeeName: input.name,
+        attendeeEmail: email,
+        attendeePhone: input.phone,
+        source: input.source,
+        metadata,
+        status: RegistrationStatus.CONFIRMED,
+        pass: {
+          create: {
+            tokenHash,
+          },
         },
       },
-    },
-    include: {
-      pass: true,
-      workshopDate: { include: { workshop: true } },
-      attendee: true,
-    },
-  });
+      include: {
+        pass: true,
+        workshopDate: { include: { workshop: true } },
+        attendee: true,
+      },
+    });
+  } catch (err) {
+    if (!isUniqueConstraintError(err)) throw err;
+
+    const raced = await findConfirmedRegistrationByWorkshopDateAndEmail(
+      workshopDateId,
+      email
+    );
+    if (raced) {
+      return duplicateRegistrationResult(raced.id);
+    }
+
+    const racedByOrder = await prisma.registration.findUnique({
+      where: { externalOrderId: input.externalOrderId },
+      select: { id: true },
+    });
+    if (racedByOrder) {
+      return duplicateRegistrationResult(racedByOrder.id);
+    }
+
+    throw err;
+  }
 
   await incrementSoldCount(workshopDateId);
 
@@ -298,6 +364,12 @@ export async function processClickFunnelsPurchase(
     return { ok: false, error: "Invalid workshop", code: "INVALID_WORKSHOP" };
   }
 
+  const email = normalizeRegistrationEmail(purchase.email);
+  const workshopDateId = await resolveWorkshopDateIdForSlug(
+    purchase.workshopSlug,
+    purchase.workshopDateId
+  );
+
   if (purchase.ticketQuantity > 1) {
     const { ensureCapacityForTickets } = await import("@/lib/guest-info");
     const capacity = await ensureCapacityForTickets(
@@ -310,13 +382,17 @@ export async function processClickFunnelsPurchase(
     }
   }
 
+  const externalOrderId = workshopDateId
+    ? clickFunnelsExternalOrderId(workshopDateId, email)
+    : purchase.externalOrderId;
+
   return registerAttendee({
-    email: purchase.email,
+    email,
     name: purchase.name,
     phone: purchase.phone,
     workshopSlug: purchase.workshopSlug,
     workshopDateId: purchase.workshopDateId,
-    externalOrderId: purchase.externalOrderId,
+    externalOrderId,
     source: "clickfunnels",
     metadata: sanitizeJsonForPrisma(purchase.raw),
     sendPassEmail: true,
