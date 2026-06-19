@@ -265,8 +265,10 @@ export function WebhookPanel() {
                 <code>CLICKFUNNELS_WEBHOOK_SECRET</code> y redeploy.
               </li>
               <li>
-                Eventos recomendados: <code>order.completed</code> o{" "}
-                <code>one-time-order.completed</code>.
+                Eventos recomendados: solo <code>order.completed</code> o{" "}
+                <code>one-time-order.completed</code>. No suscribas{" "}
+                <code>contact.identified</code> al mismo endpoint: ClickFunnels envía IDs
+                distintos por evento y duplicaría registros si no filtras por tipo.
               </li>
             </ol>
           </div>

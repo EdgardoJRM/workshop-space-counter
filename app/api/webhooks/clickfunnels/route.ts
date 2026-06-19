@@ -19,7 +19,7 @@ import {
   buildBuyerPassUrl,
   createGuestInfoRequest,
 } from "@/lib/guest-info";
-import { processClickFunnelsPurchase } from "@/lib/registrations";
+import { processClickFunnelsPurchase, findExistingClickFunnelsRegistration } from "@/lib/registrations";
 import {
   markWebhookEventFailed,
   markWebhookEventProcessed,
@@ -98,6 +98,24 @@ export async function POST(request: Request) {
     }
 
     const webhookEventId = tracking.ok ? tracking.webhookEvent.id : null;
+
+    if (purchase.workshopSlug) {
+      const existingRegistration = await findExistingClickFunnelsRegistration(
+        purchase
+      );
+      if (existingRegistration) {
+        if (webhookEventId) {
+          await markWebhookEventProcessed(webhookEventId, true);
+        }
+        return NextResponse.json({
+          ok: true,
+          duplicate: true,
+          registrationId: existingRegistration.id,
+          externalOrderId: purchase.externalOrderId,
+          reason: "email_already_registered",
+        });
+      }
+    }
 
     if (!purchase.workshopSlug) {
       if (webhookEventId) {
