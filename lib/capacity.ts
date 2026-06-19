@@ -175,4 +175,39 @@ export async function incrementSoldCount(
   return snap;
 }
 
+export async function decrementSoldCount(
+  workshopDateId: string
+): Promise<CapacitySnapshot | null> {
+  const current = await prisma.workshopDate.findUnique({
+    where: { id: workshopDateId },
+    include: { workshop: true },
+  });
+  if (!current) return null;
+
+  const soldCount = Math.max(0, current.soldCount - 1);
+  const date = await prisma.workshopDate.update({
+    where: { id: workshopDateId },
+    data: { soldCount },
+    include: { workshop: true },
+  });
+
+  const slug = date.workshop.slug;
+  if (!isWorkshopSlug(slug)) return null;
+
+  const snap: CapacitySnapshot = {
+    available: computeAvailable(date.capacity, date.soldCount),
+    updatedAt: date.updatedAt.toISOString(),
+    workshopDateId: date.id,
+    capacity: date.capacity,
+    soldCount: date.soldCount,
+  };
+
+  await setSpaces(
+    snap.available,
+    snap.updatedAt ?? new Date().toISOString(),
+    slug as WorkshopSlug
+  );
+  return snap;
+}
+
 export { DEFAULT_WORKSHOP };

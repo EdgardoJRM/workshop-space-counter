@@ -3,6 +3,7 @@ import { prisma, isDatabaseConfigured } from "@/lib/prisma";
 import { isWorkshopSlug, type WorkshopSlug } from "@/lib/workshop-keys";
 import { assertAdminApiAccess } from "@/lib/admin-api";
 import { registerAttendee } from "@/lib/registrations";
+import { removeDuplicateRegistrations } from "@/lib/registration-dedup";
 import { transferRegistrationOrderToWorkshopDate } from "@/lib/registration-transfer";
 import { correctOtoGuestMisread } from "@/lib/guest-info-correction";
 import { getCertificateSendMode, isCertificatesEnabled } from "@/lib/certificates";
@@ -174,6 +175,8 @@ type ManualPostBody = {
   workshopDateId?: unknown;
   sendPassEmail?: unknown;
   sendApologyEmail?: unknown;
+  dryRun?: unknown;
+  limit?: unknown;
 };
 
 export async function POST(request: Request) {
@@ -200,6 +203,35 @@ export async function POST(request: Request) {
   const action = typeof body.action === "string" ? body.action : null;
   const registrationId =
     typeof body.registrationId === "string" ? body.registrationId.trim() : "";
+
+  if (action === "removeDuplicates") {
+    const dryRun = body.dryRun !== false;
+    const limit =
+      typeof body.limit === "number" && Number.isFinite(body.limit)
+        ? Math.max(1, Math.floor(body.limit))
+        : undefined;
+
+    const result = await removeDuplicateRegistrations({
+      organizationId: auth.organizationId,
+      dryRun,
+      maxRemovals: limit,
+    });
+
+    return NextResponse.json({
+      ok: true,
+      dryRun: result.dryRun,
+      removedCount: result.removedIds.length,
+      removedIds: result.removedIds,
+      keptIds: result.keptIds,
+      soldCountAdjusted: result.soldCountAdjusted,
+      groups: result.groups.map((group) => ({
+        email: group.email,
+        workshopDateId: group.workshopDateId,
+        keepId: group.keep.id,
+        removeIds: group.remove.map((row) => row.id),
+      })),
+    });
+  }
 
   if (registrationId && action === "cancel") {
     const reg = await prisma.registration.findFirst({
