@@ -3,7 +3,9 @@ import { emailHtmlToPlainText } from "@/lib/email-template-text";
 
 const COMANDO_URL = "https://www.edgardohernandez.net/comando-estrategico";
 const CALCULADORA_URL = "https://www.edgardohernandez.net/calculadora";
-const BOVEDA_URL = "https://boveda.edgardohernandez.com";
+const BOVEDA_LIBRARY_URL = "https://boveda.edgardohernandez.com/library";
+const GLOSARIO_TITLE = "Glosario de Palabras";
+const MATERIAL_TITLE = "Material de Apoyo";
 
 export type DuplicaVentasCheckinEmailParams = {
   to: string;
@@ -45,10 +47,20 @@ function buildHtml(name: string): string {
         <a href="${CALCULADORA_URL}" style="color:#3f5e78;font-weight:700;">Calculadora de inversión en Ads</a>
         <span style="color:#888;font-size:13px;"> — proyecta costos y resultados</span>
       </p>
-      <p style="margin:0;">
-        <a href="${BOVEDA_URL}" style="color:#3f5e78;font-weight:700;">La Bóveda</a>
-        <span style="color:#888;font-size:13px;"> — materiales exclusivos del taller (revisa tu correo de acceso)</span>
+    </div>
+
+    <div style="margin:0 0 20px;padding:18px;background:#f8f9fa;border-radius:12px;border:1px solid #e1e5e8;">
+      <p style="color:#3f5e78;font-size:11px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 10px;">Materiales del taller — La Bóveda</p>
+      <p style="color:#4c5c68;line-height:1.7;margin:0 0 14px;">Al hacer check-in se activa tu acceso a estos recursos exclusivos:</p>
+      <ul style="color:#4c5c68;line-height:1.8;margin:0 0 14px;padding-left:20px;">
+        <li><strong>${GLOSARIO_TITLE}</strong> — vocabulario clave del taller</li>
+        <li><strong>${MATERIAL_TITLE}</strong> — guías y apuntes de apoyo</li>
+      </ul>
+      <p style="margin:0 0 10px;">
+        <a href="${BOVEDA_LIBRARY_URL}" style="color:#3f5e78;font-weight:700;">Entrar a La Bóveda</a>
+        <span style="color:#888;font-size:13px;"> — tu biblioteca digital del evento</span>
       </p>
+      <p style="color:#888;font-size:13px;line-height:1.6;margin:0;">Recibirás un correo aparte de La Bóveda con enlaces directos para abrir cada material. Si no lo ves en unos minutos, revisa spam o promociones.</p>
     </div>
 
     <p style="color:#4c5c68;line-height:1.7;margin:0;">¡Con esto tendrás todo listo para aprovechar al máximo la experiencia!</p>
@@ -76,7 +88,13 @@ function buildText(name: string): string {
     "",
     `Asistente de comandos estratégicos: ${COMANDO_URL}`,
     `Calculadora de inversión en Ads: ${CALCULADORA_URL}`,
-    `La Bóveda (materiales exclusivos): ${BOVEDA_URL}`,
+    "",
+    "Materiales del taller — La Bóveda:",
+    `- ${GLOSARIO_TITLE} — vocabulario clave del taller`,
+    `- ${MATERIAL_TITLE} — guías y apuntes de apoyo`,
+    `Entrar a La Bóveda: ${BOVEDA_LIBRARY_URL}`,
+    "Recibirás un correo aparte de La Bóveda con enlaces directos para abrir cada material.",
+    "Si no lo ves en unos minutos, revisa spam o promociones.",
     "",
     "¡Con esto tendrás todo listo para aprovechar al máximo la experiencia!",
     "",
