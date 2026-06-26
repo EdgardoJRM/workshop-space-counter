@@ -88,6 +88,50 @@ export async function createPrintJobForCheckin(
   return { created: true, jobId: job.id };
 }
 
+/** Ensures a pending label print exists after check-in; falls back to manual reprint. */
+export async function queueLabelPrintForCheckin(
+  registrationId: string,
+  checkinId: string
+): Promise<{ queued: boolean; jobId?: string; error?: string }> {
+  try {
+    const linked = await prisma.printJob.findUnique({ where: { checkinId } });
+    if (
+      linked &&
+      (linked.status === PrintJobStatus.PENDING ||
+        linked.status === PrintJobStatus.PROCESSING ||
+        linked.status === PrintJobStatus.PRINTED)
+    ) {
+      return { queued: true, jobId: linked.id };
+    }
+
+    if (!linked) {
+      const created = await createPrintJobForCheckin(registrationId, checkinId);
+      if (created.jobId) {
+        return { queued: true, jobId: created.jobId };
+      }
+    }
+  } catch (err) {
+    console.error("[print-jobs] auto checkin job failed", err);
+  }
+
+  try {
+    const reprint = await createManualReprintJob(registrationId);
+    if (reprint.ok) {
+      return { queued: true, jobId: reprint.jobId };
+    }
+    return { queued: false, error: reprint.error };
+  } catch (err) {
+    console.error("[print-jobs] manual reprint fallback failed", err);
+    return {
+      queued: false,
+      error:
+        err instanceof Error
+          ? err.message
+          : "No se pudo encolar la impresión del label",
+    };
+  }
+}
+
 export async function createManualReprintJob(
   registrationId: string
 ): Promise<{ ok: true; jobId: string } | { ok: false; error: string }> {

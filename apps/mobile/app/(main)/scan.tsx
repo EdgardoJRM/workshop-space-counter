@@ -109,10 +109,18 @@ export default function ScanScreen() {
               if (res.ok) {
                 const name = res.attendeeName ?? "Asistente";
                 setResultOk(true);
+                const printNote =
+                  res.printError
+                    ? ` — ${res.printError}`
+                    : res.printJobQueued === false
+                      ? " — Label no encolado"
+                      : res.status !== "already_checked_in"
+                        ? " — Imprimiendo label…"
+                        : "";
                 const msg =
                   res.status === "already_checked_in"
-                    ? `${name} — Ya registrado`
-                    : `${name} — Check-in registrado`;
+                    ? `${name} — Ya registrado${printNote}`
+                    : `${name} — Check-in registrado${printNote}`;
                 setResult(msg);
                 if (res.status !== "already_checked_in") {
                   void showLocalNotification("Check-in registrado", name);

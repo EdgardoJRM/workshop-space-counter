@@ -217,6 +217,8 @@ export default function ListScreen() {
         error?: string;
         attendeeName?: string;
         status?: string;
+        printJobQueued?: boolean;
+        printError?: string;
       };
 
       if (res.ok) {
@@ -228,11 +230,20 @@ export default function ListScreen() {
               : r
           )
         );
-        setMsg(
-          res.status === "already_checked_in"
-            ? `Ya registrado: ${name}`
-            : `Check-in: ${name}`
-        );
+        if (res.status === "already_checked_in") {
+          setMsg(`Ya registrado: ${name}`);
+        } else if (res.printError) {
+          setMsg(`Check-in: ${name} — ${res.printError}`);
+        } else if (res.printJobQueued === false) {
+          try {
+            await reprintLabel(reg.id);
+            setMsg(`Check-in: ${name} — Label en cola`);
+          } catch {
+            setMsg(`Check-in: ${name} — No se pudo encolar el label`);
+          }
+        } else {
+          setMsg(`Check-in: ${name} — Imprimiendo label…`);
+        }
         void load({ silent: true });
       } else {
         setMsg(`Error: ${res.error ?? "Check-in fallido"}`);

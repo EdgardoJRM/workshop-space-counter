@@ -5,7 +5,7 @@ import { notifyLaBovedaCheckin } from "@/lib/la-boveda-webhook";
 import { notifyOrganizationStaffAsync } from "@/lib/notify-staff-push";
 import { sendImmediateCheckinEmails } from "@/lib/email-sequence";
 import { isWorkshopSlug } from "@/lib/workshop-keys";
-import { createPrintJobForCheckin } from "@/lib/print-jobs";
+import { queueLabelPrintForCheckin } from "@/lib/print-jobs";
 import { RegistrationStatus } from "@prisma/client";
 
 export type CheckinResult =
@@ -78,13 +78,18 @@ async function performCheckinOnRegistration(
   let printError: string | undefined;
 
   try {
-    const printResult = await createPrintJobForCheckin(reg.id, checkin.id);
-    printJobQueued = printResult.created;
+    const printResult = await queueLabelPrintForCheckin(reg.id, checkin.id);
+    printJobQueued = printResult.queued;
     printJobId = printResult.jobId;
+    if (!printResult.queued) {
+      printError =
+        printResult.error ??
+        "Check-in guardado, pero no se pudo encolar el label. Usa Reimprimir.";
+    }
   } catch (err) {
     console.error("[checkin] print job failed", err);
     printError =
-      "Check-in guardado, pero no se pudo encolar el label. Ejecuta el SQL de PrintJob en Supabase o usa Reimprimir en admin.";
+      "Check-in guardado, pero no se pudo encolar el label. Usa Reimprimir en admin.";
   }
 
   notifyOrganizationStaffAsync(
@@ -181,7 +186,7 @@ export async function processCheckinScan(
 export async function processCheckinByRegistrationId(
   registrationId: string,
   workshopDateId: string,
-  meta: { checkedInBy?: string; userAgent?: string }
+  meta: { checkedInBy?: string; userAgent?: string; manualCheckin?: boolean }
 ): Promise<CheckinResult> {
   const reg = await prisma.registration.findFirst({
     where: { id: registrationId, workshopDateId },
