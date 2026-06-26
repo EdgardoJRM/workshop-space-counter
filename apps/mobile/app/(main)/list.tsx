@@ -235,12 +235,7 @@ export default function ListScreen() {
         } else if (res.printError) {
           setMsg(`Check-in: ${name} — ${res.printError}`);
         } else if (res.printJobQueued === false) {
-          try {
-            await reprintLabel(reg.id);
-            setMsg(`Check-in: ${name} — Label en cola`);
-          } catch {
-            setMsg(`Check-in: ${name} — No se pudo encolar el label`);
-          }
+          setMsg(`Check-in: ${name} — Label no encolado`);
         } else {
           setMsg(`Check-in: ${name} — Imprimiendo label…`);
         }

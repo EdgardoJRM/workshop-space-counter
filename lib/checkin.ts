@@ -53,10 +53,19 @@ async function performCheckinOnRegistration(
       attendeeName,
       workshopLabel: reg.workshopDate.workshop.label,
       checkedInAt: existing.createdAt.toISOString(),
+      printJobQueued: false,
     };
   }
 
-  const checkin = await prisma.$transaction(async (tx) => {
+  const txResult = await prisma.$transaction(async (tx) => {
+    const raceExisting = await tx.checkin.findFirst({
+      where: { registrationId: reg.id },
+      orderBy: { createdAt: "desc" },
+    });
+    if (raceExisting) {
+      return { kind: "already_checked_in" as const, checkin: raceExisting };
+    }
+
     const created = await tx.checkin.create({
       data: {
         registrationId: reg.id,
@@ -70,8 +79,21 @@ async function performCheckinOnRegistration(
       data: { checkedInCount: { increment: 1 } },
     });
 
-    return created;
+    return { kind: "created" as const, checkin: created };
   });
+
+  if (txResult.kind === "already_checked_in") {
+    return {
+      ok: true,
+      status: "already_checked_in",
+      attendeeName,
+      workshopLabel: reg.workshopDate.workshop.label,
+      checkedInAt: txResult.checkin.createdAt.toISOString(),
+      printJobQueued: false,
+    };
+  }
+
+  const checkin = txResult.checkin;
 
   let printJobQueued = false;
   let printJobId: string | undefined;

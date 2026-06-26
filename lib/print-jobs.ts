@@ -88,40 +88,46 @@ export async function createPrintJobForCheckin(
   return { created: true, jobId: job.id };
 }
 
-/** Ensures a pending label print exists after check-in; falls back to manual reprint. */
+/** Ensures a pending label print exists after check-in (no manual reprint fallback). */
 export async function queueLabelPrintForCheckin(
   registrationId: string,
   checkinId: string
 ): Promise<{ queued: boolean; jobId?: string; error?: string }> {
+  const isActiveJob = (status: PrintJobStatus) =>
+    status === PrintJobStatus.PENDING ||
+    status === PrintJobStatus.PROCESSING ||
+    status === PrintJobStatus.PRINTED;
+
   try {
     const linked = await prisma.printJob.findUnique({ where: { checkinId } });
-    if (
-      linked &&
-      (linked.status === PrintJobStatus.PENDING ||
-        linked.status === PrintJobStatus.PROCESSING ||
-        linked.status === PrintJobStatus.PRINTED)
-    ) {
+    if (linked && isActiveJob(linked.status)) {
       return { queued: true, jobId: linked.id };
     }
 
-    if (!linked) {
-      const created = await createPrintJobForCheckin(registrationId, checkinId);
-      if (created.jobId) {
-        return { queued: true, jobId: created.jobId };
-      }
+    const created = await createPrintJobForCheckin(registrationId, checkinId);
+    if (created.jobId) {
+      return { queued: true, jobId: created.jobId };
+    }
+
+    const retry = await prisma.printJob.findUnique({ where: { checkinId } });
+    if (retry && isActiveJob(retry.status)) {
+      return { queued: true, jobId: retry.id };
+    }
+
+    const recentCutoff = new Date(Date.now() - 60_000);
+    const recentPending = await prisma.printJob.findFirst({
+      where: {
+        registrationId,
+        status: PrintJobStatus.PENDING,
+        createdAt: { gte: recentCutoff },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (recentPending) {
+      return { queued: true, jobId: recentPending.id };
     }
   } catch (err) {
     console.error("[print-jobs] auto checkin job failed", err);
-  }
-
-  try {
-    const reprint = await createManualReprintJob(registrationId);
-    if (reprint.ok) {
-      return { queued: true, jobId: reprint.jobId };
-    }
-    return { queued: false, error: reprint.error };
-  } catch (err) {
-    console.error("[print-jobs] manual reprint fallback failed", err);
     return {
       queued: false,
       error:
@@ -130,6 +136,11 @@ export async function queueLabelPrintForCheckin(
           : "No se pudo encolar la impresión del label",
     };
   }
+
+  return {
+    queued: false,
+    error: "No se pudo encolar la impresión del label",
+  };
 }
 
 export async function createManualReprintJob(

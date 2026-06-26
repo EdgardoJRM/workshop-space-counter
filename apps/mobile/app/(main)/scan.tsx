@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -39,6 +39,8 @@ export default function ScanScreen() {
   const [result, setResult] = useState<string | null>(null);
   const [resultOk, setResultOk] = useState(true);
   const [scanning, setScanning] = useState(true);
+  const handlingRef = useRef(false);
+  const lastTokenRef = useRef<{ token: string; at: number } | null>(null);
 
   if (!permission) {
     return <View style={[styles.centered, { backgroundColor: "#000" }]} />;
@@ -95,16 +97,24 @@ export default function ScanScreen() {
           style={StyleSheet.absoluteFillObject}
           barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
           onBarcodeScanned={async ({ data }) => {
-            if (!scanning) return;
+            if (!scanning || handlingRef.current) return;
+
+            let token = data;
+            if (token.includes("/pass/")) {
+              token = token.split("/pass/").pop() ?? token;
+            }
+            if (token.startsWith("hp:")) token = token.slice(3);
+
+            const now = Date.now();
+            const last = lastTokenRef.current;
+            if (last && last.token === token && now - last.at < 3000) return;
+
+            handlingRef.current = true;
+            lastTokenRef.current = { token, at: now };
             setScanning(false);
             setResult("Procesando…");
             setResultOk(true);
             try {
-              let token = data;
-              if (token.includes("/pass/")) {
-                token = token.split("/pass/").pop() ?? token;
-              }
-              if (token.startsWith("hp:")) token = token.slice(3);
               const res = await checkinScan(token, eventId);
               if (res.ok) {
                 const name = res.attendeeName ?? "Asistente";
@@ -132,6 +142,8 @@ export default function ScanScreen() {
             } catch (e) {
               setResultOk(false);
               setResult(e instanceof Error ? e.message : "Error");
+            } finally {
+              handlingRef.current = false;
             }
             setTimeout(() => {
               setResult(null);
