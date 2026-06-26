@@ -6,6 +6,7 @@ import {
   isWorkshopSlug,
   type WorkshopSlug,
 } from "@/lib/workshop-keys";
+import { GuestInfoRequestStatus, RegistrationStatus } from "@prisma/client";
 
 export type CapacitySnapshot = {
   available: number;
@@ -173,6 +174,55 @@ export async function incrementSoldCount(
     slug as WorkshopSlug
   );
   return snap;
+}
+
+/** Ajusta soldCount a registros confirmados + cupos de invitados pendientes. */
+export async function reconcileWorkshopDateSoldCount(workshopDateId: string): Promise<{
+  previous: number;
+  corrected: number;
+}> {
+  const existing = await prisma.workshopDate.findUnique({
+    where: { id: workshopDateId },
+    include: { workshop: true },
+  });
+  if (!existing) {
+    return { previous: 0, corrected: 0 };
+  }
+
+  const confirmed = await prisma.registration.count({
+    where: {
+      workshopDateId,
+      status: RegistrationStatus.CONFIRMED,
+    },
+  });
+
+  const pendingRequests = await prisma.guestInfoRequest.findMany({
+    where: {
+      workshopDateId,
+      status: GuestInfoRequestStatus.PENDING,
+    },
+    select: { slotsNeeded: true, slotsCompleted: true },
+  });
+
+  const reservedGuestSlots = pendingRequests.reduce(
+    (sum, row) => sum + Math.max(0, row.slotsNeeded - row.slotsCompleted),
+    0
+  );
+
+  const corrected = confirmed + reservedGuestSlots;
+
+  const updated = await prisma.workshopDate.update({
+    where: { id: workshopDateId },
+    data: { soldCount: corrected },
+    include: { workshop: true },
+  });
+
+  const slug = updated.workshop.slug;
+  if (isWorkshopSlug(slug)) {
+    await syncCapacityToRedis(slug, updated.workshop.organizationId);
+  }
+
+  return { previous: existing.soldCount, corrected };
 }
 
 export { DEFAULT_WORKSHOP };

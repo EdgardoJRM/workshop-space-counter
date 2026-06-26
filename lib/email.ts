@@ -405,6 +405,70 @@ export async function sendGuestInfoRequestEmail(
   });
 }
 
+export type OtoMisreadApologyEmailParams = {
+  to: string;
+  attendeeName: string;
+  workshopLabel: string;
+  eventDate: string;
+  passUrl: string;
+};
+
+export async function sendOtoMisreadApologyEmail(
+  params: OtoMisreadApologyEmailParams
+): Promise<{ ok: true; id?: string } | { ok: false; error: string }> {
+  const name = escapeHtml(params.attendeeName);
+  const workshop = escapeHtml(params.workshopLabel);
+  const eventDate = escapeHtml(params.eventDate);
+  const passUrl = escapeHtml(params.passUrl);
+
+  const htmlBody = `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="utf-8"/></head>
+<body style="margin:0;padding:0;background:#f4f5f6;font-family:Arial,Helvetica,sans-serif;">
+  <div style="max-width:560px;margin:0 auto;padding:24px 16px;">
+    <div style="background:#fff;border-radius:14px;padding:28px 24px;border:1px solid #e5e7eb;">
+      <p style="color:#3f5e78;font-size:11px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;margin:0 0 10px;">Hernandez Pass</p>
+      <h1 style="color:#1a1a1a;font-size:22px;line-height:1.3;margin:0 0 12px;">Hola, ${name}</h1>
+      <p style="color:#444;font-size:15px;line-height:1.55;margin:0 0 14px;">
+        Te escribimos para disculparte por una confusión en nuestro sistema.
+      </p>
+      <p style="color:#444;font-size:15px;line-height:1.55;margin:0 0 14px;">
+        Al procesar tu compra, interpretamos por error el <strong>Libro de Segmentación</strong> (oferta adicional del funnel) como un boleto extra del taller. <strong>No es otra persona</strong> — es un producto digital aparte.
+      </p>
+      <p style="color:#444;font-size:15px;line-height:1.55;margin:0 0 14px;">
+        Ya corregimos tu registro: tienes <strong>un boleto</strong> confirmado para <strong>${workshop}</strong> el <strong>${eventDate}</strong>. No necesitas completar datos de invitados.
+      </p>
+      <p style="text-align:center;margin:22px 0;">
+        <a href="${passUrl}" style="display:inline-block;background:#c9a227;color:#1a1a1a;font-size:15px;font-weight:700;padding:14px 26px;border-radius:10px;text-decoration:none;">Ver mi pase</a>
+      </p>
+      <p style="color:#888;font-size:12px;line-height:1.5;margin:18px 0 0;">
+        Lamentamos las molestias. Si tienes dudas, responde a este correo y te ayudamos.
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  const textBody = [
+    `Hola, ${params.attendeeName}`,
+    "",
+    "Te escribimos para disculparte: nuestro sistema interpretó por error el Libro de Segmentación (oferta adicional) como un boleto extra del taller.",
+    "Ya corregimos tu registro. Tienes UN boleto confirmado.",
+    `${params.workshopLabel} — ${params.eventDate}`,
+    "No necesitas completar datos de invitados.",
+    `Ver tu pase: ${params.passUrl}`,
+    "",
+    "Lamentamos las molestias.",
+  ].join("\n");
+
+  return sendHtmlEmail({
+    to: params.to,
+    subject: `Disculpa y aclaración — ${params.workshopLabel}`,
+    htmlBody,
+    textBody,
+  });
+}
+
 export type CertificateEmailParams = {
   to: string;
   attendeeName: string;
