@@ -61,6 +61,7 @@ export async function POST(request: Request) {
     },
     orderBy: { registeredAt: "asc" },
   });
+  const syncRunId = Date.now();
 
   const results: Array<{
     registrationId: string;
@@ -84,6 +85,7 @@ export async function POST(request: Request) {
       name,
       workshopSlug,
       checkedInAt: checkin.createdAt.toISOString(),
+      externalEventId: `hp-checkin-${reg.id}-sync-${syncRunId}`,
     });
 
     results.push({

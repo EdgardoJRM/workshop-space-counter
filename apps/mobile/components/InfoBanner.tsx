@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
+import type React from "react";
 import { Text, View } from "react-native";
 import { useAppTheme } from "@/lib/useAppTheme";
 import { webBrand } from "@/lib/ui";
 
-export function InfoBanner({ children }: { children: string }) {
+export function InfoBanner({ children }: { children: React.ReactNode }) {
   const { colors } = useAppTheme();
 
   return (

@@ -233,11 +233,11 @@ export default function ListScreen() {
         if (res.status === "already_checked_in") {
           setMsg(`Ya registrado: ${name}`);
         } else if (res.printError) {
-          setMsg(`Check-in: ${name} — ${res.printError}`);
+          setMsg(`Check-in: ${name} — Falló: ${res.printError}`);
         } else if (res.printJobQueued === false) {
-          setMsg(`Check-in: ${name} — Label no encolado`);
+          setMsg(`Check-in: ${name} — Impreso`);
         } else {
-          setMsg(`Check-in: ${name} — Imprimiendo label…`);
+          setMsg(`Check-in: ${name} — Imprimiendo…`);
         }
         void load({ silent: true });
       } else {

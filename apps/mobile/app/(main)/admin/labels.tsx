@@ -13,9 +13,9 @@ import { InfoBanner } from "@/components/InfoBanner";
 import { LabelPreview } from "@/components/LabelPreview";
 import { SectionCard } from "@/components/SectionCard";
 import { StepperInput } from "@/components/StepperInput";
-import { WorkshopDropdown } from "@/components/WorkshopDropdown";
+import { WorkshopChips } from "@/components/WorkshopChips";
 import { fetchLabelTemplate, saveLabelTemplate } from "@/lib/admin-api";
-import { useSession } from "@/lib/session-context";
+import type { WorkshopSlug } from "@/lib/workshops";
 import { useAppTheme } from "@/lib/useAppTheme";
 
 /** Mismos defaults que lib/label-template.ts y print_core.py */
@@ -43,7 +43,7 @@ function clamp(n: number, min: number, max: number): number {
 }
 
 export default function AdminLabelsScreen() {
-  const { workshop } = useSession();
+  const [workshop, setWorkshop] = useState<WorkshopSlug>("duplica-ventas");
   const { colors, styles } = useAppTheme();
   const [loading, setLoading] = useState(true);
   const [fontLarge, setFontLarge] = useState(String(DEFAULT_FONT_LARGE));
@@ -145,7 +145,12 @@ export default function AdminLabelsScreen() {
 
   return (
     <ScrollView style={styles.screenPadded} keyboardShouldPersistTaps="handled">
-      <WorkshopDropdown />
+      <WorkshopChips
+        value={workshop}
+        onChange={(slug) => {
+          if (slug !== "all") setWorkshop(slug);
+        }}
+      />
 
       {loading ? (
         <ActivityIndicator color={colors.accent} />

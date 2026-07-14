@@ -93,15 +93,25 @@ export async function queueLabelPrintForCheckin(
   registrationId: string,
   checkinId: string
 ): Promise<{ queued: boolean; jobId?: string; error?: string }> {
-  const isActiveJob = (status: PrintJobStatus) =>
-    status === PrintJobStatus.PENDING ||
-    status === PrintJobStatus.PROCESSING ||
-    status === PrintJobStatus.PRINTED;
+  const isClaimableJob = (status: PrintJobStatus) =>
+    status === PrintJobStatus.PENDING || status === PrintJobStatus.PROCESSING;
 
   try {
     const linked = await prisma.printJob.findUnique({ where: { checkinId } });
-    if (linked && isActiveJob(linked.status)) {
-      return { queued: true, jobId: linked.id };
+    if (linked) {
+      if (linked.status === PrintJobStatus.FAILED) {
+        const reset = await prisma.printJob.update({
+          where: { id: linked.id },
+          data: { status: PrintJobStatus.PENDING, error: null },
+        });
+        return { queued: true, jobId: reset.id };
+      }
+      if (isClaimableJob(linked.status)) {
+        return { queued: true, jobId: linked.id };
+      }
+      if (linked.status === PrintJobStatus.PRINTED) {
+        return { queued: false, jobId: linked.id };
+      }
     }
 
     const created = await createPrintJobForCheckin(registrationId, checkinId);
@@ -110,21 +120,8 @@ export async function queueLabelPrintForCheckin(
     }
 
     const retry = await prisma.printJob.findUnique({ where: { checkinId } });
-    if (retry && isActiveJob(retry.status)) {
+    if (retry && isClaimableJob(retry.status)) {
       return { queued: true, jobId: retry.id };
-    }
-
-    const recentCutoff = new Date(Date.now() - 60_000);
-    const recentPending = await prisma.printJob.findFirst({
-      where: {
-        registrationId,
-        status: PrintJobStatus.PENDING,
-        createdAt: { gte: recentCutoff },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-    if (recentPending) {
-      return { queued: true, jobId: recentPending.id };
     }
   } catch (err) {
     console.error("[print-jobs] auto checkin job failed", err);
@@ -155,6 +152,17 @@ export async function createManualReprintJob(
   });
   if (!reg) {
     return { ok: false, error: "Registro no encontrado" };
+  }
+
+  const existingPending = await prisma.printJob.findFirst({
+    where: {
+      registrationId,
+      status: PrintJobStatus.PENDING,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (existingPending) {
+    return { ok: true, jobId: existingPending.id };
   }
 
   const orgId = reg.workshopDate.workshop.organizationId;
@@ -237,8 +245,13 @@ export async function completePrintJobWithRetry(
     });
   }
 
+  const normalizedError = errorMessage?.toLowerCase() ?? "";
+  const shouldRetry =
+    !normalizedError.includes("printer is offline") &&
+    !normalizedError.includes("connecting to device") &&
+    !normalizedError.includes("connecting-to-device");
   const maxAttempts = 3;
-  if (job.attempts >= maxAttempts) {
+  if (!shouldRetry || job.attempts >= maxAttempts) {
     const failed = await prisma.printJob.update({
       where: { id: jobId },
       data: {

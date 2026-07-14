@@ -4,7 +4,10 @@ import {
   diagnoseWebhookAuthFailure,
   extractClickFunnelsFunnelLabel,
   parseClickFunnelsPayload,
+  resolveForcedWorkshopFromRequest,
   verifyIncomingWebhook,
+  summarizeWorkshopDetection,
+  withForcedWorkshopSlug,
 } from "@/lib/clickfunnels";
 import {
   AWAITING_WORKSHOP_MARKER,
@@ -16,8 +19,7 @@ import {
 } from "@/lib/organization";
 import { notifyOrganizationStaffAsync } from "@/lib/notify-staff-push";
 import {
-  buildBuyerPassUrl,
-  createGuestInfoRequest,
+  maybeCreateGuestInfoAfterPurchase,
 } from "@/lib/guest-info";
 import { processClickFunnelsPurchase } from "@/lib/registrations";
 import {
@@ -75,13 +77,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
 
-    const purchase = parseClickFunnelsPayload(body);
-    if (!purchase) {
+    const parsed = parseClickFunnelsPayload(body);
+    if (!parsed) {
       return NextResponse.json(
         { error: "Could not parse purchase payload (email required)" },
         { status: 400 }
       );
     }
+
+    const forcedWorkshop = resolveForcedWorkshopFromRequest(request);
+    const purchase = withForcedWorkshopSlug(parsed, forcedWorkshop);
 
     const tracking = await trackIncomingWebhookEvent({
       organizationId: org.id,
@@ -100,8 +105,14 @@ export async function POST(request: Request) {
     const webhookEventId = tracking.ok ? tracking.webhookEvent.id : null;
 
     if (!purchase.workshopSlug) {
-      if (webhookEventId) {
+      const workshopDetection = summarizeWorkshopDetection(purchase.raw);
+      const wasAlreadyAwaiting =
+        tracking.ok && tracking.webhookEvent.error === AWAITING_WORKSHOP_MARKER;
+
+      if (webhookEventId && !wasAlreadyAwaiting) {
         await markWebhookEventAwaitingWorkshop(webhookEventId);
+      } else if (webhookEventId && wasAlreadyAwaiting) {
+        // Marker preserved on upsert; no duplicate staff ping.
       } else if (!tracking.ok) {
         console.warn("[clickfunnels webhook] awaiting workshop without DB tracking", {
           org: org.slug,
@@ -114,28 +125,52 @@ export async function POST(request: Request) {
         extractClickFunnelsFunnelLabel(purchase.raw) ?? "Funnel sin código";
       const who = purchase.name?.trim() || purchase.email;
 
-      notifyOrganizationStaffAsync(org.id, {
-        title: "¿A qué taller va esta compra?",
-        body: `${who} — ${funnelLabel}`,
-        data: {
-          type: "workshop_pick",
-          webhookEventId: webhookEventId ?? "",
-        },
+      console.warn("[clickfunnels webhook] awaiting workshop assignment", {
+        org: org.slug,
+        externalOrderId: purchase.externalOrderId,
+        email: purchase.email,
+        funnelLabel,
+        webhookEventId,
+        workshopDetection,
       });
+
+      if (!wasAlreadyAwaiting) {
+        notifyOrganizationStaffAsync(org.id, {
+          title: "¿A qué taller va esta compra?",
+          body: `${who} — ${funnelLabel}`,
+          data: {
+            type: "workshop_pick",
+            webhookEventId: webhookEventId ?? "",
+          },
+        });
+      }
 
       return NextResponse.json({
         ok: true,
         awaitingWorkshop: true,
+        missingWorkshop: true,
+        resolution: "assign_workshop_in_admin",
         code: AWAITING_WORKSHOP_MARKER,
         webhookEventId,
         funnelLabel,
+        email: purchase.email,
+        externalOrderId: purchase.externalOrderId,
+        workshopDetection,
         trackingWarning: !tracking.ok ? tracking.reason : undefined,
       });
     }
 
-    const result = await processClickFunnelsPurchase(purchase);
+    const result = await processClickFunnelsPurchase(purchase, org.id);
 
     if (!result.ok) {
+      console.warn("[clickfunnels webhook] registration failed", {
+        org: org.slug,
+        externalOrderId: purchase.externalOrderId,
+        email: purchase.email,
+        workshopSlug: purchase.workshopSlug,
+        code: result.code,
+        error: result.error,
+      });
       if (webhookEventId) {
         await markWebhookEventFailed(
           webhookEventId,
@@ -161,35 +196,13 @@ export async function POST(request: Request) {
 
     let guestInfoUrl: string | undefined;
 
-    if (purchase.ticketQuantity > 1 && result.ok) {
-      const registration = await prisma.registration.findUnique({
-        where: { id: result.registrationId },
-        select: { workshopDateId: true },
+    if (purchase.ticketQuantity > 1 && result.ok && !result.duplicate) {
+      guestInfoUrl = await maybeCreateGuestInfoAfterPurchase({
+        organizationId: org.id,
+        purchase,
+        registrationId: result.registrationId,
+        passToken: result.passToken,
       });
-
-      if (registration && purchase.workshopSlug) {
-        const buyerPassUrl = result.passToken
-          ? buildBuyerPassUrl(result.passToken)
-          : `${process.env.APP_BASE_URL?.replace(/\/$/, "") ?? ""}/pass`;
-
-        const guestRequest = await createGuestInfoRequest({
-          organizationId: org.id,
-          buyerRegistrationId: result.registrationId,
-          purchase,
-          workshopSlug: purchase.workshopSlug,
-          workshopDateId: registration.workshopDateId,
-          buyerPassUrl,
-        });
-
-        if (guestRequest.ok) {
-          guestInfoUrl = guestRequest.guestInfoUrl;
-        } else if (guestRequest.error !== "Guest request already exists") {
-          console.warn("[clickfunnels webhook] guest info request failed", {
-            externalOrderId: purchase.externalOrderId,
-            error: guestRequest.error,
-          });
-        }
-      }
     }
 
     if (!result.duplicate) {

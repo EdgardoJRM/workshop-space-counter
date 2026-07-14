@@ -119,7 +119,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error: isMissingTable
-          ? "Falta la tabla LabelTemplate en la base de datos. Ejecuta scripts/ensure-label-template-table.sql"
+          ? "Falta la tabla LabelTemplate en la base de datos. Ejecuta scripts/sql/ensure-label-template-table.sql"
           : message,
       },
       { status: isMissingTable ? 503 : 500 }

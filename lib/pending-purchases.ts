@@ -12,6 +12,7 @@ import {
 import type { WorkshopSlug } from "@/lib/workshop-keys";
 import { isWorkshopSlug } from "@/lib/workshop-keys";
 import { markWebhookEventFailed, markWebhookEventProcessed } from "@/lib/webhook-events";
+import { maybeCreateGuestInfoAfterPurchase } from "@/lib/guest-info";
 
 export const AWAITING_WORKSHOP_MARKER = "AWAITING_WORKSHOP";
 
@@ -22,8 +23,19 @@ export type PendingPurchaseSummary = {
   name: string | null;
   phone: string | null;
   funnelLabel: string | null;
+  ticketQuantity: number;
   createdAt: string;
 };
+
+export function buildResolvedClickFunnelsPurchase(
+  purchase: ClickFunnelsPurchase,
+  workshopSlug: WorkshopSlug
+): ClickFunnelsPurchase {
+  return {
+    ...purchase,
+    workshopSlug,
+  };
+}
 
 function payloadToSummary(
   event: { id: string; externalId: string; payload: unknown; createdAt: Date }
@@ -42,8 +54,15 @@ function payloadToSummary(
     name: purchase.name,
     phone: purchase.phone,
     funnelLabel: extractClickFunnelsFunnelLabel(raw),
+    ticketQuantity: purchase.ticketQuantity,
     createdAt: event.createdAt.toISOString(),
   };
+}
+
+export function pendingPurchaseFromPayload(
+  event: { id: string; externalId: string; payload: unknown; createdAt: Date }
+): PendingPurchaseSummary | null {
+  return payloadToSummary(event);
 }
 
 export async function listPendingPurchases(
@@ -79,7 +98,7 @@ export async function resolvePendingPurchase(input: {
   webhookEventId: string;
   workshopSlug: string;
 }): Promise<
-  | ({ ok: true } & ProcessPurchaseResult)
+  | ({ ok: true; guestInfoUrl?: string } & ProcessPurchaseResult)
   | { ok: false; error: string; code: string }
 > {
   if (!isWorkshopSlug(input.workshopSlug)) {
@@ -106,14 +125,21 @@ export async function resolvePendingPurchase(input: {
     return { ok: false, error: "Payload inválido", code: "INVALID_PAYLOAD" };
   }
 
-  const resolved: ClickFunnelsPurchase = {
-    ...purchase,
-    workshopSlug: input.workshopSlug,
-  };
+  const resolved = buildResolvedClickFunnelsPurchase(
+    purchase,
+    input.workshopSlug
+  );
 
-  const result = await processClickFunnelsPurchase(resolved);
+  const result = await processClickFunnelsPurchase(resolved, input.organizationId);
 
   if (!result.ok) {
+    console.warn("[pending-purchases] resolve failed", {
+      organizationId: input.organizationId,
+      webhookEventId: input.webhookEventId,
+      workshopSlug: input.workshopSlug,
+      code: result.code,
+      error: result.error,
+    });
     await markWebhookEventFailed(
       event.id,
       `${result.code}: ${result.error}`
@@ -122,5 +148,16 @@ export async function resolvePendingPurchase(input: {
   }
 
   await markWebhookEventProcessed(event.id, result.duplicate);
-  return result;
+
+  let guestInfoUrl: string | undefined;
+  if (resolved.ticketQuantity > 1 && result.ok && !result.duplicate) {
+    guestInfoUrl = await maybeCreateGuestInfoAfterPurchase({
+      organizationId: input.organizationId,
+      purchase: resolved,
+      registrationId: result.registrationId,
+      passToken: result.passToken,
+    });
+  }
+
+  return { ...result, guestInfoUrl };
 }

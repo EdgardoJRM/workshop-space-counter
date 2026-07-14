@@ -4,6 +4,7 @@ import {
   resolveWebhookSecretForOrganization,
   type WebhookSecretSource,
 } from "@/lib/organization";
+import { WORKSHOPS, type WorkshopSlug } from "@/lib/workshop-keys";
 
 export const dynamic = "force-dynamic";
 
@@ -28,11 +29,17 @@ async function getWebhookInfo(request: Request, organizationId: string) {
   const base = getAppBaseUrl(request);
   const orgSlug = org?.slug ?? "hernandez";
   const webhookUrl = `${base}/api/webhooks/clickfunnels?org=${encodeURIComponent(orgSlug)}`;
+  const workshopUrls = (Object.keys(WORKSHOPS) as WorkshopSlug[]).map((slug) => ({
+    slug,
+    label: WORKSHOPS[slug].label,
+    webhookUrl: `${base}/api/webhooks/clickfunnels?org=${encodeURIComponent(orgSlug)}&workshop=${encodeURIComponent(slug)}`,
+  }));
   const { secret, secretSource } =
     await resolveWebhookSecretForOrganization(organizationId);
 
   return {
     webhookUrl,
+    workshopUrls,
     secretConfigured: Boolean(secret),
     secretSource: secretSource as WebhookSecretSource | null,
     organizationSlug: orgSlug,
@@ -118,7 +125,11 @@ export async function POST(request: Request) {
     workshop: "duplica-ventas",
   };
 
-  const res = await fetch(info.webhookUrl, {
+  const testUrl =
+    info.workshopUrls.find((w) => w.slug === "duplica-ventas")?.webhookUrl ??
+    info.webhookUrl;
+
+  const res = await fetch(testUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -138,7 +149,7 @@ export async function POST(request: Request) {
     res.status === 401
       ? "401 Unauthorized — el secreto no coincide con ClickFunnels"
       : res.status === 422
-        ? "Auth OK — falta fecha activa del taller o datos inválidos"
+        ? "Auth OK — falta fecha en venta del taller o datos inválidos"
         : res.ok
           ? "Webhook respondió correctamente"
           : `Error ${res.status}`;

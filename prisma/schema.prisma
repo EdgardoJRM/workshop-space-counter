@@ -260,7 +260,7 @@ model Certificate {
 
 model Checkin {
   id             String       @id @default(cuid())
-  registrationId String
+  registrationId String       @unique
   registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
   checkedInBy    String?
   userAgent      String?

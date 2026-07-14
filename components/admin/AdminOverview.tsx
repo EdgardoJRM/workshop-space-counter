@@ -9,6 +9,7 @@ type DateSummary = {
   title: string;
   startsAt: string;
   isActive: boolean;
+  isSelling: boolean;
   available: number;
   soldCount: number;
 };
@@ -31,6 +32,8 @@ function formatWhen(iso: string): string {
 export function AdminOverview({ onNavigate }: Props) {
   const [webhookOk, setWebhookOk] = useState<boolean | null>(null);
   const [emailCount, setEmailCount] = useState<number | null>(null);
+  const [pendingCount, setPendingCount] = useState<number | null>(null);
+  const [guestCount, setGuestCount] = useState<number | null>(null);
   const [workshopDates, setWorkshopDates] = useState<
     Record<string, DateSummary | null>
   >({});
@@ -38,15 +41,20 @@ export function AdminOverview({ onNavigate }: Props) {
   useEffect(() => {
     void (async () => {
       try {
-        const [wh, em, ...dateResults] = await Promise.all([
+        const [wh, em, pending, guests, ...dateResults] = await Promise.all([
           fetch("/api/admin/webhook-info").then((r) => r.json()),
           fetch("/api/admin/email-templates").then((r) => r.json()),
+          fetch("/api/admin/pending-purchases").then((r) => r.json()),
+          fetch("/api/admin/guest-info-requests").then((r) => r.json()),
           ...Object.keys(WORKSHOPS).map((slug) =>
             fetch(`/api/admin/dates?w=${slug}`)
               .then((r) => r.json())
               .then((data: { dates?: DateSummary[] }) => {
-                const active = data.dates?.find((d) => d.isActive) ?? data.dates?.[0];
-                return { slug, active: active ?? null };
+                const selling =
+                  data.dates?.find((d) => d.isSelling) ??
+                  data.dates?.find((d) => d.isActive) ??
+                  data.dates?.[0];
+                return { slug, active: selling ?? null };
               })
           ),
         ]);
@@ -55,6 +63,8 @@ export function AdminOverview({ onNavigate }: Props) {
         setEmailCount(
           ((em as { templates?: unknown[] }).templates ?? []).length
         );
+        setPendingCount((pending as { count?: number }).count ?? 0);
+        setGuestCount((guests as { count?: number }).count ?? 0);
 
         const map: Record<string, DateSummary | null> = {};
         for (const r of dateResults as { slug: string; active: DateSummary | null }[]) {
@@ -120,6 +130,42 @@ export function AdminOverview({ onNavigate }: Props) {
               : `${emailCount} plantilla${emailCount === 1 ? "" : "s"}`}
           </p>
         </button>
+
+        {(pendingCount ?? 0) > 0 && (
+          <button
+            type="button"
+            onClick={() => onNavigate("pending-purchases")}
+            className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-left shadow-sm"
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+              Atención
+            </p>
+            <p className="mt-1 font-semibold text-brand-slate">
+              {pendingCount} compra(s) sin asignar
+            </p>
+            <p className="mt-2 text-sm text-brand-charcoal">
+              Revisa y asigna taller, o corrige la URL del webhook en ClickFunnels.
+            </p>
+          </button>
+        )}
+
+        {(guestCount ?? 0) > 0 && (
+          <button
+            type="button"
+            onClick={() => onNavigate("guest-info")}
+            className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-left shadow-sm"
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+              Atención
+            </p>
+            <p className="mt-1 font-semibold text-brand-slate">
+              {guestCount} invitado(s) pendientes
+            </p>
+            <p className="mt-2 text-sm text-brand-charcoal">
+              Compradores con boletos extra que no completaron el formulario.
+            </p>
+          </button>
+        )}
       </div>
 
       <div>
@@ -136,12 +182,14 @@ export function AdminOverview({ onNavigate }: Props) {
                 <p className="font-semibold text-brand-charcoal">{label}</p>
                 {d ? (
                   <p className="mt-1 text-sm text-brand-grey">
-                    {d.isActive ? "Fecha activa: " : "Próxima fecha: "}
+                    {d.isSelling ? "En venta: " : d.isActive ? "Evento de hoy: " : "Próxima fecha: "}
                     <span className="text-brand-charcoal">{d.title}</span>
                     {" · "}
                     {formatWhen(d.startsAt)}
                     {" · "}
                     {d.available} cupos libres
+                    {d.isSelling && d.isActive ? " · también evento de hoy" : ""}
+                    {!d.isSelling && d.isActive ? " · sin fecha en venta" : ""}
                   </p>
                 ) : (
                   <p className="mt-1 text-sm text-amber-700">

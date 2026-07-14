@@ -3,6 +3,7 @@
 -- check-in webhook fires for duplica-ventas.
 
 INSERT INTO "WebhookGrantRule" (
+  "id",
   "organizationId",
   "provider",
   "productId",
@@ -11,6 +12,7 @@ INSERT INTO "WebhookGrantRule" (
   "active"
 )
 SELECT
+  'wgr_hernandez_pass_duplica_ventas',
   o."id",
   'hernandez-pass',
   'duplica-ventas',
@@ -47,3 +49,17 @@ DO UPDATE SET
   "collectionId" = EXCLUDED."collectionId",
   "bookId" = NULL,
   "active" = true;
+
+-- Verify
+SELECT
+  r."id",
+  r."provider",
+  r."productId",
+  r."targetType",
+  c."slug" AS "collectionSlug",
+  c."name" AS "collectionName",
+  r."active"
+FROM "WebhookGrantRule" r
+LEFT JOIN "Collection" c ON c."id" = r."collectionId"
+WHERE r."provider" = 'hernandez-pass'
+  AND r."productId" = 'duplica-ventas';

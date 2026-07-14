@@ -13,7 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { ProgressBarSuccess } from "@/components/ProgressBar";
 import { StatusBadge } from "@/components/StatusBadge";
 import { WorkshopDateTimePicker } from "@/components/WorkshopDateTimePicker";
-import { WorkshopDropdown } from "@/components/WorkshopDropdown";
+import { WorkshopChips } from "@/components/WorkshopChips";
 import {
   deleteAdminDate,
   fetchAdminDates,
@@ -21,7 +21,7 @@ import {
   type AdminDateRow,
 } from "@/lib/admin-api";
 import { confirmDestructive } from "@/lib/confirm-alert";
-import { useSession } from "@/lib/session-context";
+import type { WorkshopSlug } from "@/lib/workshops";
 import {
   joinWorkshopDatetimeLocal,
   parseWorkshopDatetimeLocal,
@@ -64,7 +64,8 @@ function defaultStartsAt(from?: AdminDateRow | null): string {
 }
 
 export default function AdminDatesScreen() {
-  const { workshop } = useSession();
+  const [workshopFilter, setWorkshopFilter] = useState<WorkshopSlug | "all">("all");
+  const [createWorkshop, setCreateWorkshop] = useState<WorkshopSlug>("duplica-ventas");
   const { colors, styles } = useAppTheme();
   const navigation = useNavigation();
   const [rows, setRows] = useState<AdminDateRow[]>([]);
@@ -80,14 +81,16 @@ export default function AdminDatesScreen() {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchAdminDates(workshop);
+      const data = await fetchAdminDates(
+        workshopFilter === "all" ? null : workshopFilter
+      );
       setRows(data.dates);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
     } finally {
       setLoading(false);
     }
-  }, [workshop]);
+  }, [workshopFilter]);
 
   useFocusEffect(
     useCallback(() => {
@@ -95,7 +98,7 @@ export default function AdminDatesScreen() {
     }, [load])
   );
 
-  function openCreateForm(source?: AdminDateRow | null) {
+  const openCreateForm = useCallback((source?: AdminDateRow | null) => {
     const src = source ?? templateRow(rows);
     setCreateForm({
       title: src?.title ?? "",
@@ -107,7 +110,7 @@ export default function AdminDatesScreen() {
     setShowCreate(true);
     setEditingId(null);
     setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 50);
-  }
+  }, [rows]);
 
   function openDuplicate(row: AdminDateRow) {
     const current = splitWorkshopDatetimeLocal(
@@ -161,20 +164,28 @@ export default function AdminDatesScreen() {
         </Pressable>
       ),
     });
-  }, [navigation, colors.accent, colors.onAccent, showCreate, rows]);
+  }, [navigation, colors.accent, colors.onAccent, showCreate, openCreateForm]);
 
-  async function activate(id: string) {
+  async function activate(row: AdminDateRow) {
     try {
-      await saveAdminDate({ dateId: id, isActive: true, workshop });
+      await saveAdminDate({
+        dateId: row.id,
+        isActive: true,
+        workshop: row.workshopSlug as WorkshopSlug,
+      });
       void load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
     }
   }
 
-  async function setSelling(id: string) {
+  async function setSelling(row: AdminDateRow) {
     try {
-      await saveAdminDate({ dateId: id, isSelling: true, workshop });
+      await saveAdminDate({
+        dateId: row.id,
+        isSelling: true,
+        workshop: row.workshopSlug as WorkshopSlug,
+      });
       void load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
@@ -187,8 +198,10 @@ export default function AdminDatesScreen() {
       const parsed = createForm.startsAt
         ? parseWorkshopDatetimeLocal(createForm.startsAt)
         : null;
+      const workshopSlug =
+        workshopFilter === "all" ? createWorkshop : workshopFilter;
       await saveAdminDate({
-        workshop,
+        workshop: workshopSlug,
         title: createForm.title.trim() || undefined,
         startsAt: parsed?.toISOString(),
         venue: createForm.venue.trim() || undefined,
@@ -217,15 +230,15 @@ export default function AdminDatesScreen() {
     setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 50);
   }
 
-  async function saveEdit(dateId: string) {
+  async function saveEdit(row: AdminDateRow) {
     try {
       const capacity = Number.parseInt(editForm.capacity, 10);
       const parsed = editForm.startsAt
         ? parseWorkshopDatetimeLocal(editForm.startsAt)
         : null;
       await saveAdminDate({
-        dateId,
-        workshop,
+        dateId: row.id,
+        workshop: row.workshopSlug as WorkshopSlug,
         title: editForm.title.trim(),
         startsAt: parsed?.toISOString(),
         venue: editForm.venue.trim(),
@@ -264,7 +277,14 @@ export default function AdminDatesScreen() {
       style={styles.screenPadded}
       keyboardShouldPersistTaps="handled"
     >
-      <WorkshopDropdown />
+      <WorkshopChips
+        value={workshopFilter}
+        onChange={(slug) => {
+          setWorkshopFilter(slug);
+          if (slug !== "all") setCreateWorkshop(slug);
+        }}
+        showAll
+      />
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
       {showCreate ? (
@@ -283,8 +303,16 @@ export default function AdminDatesScreen() {
           </Pressable>
           {templateRow(rows) ? (
             <Text style={[styles.rowMeta, { marginBottom: 12 }]}>
-              Datos copiados de la fecha en venta o activa. Solo cambia la fecha.
+              Datos copiados de la fecha en venta o del evento de hoy. Solo cambia la fecha.
             </Text>
+          ) : null}
+          {workshopFilter === "all" ? (
+            <WorkshopChips
+              value={createWorkshop}
+              onChange={(slug) => {
+                if (slug !== "all") setCreateWorkshop(slug);
+              }}
+            />
           ) : null}
           <Text style={styles.fieldLabel}>Título del evento</Text>
           <TextInput
@@ -328,7 +356,7 @@ export default function AdminDatesScreen() {
       ) : null}
 
       <Text style={[styles.title, { fontSize: 17, marginBottom: 12, marginTop: 4 }]}>
-        Fechas del taller
+        Fechas {workshopFilter === "all" ? "de todos los talleres" : "del taller"}
       </Text>
 
       {loading ? (
@@ -379,7 +407,7 @@ export default function AdminDatesScreen() {
                 <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
                   <Pressable
                     style={[styles.btnPrimary, { flex: 1, marginTop: 0 }]}
-                    onPress={() => void saveEdit(row.id)}
+                    onPress={() => void saveEdit(row)}
                   >
                     <Text style={styles.btnPrimaryText}>Guardar</Text>
                   </Pressable>
@@ -404,10 +432,9 @@ export default function AdminDatesScreen() {
                     {row.isSelling ? (
                       <StatusBadge label="En venta" variant="warning" />
                     ) : null}
-                    <StatusBadge
-                      label={row.isActive ? "Activa" : "Inactiva"}
-                      variant={row.isActive ? "success" : "muted"}
-                    />
+                    {row.isActive ? (
+                      <StatusBadge label="Evento de hoy" variant="success" />
+                    ) : null}
                   </View>
                   <Ionicons name="chevron-forward" size={18} color={colors.textSubtle} />
                 </View>
@@ -473,16 +500,16 @@ export default function AdminDatesScreen() {
                   ) : !row.isActive ? (
                     <Pressable
                       style={[styles.btnOutline, { flexDirection: "row", gap: 4 }]}
-                      onPress={() => void activate(row.id)}
+                      onPress={() => void activate(row)}
                     >
                       <Ionicons name="play-outline" size={14} color={colors.accent} />
-                      <Text style={styles.btnOutlineText}>Activar</Text>
+                      <Text style={styles.btnOutlineText}>Evento de hoy</Text>
                     </Pressable>
                   ) : null}
                   {!row.isSelling ? (
                     <Pressable
                       style={[styles.btnOutline, { flexDirection: "row", gap: 4 }]}
-                      onPress={() => void setSelling(row.id)}
+                      onPress={() => void setSelling(row)}
                     >
                       <Ionicons name="cart-outline" size={14} color={colors.accent} />
                       <Text style={styles.btnOutlineText}>En venta</Text>

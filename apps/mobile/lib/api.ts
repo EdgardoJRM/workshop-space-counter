@@ -118,10 +118,19 @@ export async function fetchRegistrations(
   return apiFetch(`/api/mobile/registrations?${params}`);
 }
 
+export type CheckinResponse = {
+  ok?: boolean;
+  error?: string;
+  attendeeName?: string;
+  status?: "checked_in" | "already_checked_in" | string;
+  printError?: string;
+  printJobQueued?: boolean;
+};
+
 export async function checkinScan(
   token: string,
   workshopDateId: string
-): Promise<Record<string, unknown>> {
+): Promise<CheckinResponse> {
   return apiFetch("/api/mobile/checkins", {
     method: "POST",
     body: JSON.stringify({ token, workshopDateId }),
@@ -131,7 +140,7 @@ export async function checkinScan(
 export async function checkinById(
   registrationId: string,
   workshopDateId: string
-): Promise<Record<string, unknown>> {
+): Promise<CheckinResponse> {
   return apiFetch("/api/mobile/checkins", {
     method: "POST",
     body: JSON.stringify({ registrationId, workshopDateId }),

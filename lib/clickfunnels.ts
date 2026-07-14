@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "crypto";
+import { parseWorkshopTicketQuantity } from "@/lib/clickfunnels-line-items";
 import type { WorkshopSlug } from "@/lib/workshop-keys";
 import { isWorkshopSlug, resolveWorkshopFromFunnelText } from "@/lib/workshop-keys";
 
@@ -32,31 +33,11 @@ export type ClickFunnelsPurchase = {
   raw: Record<string, unknown>;
 };
 
-/** Suma quantity de line_items en payload V2; default 1. */
+/** Boletos de taller en line_items (excluye OTOs como libro de segmentación). */
 export function parseClickFunnelsTicketQuantity(
   raw: Record<string, unknown>
 ): number {
-  const dataRoot =
-    raw.data && typeof raw.data === "object"
-      ? (raw.data as Record<string, unknown>)
-      : raw;
-
-  const lineItems = dataRoot.line_items ?? raw.line_items;
-  if (!Array.isArray(lineItems)) return 1;
-
-  let total = 0;
-  for (const item of lineItems) {
-    if (!item || typeof item !== "object") continue;
-    const qty = (item as Record<string, unknown>).quantity;
-    if (typeof qty === "number" && Number.isFinite(qty) && qty > 0) {
-      total += Math.floor(qty);
-    } else if (typeof qty === "string") {
-      const n = Number.parseInt(qty, 10);
-      if (Number.isFinite(n) && n > 0) total += n;
-    }
-  }
-
-  return total > 0 ? total : 1;
+  return parseWorkshopTicketQuantity(raw);
 }
 
 export function guestExternalOrderId(
@@ -97,6 +78,59 @@ export function extractClickFunnelsFunnelLabel(
 ): string | null {
   const texts = extractClickFunnelsFunnelTexts(raw);
   return texts[0] ?? null;
+}
+
+export type WorkshopDetectionSummary = {
+  explicitWorkshopRaw: string | null;
+  funnelTexts: string[];
+  inferredFromFunnel: WorkshopSlug | null;
+  resolvedWorkshopSlug: WorkshopSlug | null;
+};
+
+/** Diagnóstico de por qué se resolvió o no un taller (para logs de producción). */
+export function summarizeWorkshopDetection(
+  raw: Record<string, unknown>
+): WorkshopDetectionSummary {
+  const dataRoot =
+    raw.data && typeof raw.data === "object"
+      ? (raw.data as Record<string, unknown>)
+      : raw;
+
+  const contact =
+    (pickNested(dataRoot, ["contact"]) as Record<string, unknown> | undefined) ??
+    (pickNested(dataRoot, ["primary_contact"]) as Record<string, unknown> | undefined) ??
+    (pickNested(raw, ["contact"]) as Record<string, unknown> | undefined) ??
+    dataRoot;
+
+  const customAttrs =
+    contact.custom_attributes && typeof contact.custom_attributes === "object"
+      ? (contact.custom_attributes as Record<string, unknown>)
+      : dataRoot.custom_attributes && typeof dataRoot.custom_attributes === "object"
+        ? (dataRoot.custom_attributes as Record<string, unknown>)
+        : null;
+
+  const explicitWorkshopRaw =
+    pickString(raw, ["workshop", "workshop_slug", "w"]) ??
+    pickString(dataRoot, ["workshop", "workshop_slug", "w"]) ??
+    pickString(contact, ["workshop", "workshop_slug"]) ??
+    pickString(raw, ["custom_workshop"]) ??
+    (customAttrs ? pickString(customAttrs, ["workshop", "workshop_slug"]) : null) ??
+    null;
+
+  const funnelTexts = extractClickFunnelsFunnelTexts(raw);
+  const inferredFromFunnel = resolveWorkshopFromFunnelText(...funnelTexts);
+
+  const resolvedWorkshopSlug: WorkshopSlug | null =
+    explicitWorkshopRaw && isWorkshopSlug(explicitWorkshopRaw)
+      ? explicitWorkshopRaw
+      : inferredFromFunnel;
+
+  return {
+    explicitWorkshopRaw,
+    funnelTexts,
+    inferredFromFunnel,
+    resolvedWorkshopSlug,
+  };
 }
 
 function pickString(obj: Record<string, unknown>, keys: string[]): string | null {
@@ -389,4 +423,23 @@ export function diagnoseWebhookAuthFailure(
     hasCfTimestamp,
     timestampSkewSec: null,
   };
+}
+
+/** Workshop fijado en la URL del webhook (?workshop= o ?w=). */
+export function resolveForcedWorkshopFromRequest(
+  request: Request
+): WorkshopSlug | null {
+  const url = new URL(request.url);
+  const raw = url.searchParams.get("workshop") ?? url.searchParams.get("w");
+  if (!raw) return null;
+  const slug = raw.trim().toLowerCase();
+  return isWorkshopSlug(slug) ? slug : null;
+}
+
+export function withForcedWorkshopSlug(
+  purchase: ClickFunnelsPurchase,
+  forcedSlug: WorkshopSlug | null
+): ClickFunnelsPurchase {
+  if (!forcedSlug) return purchase;
+  return { ...purchase, workshopSlug: forcedSlug };
 }

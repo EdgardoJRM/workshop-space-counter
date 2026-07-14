@@ -4,6 +4,7 @@ type LaBovedaCheckinPayload = {
   name: string;
   workshopSlug: string;
   checkedInAt: string;
+  externalEventId?: string;
 };
 
 export type LaBovedaWebhookResult =
@@ -20,7 +21,7 @@ export async function notifyLaBovedaCheckin(
   }
 
   const body = {
-    id: `hp-checkin-${payload.registrationId}`,
+    id: payload.externalEventId ?? `hp-checkin-${payload.registrationId}`,
     email: payload.email.trim().toLowerCase(),
     name: payload.name,
     product_id: payload.workshopSlug,

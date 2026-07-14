@@ -6,7 +6,10 @@ import {
   guestExternalOrderId,
   parseClickFunnelsPayload,
   parseClickFunnelsTicketQuantity,
+  resolveForcedWorkshopFromRequest,
+  summarizeWorkshopDetection,
   verifyClickFunnelsSignature,
+  withForcedWorkshopSlug,
 } from "./clickfunnels";
 
 describe("parseClickFunnelsPayload", () => {
@@ -137,6 +140,23 @@ describe("parseClickFunnelsPayload", () => {
     assert.equal(result.ticketQuantity, 2);
   });
 
+  it("ignores OTO libro de segmentacion when counting tickets", () => {
+    const result = parseClickFunnelsPayload({
+      event_type: "order.completed",
+      event_id: "evt-oto",
+      data: {
+        id: 5795452,
+        line_items: [
+          { quantity: 1, original_product: { name: "Duplica Tus Ventas" } },
+          { quantity: 1, original_product: { name: "Libro ED Segmentación" } },
+        ],
+        contact: { email_address: "sarah@example.com", first_name: "Sarah" },
+      },
+    });
+    assert.ok(result);
+    assert.equal(result.ticketQuantity, 1);
+  });
+
   it("defaults ticketQuantity to 1 when line_items missing", () => {
     const result = parseClickFunnelsPayload({
       event_type: "order.completed",
@@ -164,14 +184,80 @@ describe("parseClickFunnelsPayload", () => {
     assert.ok(result);
     assert.equal(result.workshopSlug, null);
   });
+
+  it("uses explicit workshop_slug when provided", () => {
+    const result = parseClickFunnelsPayload({
+      event_type: "order.completed",
+      event_id: "evt-explicit",
+      data: {
+        id: 200,
+        workshop_slug: "canva",
+        contact: { email_address: "explicit@example.com" },
+      },
+    });
+    assert.ok(result);
+    assert.equal(result.workshopSlug, "canva");
+  });
+
+  it("parses workshop_date_id from custom attributes", () => {
+    const result = parseClickFunnelsPayload({
+      event_type: "order.completed",
+      event_id: "evt-date",
+      data: {
+        id: 201,
+        funnel_name: "Registro vdtv",
+        contact: {
+          email_address: "date@example.com",
+          custom_attributes: { workshop_date_id: "wd_abc123" },
+        },
+      },
+    });
+    assert.ok(result);
+    assert.equal(result.workshopDateId, "wd_abc123");
+    assert.equal(result.workshopSlug, "duplica-ventas");
+  });
+});
+
+describe("summarizeWorkshopDetection", () => {
+  it("reports explicit workshop and funnel inference", () => {
+    const raw = {
+      event_type: "order.completed",
+      data: {
+        id: 1,
+        workshop_slug: "canva",
+        funnel_name: "Registro vdtv backup",
+        contact: { email_address: "a@b.com" },
+      },
+    };
+    const summary = summarizeWorkshopDetection(raw);
+    assert.equal(summary.explicitWorkshopRaw, "canva");
+    assert.equal(summary.resolvedWorkshopSlug, "canva");
+    assert.ok(summary.funnelTexts.includes("Registro vdtv backup"));
+  });
+
+  it("reports null resolution when no workshop signals exist", () => {
+    const summary = summarizeWorkshopDetection({
+      data: {
+        id: 2,
+        funnel_name: "Unknown funnel",
+        contact: { email_address: "x@y.com" },
+      },
+    });
+    assert.equal(summary.explicitWorkshopRaw, null);
+    assert.equal(summary.inferredFromFunnel, null);
+    assert.equal(summary.resolvedWorkshopSlug, null);
+  });
 });
 
 describe("parseClickFunnelsTicketQuantity", () => {
-  it("sums multiple line item quantities", () => {
+  it("sums multiple workshop line item quantities", () => {
     assert.equal(
       parseClickFunnelsTicketQuantity({
         data: {
-          line_items: [{ quantity: 1 }, { quantity: 2 }],
+          line_items: [
+            { quantity: 1, original_product: { name: "Workshop A" } },
+            { quantity: 2, original_product: { name: "Workshop B" } },
+          ],
         },
       }),
       3
@@ -249,5 +335,54 @@ describe("diagnoseWebhookAuthFailure", () => {
 
     const diagnosis = diagnoseWebhookAuthFailure(request, "right", "{}");
     assert.equal(diagnosis.reason, "legacy_secret_mismatch");
+  });
+});
+
+describe("forced workshop from URL", () => {
+  it("resolveForcedWorkshopFromRequest reads ?workshop=", () => {
+    const request = new Request(
+      "https://example.com/api/webhooks/clickfunnels?org=hernandez&workshop=duplica-ventas"
+    );
+    assert.equal(resolveForcedWorkshopFromRequest(request), "duplica-ventas");
+  });
+
+  it("resolveForcedWorkshopFromRequest reads ?w= alias", () => {
+    const request = new Request(
+      "https://example.com/api/webhooks/clickfunnels?w=canva"
+    );
+    assert.equal(resolveForcedWorkshopFromRequest(request), "canva");
+  });
+
+  it("withForcedWorkshopSlug overrides null inference from funnel", () => {
+    const purchase = parseClickFunnelsPayload({
+      event_type: "order.completed",
+      event_id: "evt-forced",
+      data: {
+        id: 500,
+        funnel_name: "Ai Domination Bootcamp",
+        contact: { email_address: "forced@example.com" },
+      },
+    });
+    assert.ok(purchase);
+    assert.equal(purchase.workshopSlug, null);
+
+    const forced = withForcedWorkshopSlug(purchase, "duplica-ventas");
+    assert.equal(forced.workshopSlug, "duplica-ventas");
+    assert.equal(forced.email, "forced@example.com");
+  });
+
+  it("withForcedWorkshopSlug wins over conflicting payload workshop", () => {
+    const purchase = parseClickFunnelsPayload({
+      event_type: "order.completed",
+      event_id: "evt-override",
+      data: {
+        id: 501,
+        workshop_slug: "canva",
+        contact: { email_address: "override@example.com" },
+      },
+    });
+    assert.ok(purchase);
+    const forced = withForcedWorkshopSlug(purchase!, "duplica-ventas");
+    assert.equal(forced.workshopSlug, "duplica-ventas");
   });
 });

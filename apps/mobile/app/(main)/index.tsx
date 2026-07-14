@@ -52,7 +52,7 @@ function FeaturedEventCard({
           <Text style={[styles.rowTitle, { fontSize: 17 }]}>{item.label}</Text>
           <View style={{ flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
             {item.isToday ? <StatusBadge label="Hoy" variant="warning" /> : null}
-            {item.isActive ? <StatusBadge label="Activo" variant="success" /> : null}
+            {item.isActive ? <StatusBadge label="Evento de hoy" variant="success" /> : null}
             <StatusBadge label="Seleccionado" variant="gold" />
           </View>
         </View>
@@ -212,7 +212,7 @@ export default function EventsScreen() {
       ) : (
         <View style={styles.cardFlat}>
           <Text style={[styles.subtitle, { textAlign: "center" }]}>
-            No hay eventos activos.
+            No hay eventos para check-in hoy. Marca un evento de hoy en Admin → Fechas.
           </Text>
         </View>
       )}

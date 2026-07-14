@@ -6,7 +6,9 @@ export type AdminView =
   | "labels"
   | "printer"
   | "webhook"
-  | "emails";
+  | "emails"
+  | "pending-purchases"
+  | "guest-info";
 
 export type NavItem = {
   id: AdminView;
@@ -31,7 +33,7 @@ export const ADMIN_NAV: NavItem[] = [
   {
     id: "dates",
     label: "Fechas",
-    description: "Crear, editar y activar fecha del taller",
+    description: "En venta (webhook) y evento de hoy (check-in)",
     group: "workshop",
   },
   {
@@ -50,6 +52,18 @@ export const ADMIN_NAV: NavItem[] = [
     id: "printer",
     label: "Impresora",
     description: "Emparejar Mac con la Rollo (código SaaS)",
+    group: "system",
+  },
+  {
+    id: "pending-purchases",
+    label: "Compras sin asignar",
+    description: "ClickFunnels sin taller detectado",
+    group: "system",
+  },
+  {
+    id: "guest-info",
+    label: "Invitados pendientes",
+    description: "Boletos extra sin datos del invitado",
     group: "system",
   },
   {

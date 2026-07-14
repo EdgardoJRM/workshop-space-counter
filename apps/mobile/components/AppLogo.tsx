@@ -32,6 +32,7 @@ export function AppLogo({
       ]}
     >
       <Image
+        alt="Hernandez Pass"
         source={logoSource}
         style={
           {

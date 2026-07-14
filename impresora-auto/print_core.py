@@ -1,15 +1,80 @@
 import os
+import re
 import subprocess
 import tempfile
+import time
 from PIL import Image, ImageDraw, ImageFont
 
 FONT_PATH = os.environ.get("FONT_PATH", "/System/Library/Fonts/Supplemental/Arial.ttf")
 MEDIA_SIZE = os.environ.get("MEDIA_SIZE", "3x2")
 PRINTER_NAME = os.environ.get("PRINTER_NAME", "").strip()
+PRINT_CONFIRM_TIMEOUT = int(os.environ.get("PRINT_CONFIRM_TIMEOUT", "45"))
+PRINT_CONFIRM_INTERVAL = float(os.environ.get("PRINT_CONFIRM_INTERVAL", "1"))
 
 
 def run_command(args):
     return subprocess.run(args, capture_output=True, text=True, check=False)
+
+
+def default_printer():
+    result = run_command(["lpstat", "-d"])
+    if result.returncode != 0:
+        return ""
+    marker = "system default destination:"
+    if marker in result.stdout:
+        return result.stdout.split(marker, 1)[1].strip()
+    return result.stdout.strip()
+
+
+def current_printer_name():
+    return PRINTER_NAME or default_printer()
+
+
+def printer_status_detail(printer):
+    if not printer:
+        return "No default printer configured"
+    result = run_command(["lpstat", "-l", "-p", printer])
+    return (result.stdout or result.stderr).strip()
+
+
+def printer_is_offline(printer):
+    detail = printer_status_detail(printer).lower()
+    return "offline" in detail or "connecting-to-device" in detail
+
+
+def parse_cups_job_id(output):
+    match = re.search(r"request id is\s+(\S+)", output, re.IGNORECASE)
+    return match.group(1) if match else None
+
+
+def cups_job_is_pending(job_id):
+    result = run_command(["lpstat", "-W", "not-completed", "-o", job_id])
+    return result.returncode == 0 and job_id in result.stdout
+
+
+def wait_for_cups_job(job_id, printer):
+    deadline = time.time() + PRINT_CONFIRM_TIMEOUT
+    while time.time() < deadline:
+        if printer_is_offline(printer):
+            run_command(["cancel", job_id])
+            return False, "Printer is offline or connecting to device"
+        if not cups_job_is_pending(job_id):
+            return True, "ok"
+        time.sleep(PRINT_CONFIRM_INTERVAL)
+
+    run_command(["cancel", job_id])
+    return False, f"Print job {job_id} did not complete within {PRINT_CONFIRM_TIMEOUT}s"
+
+
+def cups_media_options(media):
+    normalized = (media or MEDIA_SIZE).strip().lower().replace(" ", "")
+    if normalized in {"3x2", "3x2in", "3x2inch"}:
+        return ["-o", "media=Custom.3x2in", "-o", "PageSize=Custom.3x2in"]
+    if normalized in {"2x3", "2x3in", "2x3inch"}:
+        return ["-o", "media=Custom.2x3in", "-o", "PageSize=Custom.2x3in"]
+    if normalized in {"4x6", "4x6in", "4x6inch"}:
+        return ["-o", "media=4x6", "-o", "PageSize=4x6"]
+    return ["-o", f"media={media}"]
 
 
 def load_font(size):
@@ -89,13 +154,22 @@ def render_label_to_path(payload: dict) -> str:
 
 def print_image_file(path, media_size=None):
     media = media_size or MEDIA_SIZE
-    command = ["lpr", "-o", f"media={media}"]
-    if PRINTER_NAME:
-        command.extend(["-P", PRINTER_NAME])
+    printer = current_printer_name()
+    command = ["lp", *cups_media_options(media)]
+    if printer:
+        command.extend(["-d", printer])
     command.append(path)
 
     result = run_command(command)
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip()
-        return False, detail or "lpr failed"
-    return True, "ok"
+        return False, detail or "lp failed"
+
+    detail = "\n".join(
+        part for part in [result.stdout.strip(), result.stderr.strip()] if part
+    )
+    job_id = parse_cups_job_id(detail)
+    if not job_id:
+        return False, detail or "Could not confirm CUPS print job id"
+
+    return wait_for_cups_job(job_id, printer)

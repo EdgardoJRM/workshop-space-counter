@@ -407,7 +407,7 @@ export function DatesPanel({ slug }: DatesPanelProps) {
                         ) : null}
                         {row.isActive ? (
                           <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">
-                            Activa
+                            Evento de hoy
                           </span>
                         ) : null}
                       </div>
@@ -441,7 +441,7 @@ export function DatesPanel({ slug }: DatesPanelProps) {
                           disabled={savingId === row.id}
                           className="text-xs font-semibold text-brand-charcoal underline disabled:opacity-50"
                         >
-                          Activar
+                          Marcar evento de hoy
                         </button>
                       )}
                       {!row.isSelling && (

@@ -2,8 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+type WebhookWorkshopUrl = {
+  slug: string;
+  label: string;
+  webhookUrl: string;
+};
+
 type WebhookInfo = {
   webhookUrl: string;
+  workshopUrls: WebhookWorkshopUrl[];
   secretConfigured: boolean;
   secretSource: "org" | "env" | null;
   organizationSlug: string;
@@ -20,7 +27,6 @@ const SAMPLE_PAYLOAD = {
   email: "cliente@ejemplo.com",
   name: "María Ejemplo",
   order_id: "cf-order-12345",
-  workshop: "duplica-ventas",
 };
 
 export function WebhookPanel() {
@@ -107,9 +113,9 @@ export function WebhookPanel() {
     }
   }
 
-  const curlExample =
-    info &&
-    `curl -X POST '${info.webhookUrl}' \\
+  const workshopUrls = info?.workshopUrls ?? [];
+  const curlFor = (url: string) =>
+    `curl -X POST '${url}' \\
   -H 'Content-Type: application/json' \\
   -H 'X-Webhook-Secret: TU_SECRETO_EN_VERCEL' \\
   -d '${JSON.stringify(SAMPLE_PAYLOAD)}'`;
@@ -127,6 +133,10 @@ export function WebhookPanel() {
   return (
     <div className="pb-4">
       <div className="rounded-2xl border border-brand-grey/30 bg-white p-4 shadow-sm">
+        <p className="text-sm text-brand-charcoal">
+          Usa <strong>una URL por taller</strong> en ClickFunnels. Las compras van a la fecha{" "}
+          <strong>en venta</strong> de ese taller (no al evento de hoy del check-in).
+        </p>
 
         {loading && <p className="mt-3 text-sm text-brand-grey">Cargando…</p>}
         {error && (
@@ -138,17 +148,38 @@ export function WebhookPanel() {
         {info && (
           <div className="mt-4 space-y-4">
             <div>
-              <p className="text-xs font-medium text-brand-charcoal">URL del webhook</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-brand-blue">
+                URL por taller (recomendado)
+              </p>
+              <ul className="mt-2 space-y-3">
+                {workshopUrls.map((w) => (
+                  <li
+                    key={w.slug}
+                    className="rounded-lg border border-brand-grey/25 bg-brand-off/40 p-3"
+                  >
+                    <p className="text-sm font-semibold text-brand-charcoal">{w.label}</p>
+                    <code className="mt-1 block break-all text-xs">{w.webhookUrl}</code>
+                    <button
+                      type="button"
+                      onClick={() => void copyText(w.slug, w.webhookUrl)}
+                      className="mt-2 text-xs font-semibold text-brand-blue underline"
+                    >
+                      {copied === w.slug ? "Copiado" : "Copiar URL"}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <p className="text-xs font-medium text-brand-grey">URL genérica (sin taller fijo)</p>
               <code className="mt-1 block break-all rounded-lg bg-brand-off/60 p-2 text-xs">
                 {info.webhookUrl}
               </code>
-              <button
-                type="button"
-                onClick={() => void copyText("url", info.webhookUrl)}
-                className="mt-2 text-xs font-semibold text-brand-blue underline"
-              >
-                {copied === "url" ? "Copiado" : "Copiar URL"}
-              </button>
+              <p className="mt-1 text-xs text-amber-800">
+                Solo si el funnel envía token vcanva/vdtv o campo workshop. Si no, la compra queda
+                sin asignar.
+              </p>
             </div>
 
             <div>
@@ -160,15 +191,10 @@ export function WebhookPanel() {
                 </p>
               ) : (
                 <p className="mt-1 text-sm text-amber-700">
-                  Falta CLICKFUNNELS_WEBHOOK_SECRET en Vercel. El webhook rechazará
-                  peticiones hasta configurarlo.
+                  Falta CLICKFUNNELS_WEBHOOK_SECRET en Vercel. El webhook rechazará peticiones
+                  hasta configurarlo.
                 </p>
               )}
-              <p className="mt-2 text-xs text-brand-grey">
-                Si rotas el secret en ClickFunnels, actualiza Vercel y la base de datos.
-                Si Vercel y la DB difieren, el servidor usa el valor de Vercel y sincroniza
-                la DB automáticamente.
-              </p>
               <label className="mt-3 block text-xs font-medium text-brand-charcoal">
                 Pegar webhook secret de ClickFunnels (guarda en DB)
               </label>
@@ -188,18 +214,13 @@ export function WebhookPanel() {
               >
                 {savingSecret ? "Guardando…" : "Guardar secreto en DB"}
               </button>
-              <p className="mt-2 text-xs text-brand-grey">
-                También pon el mismo valor en Vercel como{" "}
-                <code className="text-[11px]">CLICKFUNNELS_WEBHOOK_SECRET</code> y
-                redeploy.
-              </p>
             </div>
 
             <div>
               <p className="text-xs font-medium text-brand-charcoal">Probar webhook</p>
               <p className="mt-1 text-xs text-brand-grey">
-                Envía un POST de prueba con el secreto configurado. 401 = secreto mal;
-                422 = auth OK pero falta fecha activa del taller.
+                Envía un POST de prueba a Duplica Ventas. 401 = secreto mal; 422 = falta fecha en
+                venta del taller.
               </p>
               <button
                 type="button"
@@ -231,19 +252,23 @@ export function WebhookPanel() {
               )}
             </div>
 
-            <div>
-              <p className="text-xs font-medium text-brand-charcoal">Prueba con curl</p>
-              <pre className="mt-1 max-h-48 overflow-auto rounded-lg bg-brand-charcoal p-3 text-xs text-white">
-                {curlExample}
-              </pre>
-              <button
-                type="button"
-                onClick={() => curlExample && void copyText("curl", curlExample)}
-                className="mt-2 text-xs font-semibold text-brand-blue underline"
-              >
-                {copied === "curl" ? "Copiado" : "Copiar curl"}
-              </button>
-            </div>
+            {workshopUrls[0] ? (
+              <div>
+                <p className="text-xs font-medium text-brand-charcoal">Prueba con curl</p>
+                <pre className="mt-1 max-h-48 overflow-auto rounded-lg bg-brand-charcoal p-3 text-xs text-white">
+                  {curlFor(workshopUrls[0].webhookUrl)}
+                </pre>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void copyText("curl", curlFor(workshopUrls[0].webhookUrl))
+                  }
+                  className="mt-2 text-xs font-semibold text-brand-blue underline"
+                >
+                  {copied === "curl" ? "Copiado" : "Copiar curl"}
+                </button>
+              </div>
+            ) : null}
 
             <div>
               <p className="text-xs text-brand-grey">Header CF V2 / prueba manual:</p>
@@ -254,15 +279,16 @@ export function WebhookPanel() {
 
             <ol className="list-decimal space-y-2 pl-4 text-xs text-brand-charcoal">
               <li>
-                En ClickFunnels → Workspace Settings → Webhooks, crea el endpoint POST con la
-                URL de arriba (<code>?org={info.organizationSlug}</code>).
+                En ClickFunnels → Webhooks, crea <strong>un endpoint por funnel/taller</strong> con
+                la URL de arriba (<code>?org={info.organizationSlug}&workshop=…</code>).
               </li>
               <li>
-                Copia el <strong>webhook secret</strong> que muestra CF al crear el endpoint.
+                El flujo AT&amp;T / Duplica debe usar la URL de{" "}
+                <code>duplica-ventas</code>, no la genérica.
               </li>
               <li>
-                Guáralo aquí o en Vercel como{" "}
-                <code>CLICKFUNNELS_WEBHOOK_SECRET</code> y redeploy.
+                Marca <strong>una fecha en venta</strong> por taller en Admin → Fechas antes de
+                abrir ventas.
               </li>
               <li>
                 Eventos recomendados: <code>order.completed</code> o{" "}

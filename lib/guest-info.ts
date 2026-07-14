@@ -161,6 +161,47 @@ export async function createGuestInfoRequest(input: {
   return { ok: true, token, guestInfoUrl, slotsNeeded };
 }
 
+export async function maybeCreateGuestInfoAfterPurchase(input: {
+  organizationId: string;
+  purchase: ClickFunnelsPurchase;
+  registrationId: string;
+  passToken: string;
+}): Promise<string | undefined> {
+  if (input.purchase.ticketQuantity <= 1 || !input.purchase.workshopSlug) {
+    return undefined;
+  }
+
+  const registration = await prisma.registration.findUnique({
+    where: { id: input.registrationId },
+    select: { workshopDateId: true },
+  });
+  if (!registration) return undefined;
+
+  const buyerPassUrl = input.passToken
+    ? buildBuyerPassUrl(input.passToken)
+    : `${process.env.APP_BASE_URL?.replace(/\/$/, "") ?? ""}/pass`;
+
+  const guestRequest = await createGuestInfoRequest({
+    organizationId: input.organizationId,
+    buyerRegistrationId: input.registrationId,
+    purchase: input.purchase,
+    workshopSlug: input.purchase.workshopSlug,
+    workshopDateId: registration.workshopDateId,
+    buyerPassUrl,
+  });
+
+  if (guestRequest.ok) {
+    return guestRequest.guestInfoUrl;
+  }
+  if (guestRequest.error !== "Guest request already exists") {
+    console.warn("[guest-info] post-purchase guest request failed", {
+      externalOrderId: input.purchase.externalOrderId,
+      error: guestRequest.error,
+    });
+  }
+  return undefined;
+}
+
 export async function completeGuestInfoRequest(
   token: string,
   guests: GuestSubmitInput[]
@@ -229,38 +270,62 @@ export async function completeGuestInfoRequest(
   const metadata = row.buyerRegistration.metadata ?? undefined;
   let created = 0;
   let duplicates = 0;
+  const createdRegistrationIds: string[] = [];
 
-  for (let i = 0; i < normalized.length; i++) {
-    const guest = normalized[i]!;
-    const externalOrderId = guestExternalOrderId(row.externalOrderId, i + 1);
+  try {
+    for (let i = 0; i < normalized.length; i++) {
+      const guest = normalized[i]!;
+      const externalOrderId = guestExternalOrderId(row.externalOrderId, i + 1);
 
-    const result: ProcessPurchaseResult = await registerAttendee({
-      email: guest.email,
-      name: guest.name,
-      phone: guest.phone,
-      workshopSlug: row.workshopSlug,
-      workshopDateId: row.workshopDateId,
-      externalOrderId,
-      source: "clickfunnels-guest",
-      metadata: metadata ? (metadata as object) : undefined,
-      sendPassEmail: true,
-    });
+      const result: ProcessPurchaseResult = await registerAttendee({
+        email: guest.email,
+        name: guest.name,
+        phone: guest.phone,
+        workshopSlug: row.workshopSlug,
+        workshopDateId: row.workshopDateId,
+        externalOrderId,
+        source: "clickfunnels-guest",
+        metadata: metadata ? (metadata as object) : undefined,
+        sendPassEmail: true,
+        skipSoldCountIncrement: true,
+      });
 
-    if (!result.ok) {
-      return { ok: false, error: result.error, code: result.code };
+      if (!result.ok) {
+        if (createdRegistrationIds.length > 0) {
+          await prisma.registration.deleteMany({
+            where: { id: { in: createdRegistrationIds } },
+          });
+        }
+        return { ok: false, error: result.error, code: result.code };
+      }
+
+      if (result.duplicate) duplicates += 1;
+      else {
+        created += 1;
+        if (result.registrationId) createdRegistrationIds.push(result.registrationId);
+      }
     }
 
-    if (result.duplicate) duplicates += 1;
-    else created += 1;
+    await prisma.guestInfoRequest.update({
+      where: { id: row.id },
+      data: {
+        status: GuestInfoRequestStatus.COMPLETED,
+        slotsCompleted: row.slotsNeeded,
+      },
+    });
+  } catch (err) {
+    if (createdRegistrationIds.length > 0) {
+      await prisma.registration.deleteMany({
+        where: { id: { in: createdRegistrationIds } },
+      });
+    }
+    console.error("[guest-info] complete failed", err);
+    return {
+      ok: false,
+      error: "No se pudieron guardar los invitados. Intenta de nuevo.",
+      code: "SERVER_ERROR",
+    };
   }
-
-  await prisma.guestInfoRequest.update({
-    where: { id: row.id },
-    data: {
-      status: GuestInfoRequestStatus.COMPLETED,
-      slotsCompleted: row.slotsNeeded,
-    },
-  });
 
   return { ok: true, created, duplicates };
 }
@@ -268,14 +333,15 @@ export async function completeGuestInfoRequest(
 export async function ensureCapacityForTickets(
   workshopSlug: WorkshopSlug,
   workshopDateId: string | null | undefined,
-  ticketQuantity: number
+  ticketQuantity: number,
+  organizationId?: string
 ): Promise<{ ok: true } | { ok: false; error: string; code: string }> {
   const { getSellingWorkshopDate, computeAvailable } = await import("@/lib/capacity");
   const { prisma: db } = await import("@/lib/prisma");
 
   let dateId = workshopDateId ?? null;
   if (!dateId) {
-    const selling = await getSellingWorkshopDate(workshopSlug);
+    const selling = await getSellingWorkshopDate(workshopSlug, organizationId);
     dateId = selling?.id ?? null;
   }
   if (!dateId) {
@@ -301,4 +367,58 @@ export async function ensureCapacityForTickets(
 
 export function buildBuyerPassUrl(passToken: string): string {
   return getPassPublicUrl(passToken);
+}
+
+export type PendingGuestInfoSummary = {
+  id: string;
+  buyerName: string;
+  buyerEmail: string;
+  workshopLabel: string;
+  slotsNeeded: number;
+  slotsCompleted: number;
+  expiresAt: string;
+  createdAt: string;
+};
+
+export async function listPendingGuestInfoRequests(
+  organizationId: string
+): Promise<PendingGuestInfoSummary[]> {
+  const rows = await prisma.guestInfoRequest.findMany({
+    where: {
+      organizationId,
+      status: GuestInfoRequestStatus.PENDING,
+      expiresAt: { gt: new Date() },
+    },
+    include: {
+      buyerRegistration: {
+        include: {
+          attendee: true,
+          workshopDate: { include: { workshop: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+  });
+
+  return rows.map((row) => {
+    const buyerName =
+      row.buyerRegistration.attendeeName ??
+      row.buyerRegistration.attendee.name ??
+      row.buyerRegistration.attendeeEmail ??
+      row.buyerRegistration.attendee.email;
+    const buyerEmail =
+      row.buyerRegistration.attendeeEmail ?? row.buyerRegistration.attendee.email;
+
+    return {
+      id: row.id,
+      buyerName,
+      buyerEmail,
+      workshopLabel: row.buyerRegistration.workshopDate.workshop.label,
+      slotsNeeded: row.slotsNeeded,
+      slotsCompleted: row.slotsCompleted,
+      expiresAt: row.expiresAt.toISOString(),
+      createdAt: row.createdAt.toISOString(),
+    };
+  });
 }

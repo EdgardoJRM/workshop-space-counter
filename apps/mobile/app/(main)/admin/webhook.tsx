@@ -14,7 +14,10 @@ import { useAppTheme } from "@/lib/useAppTheme";
 export default function AdminWebhookScreen() {
   const { colors, styles } = useAppTheme();
   const [loading, setLoading] = useState(true);
-  const [webhookUrl, setWebhookUrl] = useState("");
+  const [workshopUrls, setWorkshopUrls] = useState<
+    { slug: string; label: string; webhookUrl: string }[]
+  >([]);
+  const [genericUrl, setGenericUrl] = useState("");
   const [secretConfigured, setSecretConfigured] = useState(false);
   const [secretSource, setSecretSource] = useState<"org" | "env" | null>(null);
   const [testing, setTesting] = useState(false);
@@ -25,7 +28,8 @@ export default function AdminWebhookScreen() {
     void (async () => {
       try {
         const data = await fetchWebhookInfo();
-        setWebhookUrl(data.webhookUrl);
+        setWorkshopUrls(data.workshopUrls ?? []);
+        setGenericUrl(data.webhookUrl);
         setSecretConfigured(data.secretConfigured);
         setSecretSource(data.secretSource);
       } catch (e) {
@@ -36,9 +40,9 @@ export default function AdminWebhookScreen() {
     })();
   }, []);
 
-  async function copyUrl() {
-    await Clipboard.setStringAsync(webhookUrl);
-    Alert.alert("Copiado", "URL del webhook copiada al portapapeles.");
+  async function copyUrl(url: string, label: string) {
+    await Clipboard.setStringAsync(url);
+    Alert.alert("Copiado", `URL de ${label} copiada.`);
   }
 
   async function runTest() {
@@ -62,26 +66,48 @@ export default function AdminWebhookScreen() {
       ) : (
         <View style={styles.card}>
           <Text style={styles.sectionLabel}>ClickFunnels</Text>
-          <Text style={[styles.subtitle, { marginBottom: 12 }]}>
-            ClickFunnels V2 firma cada POST automáticamente. El secreto en Vercel (
-            CLICKFUNNELS_WEBHOOK_SECRET) debe ser el webhook secret del endpoint en CF, no un
-            valor inventado.
+          <Text style={[styles.subtitle, { marginBottom: 16, lineHeight: 22 }]}>
+            Usa una URL por taller. Las compras van a la fecha en venta de ese taller.
+            El flujo AT&amp;T debe usar la URL de Duplica Ventas.
           </Text>
-          <Text
-            style={{
-              fontSize: 13,
-              color: colors.text,
-              lineHeight: 20,
-              marginBottom: 12,
-            }}
-            selectable
+
+          {workshopUrls.map((w) => (
+            <View key={w.slug} style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                {w.label}
+              </Text>
+              <Text
+                style={{
+                  fontSize: 13,
+                  color: colors.text,
+                  lineHeight: 20,
+                  marginTop: 6,
+                }}
+                selectable
+              >
+                {w.webhookUrl}
+              </Text>
+              <Pressable
+                style={[styles.btnPrimary, { marginTop: 10 }]}
+                onPress={() => void copyUrl(w.webhookUrl, w.label)}
+              >
+                <Text style={styles.btnPrimaryText}>Copiar URL</Text>
+              </Pressable>
+            </View>
+          ))}
+
+          <Text style={[styles.rowMeta, { marginTop: 8 }]}>URL genérica (sin taller fijo)</Text>
+          <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 4 }} selectable>
+            {genericUrl}
+          </Text>
+
+          <View
+            style={[
+              styles.badge,
+              secretConfigured ? styles.badgeSuccess : undefined,
+              { marginTop: 16 },
+            ]}
           >
-            {webhookUrl}
-          </Text>
-          <Pressable style={styles.btnPrimary} onPress={() => void copyUrl()}>
-            <Text style={styles.btnPrimaryText}>Copiar URL</Text>
-          </Pressable>
-          <View style={[styles.badge, secretConfigured ? styles.badgeSuccess : undefined, { marginTop: 16 }]}>
             <Text
               style={[
                 styles.badgeText,
@@ -94,12 +120,15 @@ export default function AdminWebhookScreen() {
             </Text>
           </View>
           <Pressable
-            style={[styles.btnPrimary, { marginTop: 12, opacity: secretConfigured && !testing ? 1 : 0.5 }]}
+            style={[
+              styles.btnPrimary,
+              { marginTop: 12, opacity: secretConfigured && !testing ? 1 : 0.5 },
+            ]}
             onPress={() => void runTest()}
             disabled={!secretConfigured || testing}
           >
             <Text style={styles.btnPrimaryText}>
-              {testing ? "Probando…" : "Probar webhook"}
+              {testing ? "Probando…" : "Probar webhook (Duplica)"}
             </Text>
           </Pressable>
           {testMessage ? (

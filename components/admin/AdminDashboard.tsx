@@ -8,6 +8,8 @@ import { WebhookPanel } from "@/components/admin/WebhookPanel";
 import { EmailSequencePanel } from "@/components/admin/EmailSequencePanel";
 import { LabelPanel } from "@/components/admin/LabelPanel";
 import { PrinterPairingPanel } from "@/components/admin/PrinterPairingPanel";
+import { PendingPurchasesPanel } from "@/components/admin/PendingPurchasesPanel";
+import { GuestInfoRequestsPanel } from "@/components/admin/GuestInfoRequestsPanel";
 import { AdminOverview } from "@/components/admin/AdminOverview";
 import {
   ADMIN_NAV,
@@ -193,6 +195,8 @@ export function AdminDashboard() {
             {view === "home" && <AdminOverview onNavigate={navigate} />}
 
             {view === "printer" && <PrinterPairingPanel />}
+            {view === "pending-purchases" && <PendingPurchasesPanel />}
+            {view === "guest-info" && <GuestInfoRequestsPanel />}
             {view === "webhook" && <WebhookPanel />}
             {view === "emails" && <EmailSequencePanel />}
 

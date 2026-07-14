@@ -176,6 +176,75 @@ export async function incrementSoldCount(
   return snap;
 }
 
+/** Reserva cupos de forma atómica (compras multi-boleto). */
+export async function atomicReserveSeats(
+  workshopDateId: string,
+  quantity: number
+): Promise<{ ok: true } | { ok: false; error: string; code: string }> {
+  if (quantity < 1) {
+    return { ok: false, error: "Cantidad inválida", code: "INVALID_QTY" };
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const date = await tx.workshopDate.findUnique({
+      where: { id: workshopDateId },
+      include: { workshop: true },
+    });
+    if (!date) {
+      return { ok: false, error: "Fecha de taller no encontrada", code: "NO_DATE" };
+    }
+
+    const available = computeAvailable(date.capacity, date.soldCount);
+    if (available < quantity) {
+      return {
+        ok: false,
+        error: `Solo quedan ${available} cupo(s); la orden pide ${quantity}`,
+        code: "SOLD_OUT",
+      };
+    }
+
+    const updated = await tx.workshopDate.update({
+      where: { id: workshopDateId },
+      data: { soldCount: { increment: quantity } },
+      include: { workshop: true },
+    });
+
+    const slug = updated.workshop.slug;
+    if (isWorkshopSlug(slug)) {
+      await setSpaces(
+        computeAvailable(updated.capacity, updated.soldCount),
+        updated.updatedAt.toISOString(),
+        slug
+      );
+    }
+
+    return { ok: true };
+  });
+}
+
+/** Libera cupos reservados si el registro falla después de atomicReserveSeats. */
+export async function releaseReservedSeats(
+  workshopDateId: string,
+  quantity: number
+): Promise<void> {
+  if (quantity < 1) return;
+
+  const updated = await prisma.workshopDate.update({
+    where: { id: workshopDateId },
+    data: { soldCount: { decrement: quantity } },
+    include: { workshop: true },
+  });
+
+  const slug = updated.workshop.slug;
+  if (isWorkshopSlug(slug)) {
+    await setSpaces(
+      computeAvailable(updated.capacity, updated.soldCount),
+      updated.updatedAt.toISOString(),
+      slug
+    );
+  }
+}
+
 /** Ajusta soldCount a registros confirmados + cupos de invitados pendientes. */
 export async function reconcileWorkshopDateSoldCount(workshopDateId: string): Promise<{
   previous: number;

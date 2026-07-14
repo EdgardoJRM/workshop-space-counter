@@ -32,14 +32,15 @@ export default function AdminStackLayout() {
       />
       <Stack.Screen name="spaces" options={{ title: "Cupos" }} />
       <Stack.Screen name="dates" options={{ title: "Fechas" }} />
-      <Stack.Screen name="registrations" options={{ title: "Registros" }} />
+      <Stack.Screen name="registrations" options={{ title: "Personas" }} />
       <Stack.Screen name="labels" options={{ title: "Labels" }} />
       <Stack.Screen name="pairing" options={{ title: "Emparejar impresora" }} />
       <Stack.Screen name="webhook" options={{ title: "Webhook ClickFunnels" }} />
       <Stack.Screen
         name="pending-purchases"
-        options={{ title: "Compras sin taller" }}
+        options={{ title: "Compras sin asignar" }}
       />
+      <Stack.Screen name="guest-info" options={{ title: "Invitados pendientes" }} />
       <Stack.Screen name="emails" options={{ title: "Emails / Automatizaciones" }} />
       <Stack.Screen name="branding" options={{ title: "Marca / white-label" }} />
     </Stack>

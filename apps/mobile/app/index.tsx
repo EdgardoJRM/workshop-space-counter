@@ -70,7 +70,7 @@ export default function LoginScreen() {
       }
       setLoading(false);
     })();
-  }, []);
+  }, [setBrand]);
 
   async function onSendLink(intent: "staff" | "admin") {
     setSending(true);

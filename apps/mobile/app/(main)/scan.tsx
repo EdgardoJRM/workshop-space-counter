@@ -121,11 +121,13 @@ export default function ScanScreen() {
                 setResultOk(true);
                 const printNote =
                   res.printError
-                    ? ` — ${res.printError}`
+                    ? ` — Falló: ${res.printError}`
                     : res.printJobQueued === false
-                      ? " — Label no encolado"
+                      ? res.status === "already_checked_in"
+                        ? ""
+                        : " — Impreso"
                       : res.status !== "already_checked_in"
-                        ? " — Imprimiendo label…"
+                        ? " — Imprimiendo…"
                         : "";
                 const msg =
                   res.status === "already_checked_in"

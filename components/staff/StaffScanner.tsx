@@ -122,7 +122,7 @@ export function StaffScanner() {
         setBusy(false);
       }
     },
-    [busy, sessionId]
+    [busy]
   );
 
   const handleQrScan = useCallback(
@@ -183,7 +183,7 @@ export function StaffScanner() {
             Hoy
           </span>
         ) : (
-          <span className="ml-1 text-amber-700">(fecha activa)</span>
+          <span className="ml-1 text-amber-700">(evento de hoy)</span>
         )}
         <span className="block text-brand-grey">{when}</span>
         <span className="text-brand-grey">
@@ -226,8 +226,8 @@ export function StaffScanner() {
         )}
         {!loadingContext && !sessions.length && (
           <p className="mt-2 text-sm text-amber-700">
-            No hay evento para hoy ({todayKey}) ni fecha activa. Configura una
-            fecha en Admin → Fechas.
+            No hay evento para hoy ({todayKey}) ni evento marcado para check-in. Configura una
+            fecha en Admin → Fechas → Marcar evento de hoy.
           </p>
         )}
         {!loadingContext && sessions.length > 0 && (
@@ -245,7 +245,7 @@ export function StaffScanner() {
             </select>
             {!usingToday && (
               <p className="mt-1 text-xs text-amber-700">
-                No hay taller hoy; mostrando fechas activas del sistema.
+                No hay taller hoy; mostrando eventos marcados para check-in.
               </p>
             )}
             {sessionSummary()}
@@ -419,14 +419,21 @@ export function StaffScanner() {
             {new Date(lastResult.checkedInAt).toLocaleString("es-PR")}
           </p>
           {lastResult.status === "checked_in" && lastResult.printJobQueued && (
-            <p className="mt-2 text-xs font-medium text-brand-blue">
-              Label en cola — la impresora lo tomará en segundos.
+            <p className="mt-2 text-sm font-medium text-brand-blue">
+              Imprimiendo… — la Mac tomará el label en segundos.
             </p>
           )}
           {lastResult.status === "checked_in" &&
             !lastResult.printJobQueued &&
+            !lastResult.printError && (
+              <p className="mt-2 text-sm font-medium text-green-800">Impreso o sin reimpresión.</p>
+            )}
+          {lastResult.status === "checked_in" &&
+            !lastResult.printJobQueued &&
             lastResult.printError && (
-              <p className="mt-2 text-xs text-amber-800">{lastResult.printError}</p>
+              <p className="mt-2 text-sm font-semibold text-red-700">
+                Falló la impresión — {lastResult.printError}
+              </p>
             )}
         </div>
       )}

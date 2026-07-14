@@ -11,9 +11,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { IconCircle } from "@/components/IconCircle";
 import { SyncBanner } from "@/components/InfoBanner";
 import { SectionCard } from "@/components/SectionCard";
-import { WorkshopDropdown } from "@/components/WorkshopDropdown";
+import { WorkshopChips } from "@/components/WorkshopChips";
 import { fetchSpaces, updateSpaces } from "@/lib/admin-api";
-import { useSession } from "@/lib/session-context";
+import type { WorkshopSlug } from "@/lib/workshops";
 import { useAppTheme } from "@/lib/useAppTheme";
 
 const SLIDER_MAX = 25;
@@ -27,7 +27,7 @@ function formatRelative(iso: string): string {
 }
 
 export default function AdminSpacesScreen() {
-  const { workshop } = useSession();
+  const [workshop, setWorkshop] = useState<WorkshopSlug>("duplica-ventas");
   const { colors, styles } = useAppTheme();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -75,7 +75,12 @@ export default function AdminSpacesScreen() {
 
   return (
     <ScrollView style={styles.screenPadded} keyboardShouldPersistTaps="handled">
-      <WorkshopDropdown />
+      <WorkshopChips
+        value={workshop}
+        onChange={(slug) => {
+          if (slug !== "all") setWorkshop(slug);
+        }}
+      />
 
       {loading ? (
         <ActivityIndicator color={colors.accent} />

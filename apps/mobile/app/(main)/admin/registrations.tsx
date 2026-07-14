@@ -12,7 +12,7 @@ import { FieldInput } from "@/components/FieldInput";
 import { SearchField } from "@/components/SearchField";
 import { SectionCard } from "@/components/SectionCard";
 import { StatusBadge } from "@/components/StatusBadge";
-import { WorkshopDropdown } from "@/components/WorkshopDropdown";
+import { WorkshopChips } from "@/components/WorkshopChips";
 import {
   adminReprintLabel,
   cancelRegistration,
@@ -26,7 +26,7 @@ import {
   type AdminRegistrationRow,
 } from "@/lib/admin-api";
 import { confirmDestructive } from "@/lib/confirm-alert";
-import { useSession } from "@/lib/session-context";
+import type { WorkshopSlug } from "@/lib/workshops";
 import { useAppTheme } from "@/lib/useAppTheme";
 
 function initials(name: string, email: string): string {
@@ -65,7 +65,7 @@ function formatEventDate(iso: string): string {
 }
 
 export default function AdminRegistrationsScreen() {
-  const { workshop } = useSession();
+  const [workshop, setWorkshop] = useState<WorkshopSlug>("duplica-ventas");
   const { colors, styles } = useAppTheme();
   const [rows, setRows] = useState<AdminRegistrationRow[]>([]);
   const [filtered, setFiltered] = useState<AdminRegistrationRow[]>([]);
@@ -173,8 +173,8 @@ export default function AdminRegistrationsScreen() {
       void load();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Error";
-      if (msg.includes("fecha activa") || msg.includes("NO_DATE")) {
-        setError("No hay fecha activa para este taller. Ve a Admin → Fechas.");
+      if (msg.includes("fecha en venta") || msg.includes("NO_DATE")) {
+        setError("No hay fecha en venta para este taller. Ve a Admin → Fechas.");
       } else if (msg.includes("cupos") || msg.includes("SOLD_OUT")) {
         setError("No hay cupos disponibles en esa fecha.");
       } else {
@@ -276,7 +276,12 @@ export default function AdminRegistrationsScreen() {
 
   return (
     <ScrollView style={styles.screenPadded} keyboardShouldPersistTaps="handled">
-      <WorkshopDropdown />
+      <WorkshopChips
+        value={workshop}
+        onChange={(slug) => {
+          if (slug !== "all") setWorkshop(slug);
+        }}
+      />
 
       <SectionCard icon="person-add-outline" title="Registro manual">
         <Text style={styles.label}>Fecha del evento</Text>

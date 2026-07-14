@@ -5,7 +5,7 @@
 - `GET /api/spaces?w=<slug>` — mismo JSON (`available`, `updatedAt`) para widgets en ClickFunnels.
 - `POST /api/admin/spaces` — mismo body (`available`, `token`, `workshop`).
 - Panel `/admin` — pestañas por taller + formulario de cupos.
-- Redis/Upstash — sincronizado automáticamente desde la fecha activa en Postgres.
+- Redis/Upstash — sincronizado desde la fecha **en venta** del taller en Postgres.
 
 ## Variables de entorno
 
@@ -21,7 +21,6 @@ Copia `.env.local.example` a `.env.local` y completa:
 | `CLICKFUNNELS_WEBHOOK_SECRET` | Validación del webhook |
 | `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `EMAIL_FROM` | Email del pase vía **Amazon SES** |
 | `ADMIN_EMAILS`, `STAFF_EMAILS`, `AUTH_JWT_SECRET` | Magic link en `/login` (admin y staff) |
-| `APP_BASE_URL` | Obligatorio para enlaces mágicos y QR del pase en email |
 | `GOOGLE_MAPS_API_KEY` | Opcional: imagen del mapa en el email del pase |
 | `PRINT_AGENT_TOKEN` | Secreto compartido con la Mac (Impresora Auto) para cola de labels |
 
@@ -39,156 +38,116 @@ npm run dev
 
 En Vercel: añade las mismas variables y ejecuta `db push` + `seed` contra tu Postgres de producción (una vez).
 
-### Supabase + Vercel (conexión automática)
+Ver sección Supabase + Vercel en versiones anteriores de este doc si necesitas `npm run env:sync` / `db:setup`.
 
-Si ya enlazaste Supabase en **Vercel → Integrations**, Vercel añade solo:
+## Fechas: en venta vs evento de hoy
 
-- `POSTGRES_PRISMA_URL`
-- `POSTGRES_URL_NON_POOLING`
-- (y otras `SUPABASE_*` — no las usa esta app)
+| Flag | Significado | Quién lo usa |
+|------|-------------|--------------|
+| **En venta** (`isSelling`) | A qué fecha van las **compras** del webhook y el contador ClickFunnels | Webhook, cupos Redis |
+| **Evento de hoy** (`isActive`) | Qué fecha usa el equipo para **escanear** ese día | Staff scanner, app móvil |
 
-**Pasos siguientes:**
-
-1. **Redeploy** el proyecto en Vercel (para que cargue las variables nuevas).
-2. En tu Mac, trae las variables a local (elige una):
-   - Vercel Dashboard → Settings → Environment Variables → copiar las dos URLs a `.env.local`, o
-   - `npx vercel env pull .env.local` (si tienes Vercel CLI enlazado).
-3. Crear tablas (una vez):
-   ```bash
-   npm run db:push
-   npm run db:seed
-   ```
-4. En **Supabase → Table Editor** verifica tablas `Workshop`, `Registration`, etc.
-
-**Si Prisma falla en producción** con `prepared statement already exists`, edita en Vercel `POSTGRES_PRISMA_URL` y asegura que termine con `?pgbouncer=true` (y en serverless a veces `&connection_limit=1`).
-
-**Integración Vercel↔Supabase con URLs vacías:** es normal. Vercel sí pasa `POSTGRES_HOST`, `SUPABASE_URL`, etc.; a menudo **no** pasa la contraseña ni las URLs completas.
-
-Solo necesitas **una** variable secreta en Vercel (y local para `db:setup`):
-
-1. Supabase → **Settings** → **Database** → contraseña (o **Reset database password**).
-2. Vercel → **Environment Variables** → `POSTGRES_PASSWORD` = esa contraseña (Production, Preview, Development).
-3. En tu Mac (no uses `vercel env pull .env.local` a secas — baja **Development** y muchas vienen vacías):
-   ```bash
-   npm run env:sync
-   ```
-   Eso baja **Production** y fusiona en `.env.local`. Si `POSTGRES_PASSWORD` sigue vacío, la integración no la rellenó: ponla **una vez** en Vercel y vuelve a `npm run env:sync`.
-4. Crear tablas:
-   ```bash
-   npm run db:setup
-   ```
-   El script arma `POSTGRES_PRISMA_URL` y `POSTGRES_URL_NON_POOLING` automáticamente.
-
-No hace falta copiar las URLs largas de Supabase. Si el pooler no es `us-east-1`, añade `SUPABASE_DB_REGION` en Vercel.
-
-`vercel env pull .env.local` sin `--environment=production` solo baja **Development** (casi sin Supabase).
-
-**Nota:** Solo usamos Postgres de Supabase, no Supabase Auth.
-
-### Amazon SES (emails)
-
-1. En [AWS SES](https://console.aws.amazon.com/ses/), verifica el **dominio** o el **email** que usarás en `EMAIL_FROM`.
-2. Si la cuenta está en **sandbox**, solo puedes enviar a correos verificados; solicita salida a producción cuando vayas en vivo.
-3. Crea un usuario IAM con permiso `ses:SendEmail` (o adjunta la política `AmazonSESFullAccess` restringida a tu identidad).
-4. Variables: `AWS_REGION` (ej. `us-east-1`), claves IAM, y `EMAIL_FROM` con formato `Nombre <email@dominio-verificado.com>`.
-
-**Verificar por CLI / script:**
-
-```bash
-# Con perfil AWS CLI (~/.aws) o variables AWS_* en .env.local
-npm run verify:ses
-
-# Envío de prueba (opcional)
-EMAIL_FROM='Hernandez Pass <soporte@edgardohernandez.com>' npm run verify:ses:send
-```
-
-También: `aws ses get-send-quota --region us-east-1` y `aws sesv2 list-email-identities --region us-east-1`.
+Regla: **una fecha en venta por taller** antes de abrir ventas. El día del evento, marca **evento de hoy** (puede ser la misma fecha u otra).
 
 ## ClickFunnels — webhook
 
-**URL:** `POST https://<tu-dominio>/api/webhooks/clickfunnels`
+**Recomendado: una URL por taller** (mismo secreto de la organización):
+
+```
+POST https://<tu-dominio>/api/webhooks/clickfunnels?org=hernandez&workshop=duplica-ventas
+POST https://<tu-dominio>/api/webhooks/clickfunnels?org=hernandez&workshop=canva
+POST https://<tu-dominio>/api/webhooks/clickfunnels?org=hernandez&workshop=oferta-webinar
+```
+
+El parámetro `?workshop=` (o `?w=`) **gana** sobre cualquier taller en el JSON. El flujo **AT&T / Duplica** debe usar la URL de `duplica-ventas`.
+
+**URL genérica** (sin `workshop=`): solo si el funnel envía token `vcanva` / `vdtv` o campo `workshop`. Si no, la compra queda en **Compras sin asignar**.
 
 **Autenticación:**
 
-- **ClickFunnels V2 (recomendado):** CF envía `X-Webhook-ClickFunnels-Signature` y `X-Webhook-ClickFunnels-Timestamp`. El servidor verifica HMAC SHA256 con el `webhook_secret` del endpoint en CF (mismo valor que `CLICKFUNNELS_WEBHOOK_SECRET` en Vercel).
-- **Pruebas manuales / Zapier:** header `X-Webhook-Secret` o query `?secret=`.
+- **ClickFunnels V2:** `X-Webhook-ClickFunnels-Signature` + timestamp, HMAC con el webhook secret del endpoint.
+- **Pruebas manuales:** header `X-Webhook-Secret` o query `?secret=`.
 
-**Campos mínimos en el JSON:** `email` (requerido), `id` u `order_id` (idempotencia).
+**Campos mínimos:** `email`, `id` u `order_id`.
 
-**Campos opcionales:**
+**Multi-boleto:** `line_items` con cantidad; si `ticketQuantity > 1`, se pide datos del invitado por email.
 
-- `workshop` / `workshop_slug` — `duplica-ventas`, `canva`, `oferta-webinar`
-- `workshop_date_id` — ID de fecha en admin (si no se envía, usa la fecha **activa** del taller)
-
-**Ejemplo de prueba:**
+**Ejemplo curl (Duplica):**
 
 ```bash
-curl -sS -X POST "https://<dominio>/api/webhooks/clickfunnels" \
+curl -sS -X POST "https://<dominio>/api/webhooks/clickfunnels?org=hernandez&workshop=duplica-ventas" \
   -H "Content-Type: application/json" \
   -H "X-Webhook-Secret: TU_SECRETO" \
   -d '{
     "id": "test-order-001",
     "email": "asistente@ejemplo.com",
     "first_name": "María",
-    "last_name": "García",
-    "workshop": "duplica-ventas"
+    "last_name": "García"
   }'
 ```
 
 Respuesta exitosa: `{ "ok": true, "registrationId": "...", "passUrl": "..." }`
 
+Configura URLs y secreto en Admin → **Webhook**. Revisa **Compras sin asignar** e **Invitados pendientes** cada mañana de ventas.
+
 ## Acceso admin y staff (magic link)
 
-1. Abre `/login` (o `/login?intent=staff` / `?intent=admin`).
-2. Introduce un correo listado en `ADMIN_EMAILS` o `STAFF_EMAILS`.
-3. Recibes un enlace por SES (válido 15 min); al hacer clic quedas con sesión 7 días.
+1. Abre `/login` (o `?intent=staff` / `?intent=admin`).
+2. Correo en `ADMIN_EMAILS` o `STAFF_EMAILS`.
+3. Enlace por SES (15 min); sesión 7 días.
 
-## Flujo del día del evento
+## Flujo del día del evento (checklist)
 
-1. Staff abre `/login?intent=staff` → magic link → `/staff/scan`.
-2. Escanea el QR del email o del pase (`/pass/<token>`).
-3. API `POST /api/checkins/scan` marca check-in (duplicados = “ya registrado”).
+1. **Antes:** una fecha **en venta** por taller; webhooks cableados en CF (URL con `?workshop=`).
+2. **Mañana del evento:** marca **evento de hoy** en Admin → Fechas (por taller).
+3. **Mac del evento:** Impresora Auto activa, Rollo conectada, mismo `PRINT_AGENT_TOKEN` que Vercel.
+4. **Staff:** app móvil o `/staff/scan` → elige **evento** (taller incluido en el nombre) → escanea QR.
+5. **1 scan = 1 label** (rescan = ya registrado, sin reimpresión automática). Si falla: botón **Reimprimir** (no duplica si ya hay job pendiente).
+6. **Duplica Ventas:** check-in dispara webhook a La Bóveda (no bloquea el scan si falla).
+7. Revisa **Compras sin asignar** e **Invitados pendientes**.
 
 ## Admin (`/admin`)
 
-Panel con menú lateral **Centro de configuración**:
-
 | Sección | Qué configuras |
 |---------|----------------|
-| **Inicio** | Resumen: webhook OK, plantillas de email, fecha activa por taller |
+| **Inicio** | Resumen: webhook, emails, en venta / evento de hoy por taller |
 | **Cupos** | Contador público (Redis) por taller |
-| **Fechas** | Crear/editar/activar fecha del evento (usa el webhook y el contador) |
-| **Registros** | Lista, **importar CSV** (nombre, email, teléfono) y reenvío de pase |
-| **Webhook** | URL y header para ClickFunnels |
-| **Emails** | Plantillas post-evento (delay en horas + cron diario en Vercel Hobby) |
+| **Fechas** | Crear fechas; **en venta** (webhook) y **evento de hoy** (check-in) |
+| **Registros** | Lista, CSV, reenvío de pase, reimprimir label |
+| **Compras sin asignar** | Asignar taller a compras CF sin URL fija |
+| **Invitados pendientes** | Boletos extra sin datos del invitado |
+| **Webhook** | Tres URLs por taller + secreto |
+| **Impresora** | Emparejar Mac con código SaaS |
+| **Emails** | Plantillas post-evento |
 
-Variables que **siguen solo en Vercel** (no hay UI): `CLICKFUNNELS_WEBHOOK_SECRET`, `CRON_SECRET`, claves AWS/SES, `ADMIN_EMAILS`, etc. El panel confirma si el webhook secret está configurado, pero no muestra su valor.
+Variables solo en Vercel: `CLICKFUNNELS_WEBHOOK_SECRET`, `CRON_SECRET`, AWS/SES, listas de correo.
 
-## Fechas de taller
+## App móvil (staff)
 
-Cada taller tiene una fecha **activa** (`isActive: true`) usada por el webhook y el contador.
+1. Pestaña **Evento** → elige la fecha del día (muestra taller + hora).
+2. **Escanear** / **Lista** usan solo ese evento — sin selector global de taller.
+3. Admin en la app: hub simplificado (Cupos, Fechas, Personas, Impresora, pendientes, Avanzado).
 
-Tras `db:seed` hay una fecha por taller. Para nuevas fechas, usa `POST /api/admin/dates` (ver implementación en `app/api/admin/dates/route.ts`) o Prisma Studio.
+## Labels Rollo
+
+1. `PRINT_AGENT_TOKEN` en Vercel y en la Mac.
+2. Instalar **Impresora Auto** ([`impresora-auto/README.md`](../impresora-auto/README.md)).
+3. Check-in encola label → Mac imprime.
+4. Admin → Labels: fuentes y papel. Registros → Reimprimir si hace falta.
+
+SQL alternativo: [`docs/PRINT_QUEUE_SQL.md`](PRINT_QUEUE_SQL.md).
 
 ## Smoke test local
 
 1. `npm run dev`
-2. Webhook de prueba (con DB y secret configurados).
+2. Webhook de prueba con `?workshop=duplica-ventas` y fecha **en venta** configurada.
 3. Abrir `passUrl` del response.
-4. Login staff → escanear QR o pegar URL en campo manual.
+4. Login staff → escanear QR.
 
-## Labels Rollo (día del evento)
+## Amazon SES
 
-1. En Vercel: `PRINT_AGENT_TOKEN` (mismo valor en la Mac).
-2. En la Mac del evento: clonar e instalar **Impresora Auto** desde GitHub (ver [`impresora-auto/README.md`](../impresora-auto/README.md)).
-3. Conectar la Rollo; el watcher prende el agente en modo nube.
-4. Cualquier teléfono en `/staff/scan` hace check-in → se encola un label → la Mac imprime.
-5. Admin → **Labels**: editar tamaños de fuente y papel. **Registros** → **Reimprimir label** si hace falta duplicado.
+Verifica dominio/email en AWS SES, IAM con `ses:SendEmail`, variables `AWS_*` y `EMAIL_FROM`. Sandbox: solo correos verificados hasta producción.
 
-SQL si no puedes `db:push`: ver [`docs/PRINT_QUEUE_SQL.md`](PRINT_QUEUE_SQL.md).
-
-## Fase 2 (fuera del MVP)
-
-- Perfiles de asistente con historial.
-- Hernandez Shelves (biblioteca protegida).
-- Secuencias de email post-evento configurables en admin.
+```bash
+npm run verify:ses
+```

@@ -32,7 +32,7 @@ export default function AuthDeepLinkScreen() {
         setError(e instanceof Error ? e.message : "No se pudo entrar");
       }
     })();
-  }, [token]);
+  }, [token, refreshSession, setBrand]);
 
   return (
     <View style={[styles.centered, { backgroundColor: colors.header }]}>

@@ -6,7 +6,9 @@ import {
 } from "@/lib/pass-tokens";
 import { sendPassEmail } from "@/lib/email";
 import {
+  atomicReserveSeats,
   incrementSoldCount,
+  releaseReservedSeats,
   getSellingWorkshopDate,
 } from "@/lib/capacity";
 import type { ClickFunnelsPurchase } from "@/lib/clickfunnels";
@@ -15,6 +17,7 @@ import type { WorkshopSlug } from "@/lib/workshop-keys";
 import { isWorkshopSlug } from "@/lib/workshop-keys";
 import { Prisma, RegistrationStatus, type Attendee } from "@prisma/client";
 import { formatWorkshopDateTime } from "@/lib/workshop-datetime";
+import { validateWorkshopDateOrganization } from "@/lib/registrations-validation";
 
 function isUniqueConstraintError(err: unknown): boolean {
   return (
@@ -106,6 +109,10 @@ export type RegisterAttendeeInput = {
   source: string;
   metadata?: object;
   sendPassEmail?: boolean;
+  /** Si ya se reservaron cupos con atomicReserveSeats, no incrementar de nuevo. */
+  skipSoldCountIncrement?: boolean;
+  /** Si se provee, la fecha resuelta debe pertenecer a esta organización. */
+  organizationId?: string;
 };
 
 function formatEventDate(d: Date): string {
@@ -169,7 +176,8 @@ export async function registerAttendee(
 
   const workshopDateId = await resolveWorkshopDateIdForSlug(
     input.workshopSlug,
-    input.workshopDateId
+    input.workshopDateId,
+    input.organizationId
   );
   if (!workshopDateId) {
     return {
@@ -186,6 +194,24 @@ export async function registerAttendee(
 
   if (!workshopDate) {
     return { ok: false, error: "Fecha de taller no encontrada", code: "NO_DATE" };
+  }
+
+  const orgValidation = validateWorkshopDateOrganization({
+    organizationId: input.organizationId,
+    workshopOrgId: workshopDate.workshop.organizationId,
+  });
+  if (!orgValidation.ok) {
+    console.error("[registrations] workshop date org mismatch", {
+      organizationId: input.organizationId,
+      workshopDateId,
+      workshopOrgId: workshopDate.workshop.organizationId,
+      workshopSlug: input.workshopSlug,
+    });
+    return {
+      ok: false,
+      error: orgValidation.error,
+      code: orgValidation.code,
+    };
   }
 
   const existingForDate = await prisma.registration.findFirst({
@@ -210,7 +236,7 @@ export async function registerAttendee(
   }
 
   const available = workshopDate.capacity - workshopDate.soldCount;
-  if (available <= 0) {
+  if (!input.skipSoldCountIncrement && available <= 0) {
     return { ok: false, error: "No hay cupos disponibles", code: "SOLD_OUT" };
   }
 
@@ -256,7 +282,9 @@ export async function registerAttendee(
     },
   });
 
-  await incrementSoldCount(workshopDateId);
+  if (!input.skipSoldCountIncrement) {
+    await incrementSoldCount(workshopDateId);
+  }
 
   if (sendEmail) {
     const emailResult = await sendPassEmail({
@@ -292,25 +320,48 @@ export async function registerAttendee(
 }
 
 export async function processClickFunnelsPurchase(
-  purchase: ClickFunnelsPurchase
+  purchase: ClickFunnelsPurchase,
+  organizationId?: string
 ): Promise<ProcessPurchaseResult> {
   if (!purchase.workshopSlug || !isWorkshopSlug(purchase.workshopSlug)) {
     return { ok: false, error: "Invalid workshop", code: "INVALID_WORKSHOP" };
   }
 
-  if (purchase.ticketQuantity > 1) {
-    const { ensureCapacityForTickets } = await import("@/lib/guest-info");
-    const capacity = await ensureCapacityForTickets(
-      purchase.workshopSlug,
-      purchase.workshopDateId,
-      purchase.ticketQuantity
-    );
-    if (!capacity.ok) {
-      return { ok: false, error: capacity.error, code: capacity.code };
-    }
+  const existingReg = await prisma.registration.findUnique({
+    where: { externalOrderId: purchase.externalOrderId },
+    include: { pass: true },
+  });
+  if (existingReg?.pass) {
+    return {
+      ok: true,
+      registrationId: existingReg.id,
+      passToken: "",
+      duplicate: true,
+    };
   }
 
-  return registerAttendee({
+  const workshopDateId = await resolveWorkshopDateIdForSlug(
+    purchase.workshopSlug,
+    purchase.workshopDateId,
+    organizationId
+  );
+  if (!workshopDateId) {
+    return {
+      ok: false,
+      error: "No hay fecha en venta para este taller",
+      code: "NO_DATE",
+    };
+  }
+
+  const reserve = await atomicReserveSeats(
+    workshopDateId,
+    Math.max(1, purchase.ticketQuantity)
+  );
+  if (!reserve.ok) {
+    return { ok: false, error: reserve.error, code: reserve.code };
+  }
+
+  const outcome = await registerAttendee({
     email: purchase.email,
     name: purchase.name,
     phone: purchase.phone,
@@ -320,7 +371,15 @@ export async function processClickFunnelsPurchase(
     source: "clickfunnels",
     metadata: sanitizeJsonForPrisma(purchase.raw),
     sendPassEmail: true,
+    organizationId,
+    skipSoldCountIncrement: true,
   });
+
+  if (!outcome.ok) {
+    await releaseReservedSeats(workshopDateId, Math.max(1, purchase.ticketQuantity));
+  }
+
+  return outcome;
 }
 
 export type CsvImportRowResult = {

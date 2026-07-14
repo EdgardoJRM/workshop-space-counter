@@ -44,6 +44,9 @@ export async function trackIncomingWebhookEvent(input: {
       return { ok: true, webhookEvent: existingEvent, duplicate: true };
     }
 
+    const preserveAwaitingError =
+      existingEvent?.error === "AWAITING_WORKSHOP" ? "AWAITING_WORKSHOP" : null;
+
     const webhookEvent = await prisma.webhookEvent.upsert({
       where: {
         organizationId_provider_externalId: {
@@ -62,7 +65,7 @@ export async function trackIncomingWebhookEvent(input: {
       update: {
         payload,
         status: WebhookEventStatus.RECEIVED,
-        error: null,
+        error: preserveAwaitingError,
       },
     });
 

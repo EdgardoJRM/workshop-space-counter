@@ -78,8 +78,8 @@ export default function PendingPurchasesScreen() {
   return (
     <ScrollView style={styles.screenPadded} contentContainerStyle={{ paddingBottom: 32 }}>
       <Text style={[styles.subtitle, { marginBottom: 16 }]}>
-        Compras de ClickFunnels sin código de taller en el funnel (vcanva, vdtv, etc.).
-        Elige el evento y confirma el registro.
+        Compras sin taller en la URL del webhook. Asigna el taller correcto o configura una URL
+        con ?workshop= en ClickFunnels.
       </Text>
 
       {loading ? (
@@ -105,6 +105,7 @@ export default function PendingPurchasesScreen() {
             ) : null}
             <Text style={[styles.subtitle, { marginTop: 8, fontSize: 12 }]}>
               Orden {row.externalOrderId}
+              {row.ticketQuantity > 1 ? ` · ${row.ticketQuantity} boletos` : ""}
             </Text>
             <Pressable
               style={[

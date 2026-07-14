@@ -63,9 +63,10 @@ export type AdminDateRow = {
   checkedInCount: number;
 };
 
-export async function fetchAdminDates(slug: WorkshopSlug) {
+export async function fetchAdminDates(slug?: WorkshopSlug | null) {
+  const qs = slug ? `w=${encodeURIComponent(slug)}` : "";
   return adminFetch<{ dates: AdminDateRow[] }>(
-    `/api/admin/dates?w=${encodeURIComponent(slug)}`
+    `/api/admin/dates${qs ? `?${qs}` : ""}`
   );
 }
 
@@ -197,6 +198,7 @@ export async function saveLabelTemplate(
 export async function fetchWebhookInfo() {
   return adminFetch<{
     webhookUrl: string;
+    workshopUrls: { slug: string; label: string; webhookUrl: string }[];
     secretConfigured: boolean;
     secretSource: "org" | "env" | null;
     organizationSlug: string;
@@ -219,8 +221,24 @@ export type PendingPurchaseRow = {
   name: string | null;
   phone: string | null;
   funnelLabel: string | null;
+  ticketQuantity: number;
   createdAt: string;
 };
+
+export async function fetchPendingGuestInfo() {
+  return adminFetch<{
+    pending: {
+      id: string;
+      buyerName: string;
+      buyerEmail: string;
+      workshopLabel: string;
+      slotsNeeded: number;
+      slotsCompleted: number;
+      expiresAt: string;
+    }[];
+    count: number;
+  }>("/api/admin/guest-info-requests");
+}
 
 export async function fetchPendingPurchases() {
   return adminFetch<{ pending: PendingPurchaseRow[]; count: number }>(
