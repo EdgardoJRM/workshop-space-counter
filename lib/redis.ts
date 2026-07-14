@@ -73,14 +73,24 @@ export async function getSpaces(
 }
 
 /**
- * Persists spaces count and sets updatedAt to the provided ISO string (solo keys del slug actual, nunca el legacy).
+ * Persists spaces count to Redis for ClickFunnels widgets.
+ * Best-effort: Postgres is the source of truth; never fail purchases/check-in on Redis errors.
  */
 export async function setSpaces(
   available: number,
   updatedAtIso: string,
   slug: WorkshopSlug = DEFAULT_WORKSHOP
-): Promise<void> {
-  const redis = getRedis();
-  await redis.set(workshopAvailableKey(slug), available);
-  await redis.set(workshopUpdatedAtKey(slug), updatedAtIso);
+): Promise<boolean> {
+  try {
+    const redis = getRedis();
+    await redis.set(workshopAvailableKey(slug), available);
+    await redis.set(workshopUpdatedAtKey(slug), updatedAtIso);
+    return true;
+  } catch (err) {
+    console.warn("[redis] setSpaces failed — Postgres remains authoritative", {
+      slug,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return false;
+  }
 }

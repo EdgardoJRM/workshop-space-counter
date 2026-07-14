@@ -90,6 +90,9 @@ Respuesta exitosa: `{ "ok": true, "registrationId": "...", "passUrl": "..." }`
 
 Configura URLs y secreto en Admin → **Webhook**. Revisa **Compras sin asignar** e **Invitados pendientes** cada mañana de ventas.
 
+Guía de cableado CF: [`docs/CLICKFUNNELS_SETUP.md`](CLICKFUNNELS_SETUP.md).  
+Checklist imprimible: [`docs/EVENT_DAY_CHECKLIST.md`](EVENT_DAY_CHECKLIST.md).
+
 ## Acceso admin y staff (magic link)
 
 1. Abre `/login` (o `?intent=staff` / `?intent=admin`).
