@@ -51,11 +51,11 @@ export async function getStaffScanSessions(
     checkedInCount: d.checkedInCount,
   }));
 
-  const todaySessions = mapped.filter((s) => s.isToday);
-  const sessions =
-    todaySessions.length > 0
-      ? todaySessions
-      : mapped.filter((s) => s.isActive);
+  const sessions = mapped
+    .filter((s) => s.isToday || s.isActive)
+    .sort(
+      (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
+    );
 
   return { todayKey, sessions };
 }

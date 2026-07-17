@@ -250,7 +250,7 @@ export async function refreshPrintJobPayloadFromTemplate(
   );
   const payload = buildPrintPayload(reg, template);
   if (job.trigger === "test_station") {
-    payload.name = "Prueba Impresora";
+    payload.name = "PRUEBA";
   }
 
   return prisma.printJob.update({
@@ -285,7 +285,7 @@ export async function createTestPrintJob(
 
   const payload: PrintJobPayload = {
     ...buildPrintPayload(reg, template),
-    name: "Prueba Impresora",
+    name: "PRUEBA",
   };
 
   const job = await prisma.printJob.create({

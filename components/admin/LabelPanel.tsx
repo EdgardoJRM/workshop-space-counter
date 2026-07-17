@@ -113,7 +113,7 @@ export function LabelPanel({ slug }: LabelPanelProps) {
     try {
       const { fontLarge, fontSmall } = parseFormNumbers();
       await printLabelPayload({
-        name: "Prueba Impresora",
+        name: "PRUEBA",
         email: "ejemplo@correo.com",
         workshopLabel: WORKSHOPS[slug].label,
         fontLarge,
