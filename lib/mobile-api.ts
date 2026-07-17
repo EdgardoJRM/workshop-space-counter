@@ -2,9 +2,12 @@ import { PrintJobStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { formatSessionOptionLabel } from "@/lib/staff-scan-sessions";
 import { getStaffScanSessions } from "@/lib/staff-scan-sessions";
+import { isPrintStationOnline } from "@/lib/print-station-heartbeat";
+
+const AGENT_ONLINE_MS = 2 * 60 * 1000;
 
 export async function getPrinterStatusForOrg(organizationId: string) {
-  const [pending, processing, printedToday, agents] = await Promise.all([
+  const [pending, processing, printedToday, agents, org] = await Promise.all([
     prisma.printJob.count({
       where: { organizationId, status: PrintJobStatus.PENDING },
     }),
@@ -29,19 +32,45 @@ export async function getPrinterStatusForOrg(organizationId: string) {
         createdAt: true,
       },
     }),
+    prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { printStationLastSeenAt: true },
+    }),
   ]);
 
-  const lastSeen = agents
+  const agentLastSeen = agents
     .map((a) => a.lastSeenAt)
     .filter((d): d is Date => d !== null)
     .sort((a, b) => b.getTime() - a.getTime())[0];
 
-  const connected =
-    lastSeen !== undefined &&
-    Date.now() - lastSeen.getTime() < 2 * 60 * 1000;
+  const macAgentConnected =
+    agentLastSeen !== undefined &&
+    Date.now() - agentLastSeen.getTime() < AGENT_ONLINE_MS;
+
+  const webStationConnected = isPrintStationOnline(org?.printStationLastSeenAt);
+
+  const webLastSeen = org?.printStationLastSeenAt ?? null;
+  const lastPollAt =
+    webLastSeen && agentLastSeen
+      ? webLastSeen > agentLastSeen
+        ? webLastSeen
+        : agentLastSeen
+      : webLastSeen ?? agentLastSeen ?? null;
+
+  const mode: "web" | "mac" | "both" | null =
+    webStationConnected && macAgentConnected
+      ? "both"
+      : webStationConnected
+        ? "web"
+        : macAgentConnected
+          ? "mac"
+          : null;
 
   return {
-    connected,
+    connected: webStationConnected || macAgentConnected,
+    webStationConnected,
+    macAgentConnected,
+    mode,
     pending,
     processing,
     printedLast24h: printedToday,
@@ -50,7 +79,7 @@ export async function getPrinterStatusForOrg(organizationId: string) {
       name: a.name,
       lastSeenAt: a.lastSeenAt?.toISOString() ?? null,
     })),
-    lastPollAt: lastSeen?.toISOString() ?? null,
+    lastPollAt: lastPollAt?.toISOString() ?? null,
   };
 }
 

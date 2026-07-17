@@ -67,6 +67,9 @@ type Props = {
   resending?: boolean;
   resendingCertificate?: boolean;
   reprinting?: boolean;
+  cancelling?: boolean;
+  onEdit: () => void;
+  onCancel: () => void;
   onResend: () => void;
   onResendCertificate: () => void;
   onReprint: () => void;
@@ -80,6 +83,9 @@ export const RegistrationListCard = forwardRef<HTMLLIElement, Props>(function Re
   resending,
   resendingCertificate,
   reprinting,
+  cancelling,
+  onEdit,
+  onCancel,
   onResend,
   onResendCertificate,
   onReprint,
@@ -178,6 +184,21 @@ export const RegistrationListCard = forwardRef<HTMLLIElement, Props>(function Re
 
       {!cancelled ? (
         <div className="mt-3 flex flex-wrap justify-end gap-2">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="rounded-lg border border-brand-grey/30 px-3 py-1.5 text-xs font-semibold text-brand-charcoal"
+          >
+            Editar
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={cancelling}
+            className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 disabled:opacity-50"
+          >
+            {cancelling ? "Cancelando…" : "Cancelar"}
+          </button>
           <button
             type="button"
             onClick={onReprint}

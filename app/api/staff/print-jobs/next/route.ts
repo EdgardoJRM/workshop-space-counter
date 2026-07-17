@@ -3,6 +3,7 @@ import { isDatabaseConfigured } from "@/lib/prisma";
 import { getSessionFromRequest } from "@/lib/mobile-auth";
 import { canAccessStaff } from "@/lib/auth";
 import { claimNextPrintJob, type PrintJobPayload } from "@/lib/print-jobs";
+import { stampPrintStationHeartbeat } from "@/lib/print-station-heartbeat";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,8 @@ export async function GET(request: Request) {
   if (!session || !canAccessStaff(session)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  await stampPrintStationHeartbeat(session.organizationId);
 
   const job = await claimNextPrintJob(session.organizationId);
   if (!job) {

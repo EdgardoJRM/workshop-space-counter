@@ -175,10 +175,48 @@ export async function reprintLabel(
 
 export async function printerStatus(): Promise<{
   connected: boolean;
+  webStationConnected?: boolean;
+  macAgentConnected?: boolean;
+  mode?: "web" | "mac" | "both" | null;
   pending: number;
   processing: number;
   printedLast24h: number;
   lastPollAt: string | null;
 }> {
   return apiFetch("/api/mobile/printer-status");
+}
+
+export async function createRegistration(input: {
+  workshopDateId: string;
+  workshopSlug: string;
+  email: string;
+  name?: string;
+  phone?: string;
+}): Promise<{ ok: boolean; registrationId?: string; duplicate?: boolean }> {
+  return apiFetch("/api/mobile/registrations", {
+    method: "POST",
+    body: JSON.stringify({ action: "create", ...input }),
+  });
+}
+
+export async function updateRegistration(input: {
+  registrationId: string;
+  name?: string;
+  email?: string;
+  phone?: string | null;
+  workshopDateId?: string;
+}): Promise<{ ok: boolean }> {
+  return apiFetch("/api/mobile/registrations", {
+    method: "POST",
+    body: JSON.stringify({ action: "update", ...input }),
+  });
+}
+
+export async function cancelRegistration(
+  registrationId: string
+): Promise<{ ok: boolean }> {
+  return apiFetch("/api/mobile/registrations", {
+    method: "POST",
+    body: JSON.stringify({ action: "cancel", registrationId }),
+  });
 }

@@ -141,7 +141,7 @@ La app es **solo para el día del evento** (scanner + lista + impresora). Toda l
 1. Rollo instalada en macOS como impresora predeterminada (3×2″).
 2. Abre Chrome con impresión silenciosa:
    ```bash
-   open -a "Google Chrome" --args --kiosk-printing https://pass.edgardohernandez.com/staff/print-station
+   open -na "Google Chrome" --args --kiosk-printing --new-window https://pass.edgardohernandez.com/staff/print-station
    ```
 3. Login staff → deja la pestaña **Armada**.
 

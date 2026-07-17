@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { PrintStationLinkBlock } from "@/components/admin/PrintStationLinkBlock";
 
 type Agent = {
   id: string;
@@ -67,14 +68,7 @@ export function PrinterPairingPanel() {
           En la Mac del evento abre Chrome con la estación de impresión. No requiere
           Instalar Impresora Auto.
         </p>
-        <a
-          href="/staff/print-station"
-          target="_blank"
-          rel="noreferrer"
-          className="mt-3 inline-block rounded-lg bg-brand-slate px-4 py-2 text-sm font-medium text-white"
-        >
-          Abrir estación de impresión
-        </a>
+        <PrintStationLinkBlock className="mt-3" />
         <p className="mt-3 text-xs text-brand-grey">
           Chrome con{" "}
           <code className="text-[11px]">--kiosk-printing</code> para imprimir sin diálogo.

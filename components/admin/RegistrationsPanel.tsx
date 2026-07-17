@@ -8,6 +8,7 @@ import {
   type ManualRegisterResult,
 } from "@/components/admin/ManualRegisterPanel";
 import { RegistrationListCard } from "@/components/admin/RegistrationListCard";
+import { RegistrationEditModal } from "@/components/admin/RegistrationEditModal";
 import type { WorkshopSlug } from "@/lib/workshop-keys";
 import { formatWorkshopDateTime } from "@/lib/workshop-datetime";
 
@@ -70,6 +71,8 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
     "checkin"
   );
   const [reprintingId, setReprintingId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [editingRow, setEditingRow] = useState<RegistrationRow | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const cardRefs = useRef<Record<string, HTMLLIElement | null>>({});
 
@@ -265,6 +268,37 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
     }
   }
 
+  async function cancelRegistration(id: string) {
+    if (!window.confirm("¿Cancelar este registro? La persona dejará de aparecer en la lista activa.")) {
+      return;
+    }
+    setCancellingId(id);
+    setFeedback(null);
+    try {
+      const res = await fetch("/api/admin/registrations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cancel", registrationId: id }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "No se pudo cancelar");
+      setFeedback({
+        type: "success",
+        title: "Registro cancelado",
+        message: "La persona ya no aparece en la lista de confirmados.",
+      });
+      await load();
+    } catch (e) {
+      setFeedback({
+        type: "error",
+        title: "No se pudo cancelar",
+        message: e instanceof Error ? e.message : "Error",
+      });
+    } finally {
+      setCancellingId(null);
+    }
+  }
+
   return (
     <div>
       <AdminFeedbackBanner
@@ -385,6 +419,9 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
               certificatesEnabled={certificatesEnabled}
               resendingCertificate={resendingCertificateId === r.id}
               reprinting={reprintingId === r.id}
+              cancelling={cancellingId === r.id}
+              onEdit={() => setEditingRow(r)}
+              onCancel={() => void cancelRegistration(r.id)}
               onResend={() => void resend(r.id)}
               onResendCertificate={() => void resendCertificate(r.id)}
               onReprint={() => void reprintLabel(r.id)}
@@ -392,6 +429,23 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
           ))}
         </ul>
       )}
+
+      <RegistrationEditModal
+        open={editingRow !== null}
+        row={editingRow}
+        dates={dates}
+        currentWorkshopDateId={workshopDateId}
+        slug={slug}
+        onClose={() => setEditingRow(null)}
+        onSaved={() => {
+          setFeedback({
+            type: "success",
+            title: "Cambios guardados",
+            message: "Los datos de la persona fueron actualizados.",
+          });
+          void load();
+        }}
+      />
     </div>
   );
 }

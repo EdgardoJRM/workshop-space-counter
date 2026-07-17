@@ -50,6 +50,9 @@ export default function PrinterScreen() {
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<{
     connected: boolean;
+    webStationConnected?: boolean;
+    macAgentConnected?: boolean;
+    mode?: "web" | "mac" | "both" | null;
     pending: number;
     processing: number;
     printedLast24h: number;
@@ -73,6 +76,14 @@ export default function PrinterScreen() {
     const id = setInterval(() => void load(), 10000);
     return () => clearInterval(id);
   }, [load]);
+
+  function stationLabel(): string {
+    if (!status) return "sin datos";
+    if (status.mode === "both") return "Estación Chrome + agente Mac";
+    if (status.mode === "web") return "Estación Chrome";
+    if (status.mode === "mac") return "Agente Mac";
+    return "Sin estación activa";
+  }
 
   function lastSeenLabel(): string {
     if (!status?.lastPollAt) return "sin datos";
@@ -113,7 +124,7 @@ export default function PrinterScreen() {
                 variant={status.connected ? "success" : "muted"}
               />
               <Text style={[styles.rowMeta, { marginTop: 8 }]}>
-                Agente Mac · última vez {lastSeenLabel()}
+                {stationLabel()} · última vez {lastSeenLabel()}
               </Text>
             </View>
             {status.connected ? (
@@ -171,6 +182,7 @@ export default function PrinterScreen() {
             <Ionicons name="information-circle-outline" size={20} color={colors.textSubtle} />
             <Text style={{ flex: 1, fontSize: 13, color: colors.textMuted, lineHeight: 19 }}>
               La impresión corre en la <Text style={{ fontWeight: "700", color: colors.text }}>Mac del venue</Text> con{" "}
+              <Text style={{ fontWeight: "700", color: colors.text }}>Chrome</Text> en la estación web y{" "}
               <Text style={{ fontWeight: "700", color: colors.text }}>Rollo 3×2</Text>
             </Text>
           </View>

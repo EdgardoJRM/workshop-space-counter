@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ChromePrintNote } from "@/components/admin/ChromePrintNote";
+import { PrintStationLinkBlock } from "@/components/admin/PrintStationLinkBlock";
 import { isChromiumBrowser, printLabelPayload } from "@/lib/label-print-html";
 import { WORKSHOPS, type WorkshopSlug } from "@/lib/workshop-keys";
 
@@ -167,17 +168,11 @@ export function LabelPanel({ slug }: LabelPanelProps) {
       <p className="mt-1 text-xs text-brand-grey">
         En la Mac del evento usa <strong>Chrome</strong> (no Safari).{" "}
         <strong>Probar label</strong> imprime en la Rollo predeterminada con los
-        valores del formulario. El día del evento deja la{" "}
-        <a
-          href="/staff/print-station"
-          className="font-medium text-brand-slate underline"
-          target="_blank"
-          rel="noreferrer"
-        >
-          estación web
-        </a>{" "}
-        armada para imprimir check-ins solos.
+        valores del formulario. El día del evento deja la estación web armada para imprimir
+        check-ins solos.
       </p>
+
+      <PrintStationLinkBlock className="mt-3" />
 
       <ChromePrintNote className="mt-3" />
 

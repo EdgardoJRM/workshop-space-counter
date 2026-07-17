@@ -63,6 +63,7 @@ model Organization {
   subscriptionStatus     String?
   clickfunnelsSecret     String?
   legacyPrintAgentToken  String?
+  printStationLastSeenAt DateTime?
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PrintJobPayload } from "@/lib/print-jobs";
 import { ChromePrintNote } from "@/components/admin/ChromePrintNote";
 import { isChromiumBrowser, printLabelPayload } from "@/lib/label-print-html";
+import { CHROME_KIOSK_OPEN_COMMAND, PRINT_STATION_PRODUCTION_URL } from "@/lib/print-station-url";
 
 type PrintJobResponse = {
   id: string;
@@ -325,8 +326,17 @@ export function PrintStation() {
             <li>
               Abre Chrome con impresión silenciosa:
               <pre className="mt-2 overflow-x-auto rounded-lg bg-brand-off p-3 text-[11px] text-brand-ink">
-                {`open -a "Google Chrome" --args --kiosk-printing https://pass.edgardohernandez.com/staff/print-station`}
+                {CHROME_KIOSK_OPEN_COMMAND}
               </pre>
+              <p className="mt-2 text-xs">
+                O pega en Chrome:{" "}
+                <a
+                  href={PRINT_STATION_PRODUCTION_URL}
+                  className="break-all font-medium text-brand-slate underline"
+                >
+                  {PRINT_STATION_PRODUCTION_URL}
+                </a>
+              </p>
             </li>
             <li>Personaliza el label en Admin web → Labels (aplica al siguiente job).</li>
           </ol>

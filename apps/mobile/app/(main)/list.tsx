@@ -9,10 +9,21 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { EmptyState } from "@/components/EmptyState";
+import {
+  AddRegistrationModal,
+  RegistrationDetailSheet,
+} from "@/components/RegistrationSheets";
 import { SelectedEventBanner } from "@/components/SelectedEventBanner";
 import { SearchField } from "@/components/SearchField";
 import { StatusBadge } from "@/components/StatusBadge";
-import { checkinById, fetchRegistrations, reprintLabel } from "@/lib/api";
+import {
+  cancelRegistration,
+  checkinById,
+  createRegistration,
+  fetchRegistrations,
+  reprintLabel,
+  updateRegistration,
+} from "@/lib/api";
 import { useSelectedEvent } from "@/lib/event-context";
 import type { RegistrationRow } from "@/lib/types";
 import { useAppTheme } from "@/lib/useAppTheme";
@@ -166,13 +177,16 @@ function AttendeeRow({
 
 export default function ListScreen() {
   const { colors, styles } = useAppTheme();
-  const { selectedEventId: eventId } = useSelectedEvent();
+  const { selectedEventId: eventId, selectedEvent, events } = useSelectedEvent();
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<RegistrationRow[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [detailReg, setDetailReg] = useState<RegistrationRow | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [formBusy, setFormBusy] = useState(false);
 
   const load = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -264,21 +278,98 @@ export default function ListScreen() {
     }
   }
 
-  function onCardPress(reg: RegistrationRow) {
-    if (busyId) return;
-
-    if (!reg.checkedIn) {
-      void onCheckin(reg);
+  async function onCreatePerson(input: { name: string; email: string; phone: string }) {
+    if (!eventId || !selectedEvent || formBusy) return;
+    if (!input.email.includes("@")) {
+      setMsg("Error: Email inválido");
       return;
     }
 
-    Alert.alert(reg.name || reg.email, reg.email, [
-      { text: "Cerrar", style: "cancel" },
-      {
-        text: "Reimprimir label",
-        onPress: () => void onReprint(reg),
-      },
-    ]);
+    setFormBusy(true);
+    setMsg(null);
+    try {
+      const res = await createRegistration({
+        workshopDateId: eventId,
+        workshopSlug: selectedEvent.workshopSlug,
+        email: input.email,
+        name: input.name || undefined,
+        phone: input.phone || undefined,
+      });
+      setShowAdd(false);
+      setMsg(
+        res.duplicate
+          ? `Ya existía: ${input.email}`
+          : `Registro creado: ${input.name || input.email}`
+      );
+      void load({ silent: true });
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Error al crear");
+    } finally {
+      setFormBusy(false);
+    }
+  }
+
+  async function onSavePerson(input: {
+    name: string;
+    email: string;
+    phone: string;
+    workshopDateId: string;
+  }) {
+    if (!detailReg || !eventId || formBusy) return;
+    if (!input.email.includes("@")) {
+      setMsg("Error: Email inválido");
+      return;
+    }
+
+    setFormBusy(true);
+    setMsg(null);
+    try {
+      await updateRegistration({
+        registrationId: detailReg.id,
+        name: input.name,
+        email: input.email,
+        phone: input.phone || null,
+        workshopDateId:
+          input.workshopDateId !== eventId ? input.workshopDateId : undefined,
+      });
+      setDetailReg(null);
+      setMsg("Cambios guardados");
+      void load({ silent: true });
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Error al guardar");
+    } finally {
+      setFormBusy(false);
+    }
+  }
+
+  function onCancelPerson() {
+    if (!detailReg || formBusy) return;
+    Alert.alert(
+      "Cancelar registro",
+      `¿Cancelar a ${detailReg.name || detailReg.email}? Dejará de aparecer en la lista.`,
+      [
+        { text: "No", style: "cancel" },
+        {
+          text: "Sí, cancelar",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              setFormBusy(true);
+              try {
+                await cancelRegistration(detailReg.id);
+                setDetailReg(null);
+                setMsg("Registro cancelado");
+                void load({ silent: true });
+              } catch (e) {
+                setMsg(e instanceof Error ? e.message : "Error al cancelar");
+              } finally {
+                setFormBusy(false);
+              }
+            })();
+          },
+        },
+      ]
+    );
   }
 
   if (!eventId) {
@@ -304,12 +395,19 @@ export default function ListScreen() {
             justifyContent: "space-between",
             alignItems: "center",
             marginBottom: 12,
+            gap: 8,
           }}
         >
-          <Text style={styles.rowMeta}>
+          <Text style={[styles.rowMeta, { flex: 1 }]}>
             {rows.length} asistentes
-            {refreshing ? " · Actualizando…" : " · Toca un card para check-in"}
+            {refreshing ? " · Actualizando…" : " · Toca para detalle"}
           </Text>
+          <Pressable
+            style={[styles.btnPrimary, { paddingHorizontal: 14, paddingVertical: 10 }]}
+            onPress={() => setShowAdd(true)}
+          >
+            <Text style={[styles.btnPrimaryText, { fontSize: 13 }]}>Añadir</Text>
+          </Pressable>
         </View>
 
         {msg ? (
@@ -345,7 +443,7 @@ export default function ListScreen() {
               <AttendeeRow
                 item={item}
                 busy={busyId === item.id}
-                onPressCard={() => onCardPress(item)}
+                onPressCard={() => setDetailReg(item)}
                 onCheckin={() => void onCheckin(item)}
                 onReprint={() => void onReprint(item)}
               />
@@ -359,6 +457,30 @@ export default function ListScreen() {
           />
         )}
       </View>
+
+      <RegistrationDetailSheet
+        visible={detailReg !== null}
+        registration={detailReg}
+        events={events}
+        currentEventId={eventId}
+        busy={formBusy || busyId === detailReg?.id}
+        onClose={() => setDetailReg(null)}
+        onSave={(input) => void onSavePerson(input)}
+        onCancelRegistration={onCancelPerson}
+        onCheckin={() => {
+          if (detailReg) void onCheckin(detailReg);
+        }}
+        onReprint={() => {
+          if (detailReg) void onReprint(detailReg);
+        }}
+      />
+
+      <AddRegistrationModal
+        visible={showAdd}
+        busy={formBusy}
+        onClose={() => setShowAdd(false)}
+        onCreate={(input) => void onCreatePerson(input)}
+      />
     </View>
   );
 }
