@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { LocalMacPrinterStatus } from "@/components/admin/LocalMacPrinterStatus";
+import { ChromePrintNote } from "@/components/admin/ChromePrintNote";
 import { isChromiumBrowser, printLabelPayload } from "@/lib/label-print-html";
 import { WORKSHOPS, type WorkshopSlug } from "@/lib/workshop-keys";
 
@@ -164,8 +164,8 @@ export function LabelPanel({ slug }: LabelPanelProps) {
       <p className="mt-1 text-xs text-brand-grey">
         En la Mac del evento usa <strong>Chrome</strong> (no Safari).{" "}
         <strong>Probar label</strong> abre el diálogo de impresión de macOS con vista
-        previa PDF — ahí confirmas fuentes y tamaño antes de guardar. El día del
-        evento deja la{" "}
+        previa PDF — ahí ves la impresora y confirmas fuentes antes de guardar. El
+        día del evento deja la{" "}
         <a
           href="/staff/print-station"
           className="font-medium text-brand-slate underline"
@@ -177,7 +177,7 @@ export function LabelPanel({ slug }: LabelPanelProps) {
         armada para imprimir check-ins solos.
       </p>
 
-      <LocalMacPrinterStatus className="mt-3" />
+      <ChromePrintNote className="mt-3" />
 
       {loading && (
         <p className="mt-3 text-sm text-brand-grey">Cargando plantilla…</p>

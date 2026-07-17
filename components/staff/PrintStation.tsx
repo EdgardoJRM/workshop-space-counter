@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PrintJobPayload } from "@/lib/print-jobs";
-import { LocalMacPrinterStatus } from "@/components/admin/LocalMacPrinterStatus";
+import { ChromePrintNote } from "@/components/admin/ChromePrintNote";
 import { isChromiumBrowser, printLabelPayload } from "@/lib/label-print-html";
 
 type PrintJobResponse = {
@@ -17,12 +17,23 @@ type StationStatus = "idle" | "printing" | "error";
 
 const POLL_MS = 900;
 
+function isTransientFetchError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const msg = error.message.toLowerCase();
+  return (
+    msg.includes("failed to fetch") ||
+    msg.includes("networkerror") ||
+    msg.includes("load failed")
+  );
+}
+
 export function PrintStation() {
   const [armed, setArmed] = useState(true);
   const [status, setStatus] = useState<StationStatus>("idle");
   const [lastName, setLastName] = useState<string | null>(null);
   const [lastPrintedAt, setLastPrintedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reconnecting, setReconnecting] = useState(false);
   const [testBusy, setTestBusy] = useState(false);
   const [printedCount, setPrintedCount] = useState(0);
   const [macAgentActive, setMacAgentActive] = useState(false);
@@ -77,6 +88,7 @@ export function PrintStation() {
 
       setStatus("printing");
       setError(null);
+      setReconnecting(false);
       setLastName(job.payload.name);
 
       try {
@@ -101,45 +113,64 @@ export function PrintStation() {
     [completeJob]
   );
 
+  const pollQueue = useCallback(async () => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+
+    try {
+      const res = await fetch("/api/staff/print-jobs/next");
+      if (res.status === 401) {
+        busyRef.current = false;
+        setError("Sesión expirada. Recarga la página o vuelve a iniciar sesión.");
+        setStatus("error");
+        return;
+      }
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error ?? `Error ${res.status}`);
+      }
+      const data = (await res.json()) as { job: PrintJobResponse | null };
+      setReconnecting(false);
+      if (data.job) {
+        await processJob(data.job);
+      } else {
+        busyRef.current = false;
+        setStatus((s) => (s === "printing" ? s : "idle"));
+      }
+    } catch (e) {
+      busyRef.current = false;
+      if (isTransientFetchError(e)) {
+        setReconnecting(true);
+        return;
+      }
+      setError(e instanceof Error ? e.message : "Error de cola");
+      setStatus("error");
+    }
+  }, [processJob]);
+
   useEffect(() => {
     if (!isChromiumBrowser()) return;
 
-    let cancelled = false;
-
-    const tick = async () => {
-      if (cancelled || !armedRef.current || busyRef.current) return;
-      busyRef.current = true;
-
-      try {
-        const res = await fetch("/api/staff/print-jobs/next");
-        if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(data.error ?? `Error ${res.status}`);
-        }
-        const data = (await res.json()) as { job: PrintJobResponse | null };
-        if (data.job) {
-          await processJob(data.job);
-        } else {
-          busyRef.current = false;
-          setStatus((s) => (s === "printing" ? s : "idle"));
-        }
-      } catch (e) {
-        busyRef.current = false;
-        setError(e instanceof Error ? e.message : "Error de cola");
-        setStatus("error");
-      }
+    const tick = () => {
+      if (!armedRef.current) return;
+      void pollQueue();
     };
 
-    const id = window.setInterval(() => {
-      void tick();
-    }, POLL_MS);
+    const id = window.setInterval(tick, POLL_MS);
     void tick();
 
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        void pollQueue();
+      }
     };
-  }, [processJob]);
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [pollQueue]);
 
   async function handleTestPrint() {
     setTestBusy(true);
@@ -148,8 +179,13 @@ export function PrintStation() {
       const res = await fetch("/api/staff/print-jobs/test", { method: "POST" });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
+      setReconnecting(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo encolar prueba");
+      if (isTransientFetchError(e)) {
+        setReconnecting(true);
+      } else {
+        setError(e instanceof Error ? e.message : "No se pudo encolar prueba");
+      }
     } finally {
       setTestBusy(false);
     }
@@ -168,7 +204,7 @@ export function PrintStation() {
           <p className="mt-2 text-sm text-brand-grey">
             Deja esta pestaña abierta en Chrome. Los check-ins imprimen solos.
           </p>
-          <LocalMacPrinterStatus className="mt-4" />
+          <ChromePrintNote className="mt-4" />
         </header>
 
         {!chromium && (
@@ -180,10 +216,10 @@ export function PrintStation() {
         )}
 
         {armed && macAgentActive && (
-          <div className="mb-6 rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-900">
-            <strong>Impresora Mac activa.</strong> Detén Impresora Auto en esta Mac.
-            Solo puede haber <strong>un</strong> consumidor de la cola (estación web{" "}
-            <em>o</em> agente Mac, nunca ambos).
+          <div className="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+            Hay un <strong>agente Mac antiguo</strong> conectado a la cola. Si ya
+            no lo usas, revócalo en Admin → Impresora. Solo debe consumir la cola
+            esta pestaña de Chrome.
           </div>
         )}
 
@@ -196,9 +232,11 @@ export function PrintStation() {
                   ? "Pausada"
                   : status === "printing"
                     ? "Imprimiendo…"
-                    : status === "error"
-                      ? "Error"
-                      : "Esperando labels"}
+                    : reconnecting
+                      ? "Reconectando…"
+                      : status === "error"
+                        ? "Error"
+                        : "Esperando labels"}
               </p>
             </div>
             <button
@@ -211,6 +249,13 @@ export function PrintStation() {
               {armed ? "Armada" : "Pausada"}
             </button>
           </div>
+
+          {reconnecting && !error && (
+            <p className="mt-4 rounded-lg bg-brand-off px-3 py-2 text-sm text-brand-grey">
+              Sin conexión momentánea (Mac en reposo o red lenta). Sigue armada — se
+              reconecta sola.
+            </p>
+          )}
 
           {lastName && (
             <p className="mt-4 text-sm text-brand-grey">
