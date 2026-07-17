@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PrintJobPayload } from "@/lib/print-jobs";
-import { ChromePrintNote } from "@/components/admin/ChromePrintNote";
-import { RolloPrintDownloadBlock } from "@/components/staff/RolloPrintDownloadBlock";
+import {
+  ROLLO_PRINT_RELAY_ZIP_NAME,
+  ROLLO_PRINT_RELAY_ZIP_PATH,
+} from "@/lib/rollo-print-download";
 import { isChromiumBrowser, printLabelPayload } from "@/lib/label-print-html";
 import { probeLocalPrintPath, type LocalPrintProbe } from "@/lib/local-rollo-print";
-import { CHROME_KIOSK_OPEN_COMMAND, PRINT_STATION_PRODUCTION_URL } from "@/lib/print-station-url";
+import { CHROME_KIOSK_OPEN_COMMAND } from "@/lib/print-station-url";
 
 type PrintJobResponse = {
   id: string;
@@ -28,6 +30,16 @@ function isTransientFetchError(error: unknown): boolean {
     msg.includes("networkerror") ||
     msg.includes("load failed")
   );
+}
+
+function relayLabel(probe: LocalPrintProbe): string | null {
+  if (probe.path === "rollo-daemon") {
+    return probe.printer ? `Relay activo · ${probe.printer}` : "Relay activo";
+  }
+  if (probe.path === "impresora-auto") {
+    return probe.printer ? `Impresora Auto · ${probe.printer}` : "Impresora Auto";
+  }
+  return null;
 }
 
 export function PrintStation() {
@@ -246,53 +258,31 @@ export function PrintStation() {
     }
   }
 
+  async function copyKioskCommand() {
+    try {
+      await navigator.clipboard.writeText(CHROME_KIOSK_OPEN_COMMAND);
+    } catch {
+      // ignore
+    }
+  }
+
   const chromium = isChromiumBrowser();
+  const relayReady = localPrint.path === "rollo-daemon" || localPrint.path === "impresora-auto";
+  const relayText = relayLabel(localPrint);
+  const showSetup = !relayReady || !chromium;
 
   return (
     <div className="min-h-screen bg-brand-off text-brand-ink">
       <div className="mx-auto flex min-h-screen max-w-lg flex-col px-4 py-8">
-        <header className="mb-8">
+        <header className="mb-6">
           <p className="text-xs font-semibold uppercase tracking-wider text-brand-grey">
             Hernandez Pass
           </p>
           <h1 className="mt-1 text-2xl font-bold">Estación de impresión</h1>
-          <p className="mt-2 text-sm text-brand-grey">
-            Deja esta pestaña abierta en Chrome. Los check-ins imprimen solos.
+          <p className="mt-1 text-sm text-brand-grey">
+            Deja Chrome abierto con la estación armada.
           </p>
-          <ChromePrintNote className="mt-4" showKioskCommand />
-
-          {localPrint.path === "rollo-daemon" || localPrint.path === "impresora-auto" ? (
-            <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
-              Impresión local activa ({localPrint.path === "rollo-daemon" ? "lp" : "Impresora Auto"}
-              {localPrint.printer ? ` → ${localPrint.printer}` : ""}). 1 job = 1 label 3×2″.
-            </p>
-          ) : (
-            <div className="mt-3 space-y-3">
-              <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">
-                <strong>Falta el relay local.</strong> Descarga el zip abajo, abre{" "}
-                <code className="text-[10px]">Iniciar-Rollo.command</code> y deja Terminal
-                abierta. Sin eso, Chrome puede avanzar 3 labels.
-              </p>
-              <RolloPrintDownloadBlock variant="inline" />
-            </div>
-          )}
         </header>
-
-        {!chromium && (
-          <div className="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-            Usa <strong>Google Chrome</strong> (no Safari). Abre con{" "}
-            <code className="text-xs">--kiosk-printing</code> para imprimir sin
-            diálogo.
-          </div>
-        )}
-
-        {armed && macAgentActive && (
-          <div className="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-            Hay un <strong>agente Mac antiguo</strong> conectado a la cola. Si ya
-            no lo usas, revócalo en Admin → Impresora. Solo debe consumir la cola
-            esta pestaña de Chrome.
-          </div>
-        )}
 
         <section className="rounded-2xl border border-brand-grey/20 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between gap-3">
@@ -321,10 +311,52 @@ export function PrintStation() {
             </button>
           </div>
 
+          <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 ${
+                relayReady
+                  ? "bg-emerald-50 text-emerald-800"
+                  : "bg-red-50 text-red-800"
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  relayReady ? "bg-emerald-500" : "bg-red-500"
+                }`}
+                aria-hidden
+              />
+              {relayText ?? "Relay no detectado"}
+            </span>
+            {!chromium && (
+              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-900">
+                Usa Chrome, no Safari
+              </span>
+            )}
+            {armed && macAgentActive && (
+              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-900">
+                Agente Mac antiguo activo
+              </span>
+            )}
+          </div>
+
+          {!relayReady && (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <a
+                href={ROLLO_PRINT_RELAY_ZIP_PATH}
+                download={ROLLO_PRINT_RELAY_ZIP_NAME}
+                className="rounded-lg bg-brand-slate px-3 py-1.5 text-xs font-medium text-white"
+              >
+                Descargar relay
+              </a>
+              <span className="text-xs text-brand-grey">
+                Abre <code className="text-[10px]">Iniciar-Rollo.command</code> y recarga.
+              </span>
+            </div>
+          )}
+
           {reconnecting && !error && (
-            <p className="mt-4 rounded-lg bg-brand-off px-3 py-2 text-sm text-brand-grey">
-              Sin conexión momentánea (Mac en reposo o red lenta). Sigue armada — se
-              reconecta sola.
+            <p className="mt-4 text-sm text-brand-grey">
+              Reconectando… la estación sigue armada.
             </p>
           )}
 
@@ -355,44 +387,32 @@ export function PrintStation() {
           </button>
         </section>
 
-        <RolloPrintDownloadBlock className="mt-6" />
-
-        <section className="mt-6 rounded-2xl border border-brand-grey/20 bg-white/80 p-5 text-sm text-brand-grey">
-          <h2 className="font-semibold text-brand-ink">Setup (una vez)</h2>
-          <p className="mt-2 text-xs text-amber-800">
-            El botón del admin o pegar la URL <strong>no</strong> activa impresión silenciosa.
-            Si ves el diálogo de macOS o sale Letter, Chrome no arrancó con kiosk.
-          </p>
-          <ol className="mt-3 list-decimal space-y-2 pl-5">
+        <details
+          className="mt-4 rounded-2xl border border-brand-grey/15 bg-white/60 px-4 py-3 text-sm"
+          open={showSetup}
+        >
+          <summary className="cursor-pointer font-medium text-brand-ink">
+            Configuración
+          </summary>
+          <ol className="mt-3 list-decimal space-y-2 pl-5 text-xs text-brand-grey">
             <li>
-              Descarga e instala el relay arriba (<strong>Iniciar-Rollo.command</strong>) — envía
-              a la Rollo vía <code className="text-[11px]">lp</code> con tamaño 3×2″ correcto.
+              Descarga el relay, descomprime y abre{" "}
+              <code className="text-[10px]">Iniciar-Rollo.command</code> (Terminal abierta).
             </li>
-            <li>Cierra Chrome por completo (Cmd+Q).</li>
-            <li>Rollo = impresora predeterminada en macOS (3×2″).</li>
-            <li>
-              En Terminal, pega este comando (abre Chrome con impresión silenciosa):
-              <pre className="mt-2 overflow-x-auto rounded-lg bg-brand-off p-3 text-[11px] text-brand-ink">
-                {CHROME_KIOSK_OPEN_COMMAND}
-              </pre>
-            </li>
-            <li>Inicia sesión staff si hace falta y deja la estación <strong>Armada</strong>.</li>
-            <li>
-              Pulsa <strong>Probar label</strong> arriba — debe imprimir 3×2″ sin diálogo.
-            </li>
-            <li>Personaliza el label en Admin web → Labels (aplica al siguiente job).</li>
+            <li>Rollo = impresora predeterminada (3×2″).</li>
+            <li>Cierra Chrome (Cmd+Q) y ábrelo con kiosk:</li>
           </ol>
-          <p className="mt-3 text-xs">
-            Respaldo si el comando falla:{" "}
-            <a
-              href={PRINT_STATION_PRODUCTION_URL}
-              className="break-all font-medium text-brand-slate underline"
-            >
-              {PRINT_STATION_PRODUCTION_URL}
-            </a>{" "}
-            (requiere kiosk para imprimir sin preview).
-          </p>
-        </section>
+          <pre className="mt-2 overflow-x-auto rounded-lg bg-brand-off p-3 text-[10px] text-brand-ink">
+            {CHROME_KIOSK_OPEN_COMMAND}
+          </pre>
+          <button
+            type="button"
+            onClick={() => void copyKioskCommand()}
+            className="mt-2 rounded border border-brand-grey/30 px-2 py-1 text-[11px] font-medium"
+          >
+            Copiar comando
+          </button>
+        </details>
       </div>
     </div>
   );
