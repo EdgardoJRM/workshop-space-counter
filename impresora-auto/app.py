@@ -3,10 +3,15 @@ from flask_cors import CORS
 import os
 import socket
 
-from print_core import print_image_file, render_label_to_path
+from print_core import (
+    current_printer_name,
+    print_image_file,
+    printer_is_offline,
+    render_label_to_path,
+)
 
 app = Flask(__name__)
-CORS(app, resources={r"/imprimir": {"origins": "*"}})
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 
 def get_local_ip():
@@ -22,12 +27,25 @@ def get_local_ip():
 @app.route("/health", methods=["GET"])
 def health():
     port = int(os.environ.get("PORT", 3000))
+    printer = current_printer_name()
     return jsonify({
         "status": "ok",
         "service": "Impresora Auto",
         "local_url": f"http://127.0.0.1:{port}",
         "network_url": f"http://{get_local_ip()}:{port}",
         "cloud_agent": bool(os.environ.get("PRINT_AGENT_TOKEN")),
+        "printer": printer,
+        "printer_offline": printer_is_offline(printer) if printer else False,
+    })
+
+
+@app.route("/printer", methods=["GET"])
+def printer():
+    name = current_printer_name()
+    return jsonify({
+        "name": name,
+        "configured": bool(name),
+        "offline": printer_is_offline(name) if name else False,
     })
 
 

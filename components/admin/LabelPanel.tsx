@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { WorkshopSlug } from "@/lib/workshop-keys";
+import { LocalMacPrinterStatus } from "@/components/admin/LocalMacPrinterStatus";
+import { isChromiumBrowser, printLabelPayload } from "@/lib/label-print-html";
+import { WORKSHOPS, type WorkshopSlug } from "@/lib/workshop-keys";
 
 type TemplateForm = {
   fontLarge: string;
@@ -45,6 +47,7 @@ export function LabelPanel({ slug }: LabelPanelProps) {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [previewBusy, setPreviewBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -85,20 +88,53 @@ export function LabelPanel({ slug }: LabelPanelProps) {
     void load();
   }, [load]);
 
+  function parseFormNumbers() {
+    const fontLarge = Number.parseInt(form.fontLarge, 10);
+    const fontSmall = Number.parseInt(form.fontSmall, 10);
+    if (!Number.isInteger(fontLarge) || fontLarge < 40 || fontLarge > 240) {
+      throw new Error("Fuente nombre: entero entre 40 y 240");
+    }
+    if (!Number.isInteger(fontSmall) || fontSmall < 20 || fontSmall > 120) {
+      throw new Error("Fuente apellido: entero entre 20 y 120");
+    }
+    return { fontLarge, fontSmall };
+  }
+
+  async function handlePreviewPrint() {
+    if (!isChromiumBrowser()) {
+      setError("La vista previa requiere Google Chrome en la Mac del evento.");
+      return;
+    }
+
+    setPreviewBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const { fontLarge, fontSmall } = parseFormNumbers();
+      await printLabelPayload({
+        name: "Prueba Impresora",
+        email: "ejemplo@correo.com",
+        workshopLabel: WORKSHOPS[slug].label,
+        fontLarge,
+        fontSmall,
+        mediaSize: form.mediaSize.trim() || "3x2",
+        showEmail: form.showEmail,
+        showWorkshop: form.showWorkshop,
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo abrir la vista previa");
+    } finally {
+      setPreviewBusy(false);
+    }
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError(null);
     setSuccess(null);
     try {
-      const fontLarge = Number.parseInt(form.fontLarge, 10);
-      const fontSmall = Number.parseInt(form.fontSmall, 10);
-      if (!Number.isInteger(fontLarge) || fontLarge < 40 || fontLarge > 240) {
-        throw new Error("Fuente nombre: entero entre 40 y 240");
-      }
-      if (!Number.isInteger(fontSmall) || fontSmall < 20 || fontSmall > 120) {
-        throw new Error("Fuente apellido: entero entre 20 y 120");
-      }
+      const { fontLarge, fontSmall } = parseFormNumbers();
 
       const res = await fetch("/api/admin/label-template", {
         method: "POST",
@@ -126,18 +162,22 @@ export function LabelPanel({ slug }: LabelPanelProps) {
     <section className="mb-6 rounded-xl border border-brand-grey/20 bg-white p-4">
       <h3 className="text-sm font-semibold text-brand-ink">Etiqueta de impresión (Rollo)</h3>
       <p className="mt-1 text-xs text-brand-grey">
-        Se imprime automáticamente en el primer check-in. En la Mac del evento abre la{" "}
+        En la Mac del evento usa <strong>Chrome</strong> (no Safari).{" "}
+        <strong>Probar label</strong> abre el diálogo de impresión de macOS con vista
+        previa PDF — ahí confirmas fuentes y tamaño antes de guardar. El día del
+        evento deja la{" "}
         <a
           href="/staff/print-station"
           className="font-medium text-brand-slate underline"
           target="_blank"
           rel="noreferrer"
         >
-          estación web en Chrome
-        </a>
-        . Los cambios aquí aplican al <strong>siguiente</strong> label en cola (la estación
-        refresca la plantilla al imprimir).
+          estación web
+        </a>{" "}
+        armada para imprimir check-ins solos.
       </p>
+
+      <LocalMacPrinterStatus className="mt-3" />
 
       {loading && (
         <p className="mt-3 text-sm text-brand-grey">Cargando plantilla…</p>
@@ -216,9 +256,27 @@ export function LabelPanel({ slug }: LabelPanelProps) {
           </label>
 
           <p className="text-xs text-brand-grey">
-            Vista previa: primera línea = primer nombre (con * si el nombre lo
-            trae), segunda = apellidos — igual que Impresora Auto.
+            Primera línea = primer nombre (con * si el nombre lo trae), segunda =
+            apellidos — igual que Impresora Auto.
           </p>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={previewBusy}
+              onClick={() => void handlePreviewPrint()}
+              className="rounded-lg border border-brand-grey/30 px-4 py-2 text-sm font-semibold text-brand-charcoal disabled:opacity-50"
+            >
+              {previewBusy ? "Abriendo vista previa…" : "Probar label"}
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-lg bg-brand-blue px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {saving ? "Guardando…" : "Guardar plantilla"}
+            </button>
+          </div>
 
           {error && (
             <p className="text-sm text-red-600" role="alert">
@@ -230,14 +288,6 @@ export function LabelPanel({ slug }: LabelPanelProps) {
               {success}
             </p>
           )}
-
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded-lg bg-brand-blue px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-          >
-            {saving ? "Guardando…" : "Guardar plantilla"}
-          </button>
         </form>
       )}
     </section>

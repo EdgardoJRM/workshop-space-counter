@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PrintJobPayload } from "@/lib/print-jobs";
+import { LocalMacPrinterStatus } from "@/components/admin/LocalMacPrinterStatus";
 import { isChromiumBrowser, printLabelPayload } from "@/lib/label-print-html";
 
 type PrintJobResponse = {
@@ -167,6 +168,7 @@ export function PrintStation() {
           <p className="mt-2 text-sm text-brand-grey">
             Deja esta pestaña abierta en Chrome. Los check-ins imprimen solos.
           </p>
+          <LocalMacPrinterStatus className="mt-4" />
         </header>
 
         {!chromium && (
