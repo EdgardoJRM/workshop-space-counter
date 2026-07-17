@@ -239,7 +239,7 @@ export function PrintStation() {
           <p className="mt-2 text-sm text-brand-grey">
             Deja esta pestaña abierta en Chrome. Los check-ins imprimen solos.
           </p>
-          <ChromePrintNote className="mt-4" />
+          <ChromePrintNote className="mt-4" showKioskCommand />
         </header>
 
         {!chromium && (
@@ -321,25 +321,35 @@ export function PrintStation() {
 
         <section className="mt-6 rounded-2xl border border-brand-grey/20 bg-white/80 p-5 text-sm text-brand-grey">
           <h2 className="font-semibold text-brand-ink">Setup (una vez)</h2>
+          <p className="mt-2 text-xs text-amber-800">
+            El botón del admin o pegar la URL <strong>no</strong> activa impresión silenciosa.
+            Si ves el diálogo de macOS o sale Letter, Chrome no arrancó con kiosk.
+          </p>
           <ol className="mt-3 list-decimal space-y-2 pl-5">
+            <li>Cierra Chrome por completo (Cmd+Q).</li>
             <li>Rollo = impresora predeterminada en macOS (3×2″).</li>
             <li>
-              Abre Chrome con impresión silenciosa:
+              En Terminal, pega este comando (abre Chrome con impresión silenciosa):
               <pre className="mt-2 overflow-x-auto rounded-lg bg-brand-off p-3 text-[11px] text-brand-ink">
                 {CHROME_KIOSK_OPEN_COMMAND}
               </pre>
-              <p className="mt-2 text-xs">
-                O pega en Chrome:{" "}
-                <a
-                  href={PRINT_STATION_PRODUCTION_URL}
-                  className="break-all font-medium text-brand-slate underline"
-                >
-                  {PRINT_STATION_PRODUCTION_URL}
-                </a>
-              </p>
+            </li>
+            <li>Inicia sesión staff si hace falta y deja la estación <strong>Armada</strong>.</li>
+            <li>
+              Pulsa <strong>Probar label</strong> arriba — debe imprimir 3×2″ sin diálogo.
             </li>
             <li>Personaliza el label en Admin web → Labels (aplica al siguiente job).</li>
           </ol>
+          <p className="mt-3 text-xs">
+            Respaldo si el comando falla:{" "}
+            <a
+              href={PRINT_STATION_PRODUCTION_URL}
+              className="break-all font-medium text-brand-slate underline"
+            >
+              {PRINT_STATION_PRODUCTION_URL}
+            </a>{" "}
+            (requiere kiosk para imprimir sin preview).
+          </p>
         </section>
       </div>
     </div>

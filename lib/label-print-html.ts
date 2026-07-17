@@ -1,5 +1,8 @@
 import type { PrintJobPayload } from "@/lib/print-jobs";
 
+/** Design canvas matches Impresora Auto: 900×600 px at 300 DPI = 3×2″. */
+const LABEL_DPI = 300;
+
 export function normalizeNameForLabel(fullName: string) {
   let s = (fullName || "").replace(/\n/g, " ").trim().replace(/\s+/g, " ");
   const hasStar = s.includes("*");
@@ -11,17 +14,30 @@ export function normalizeNameForLabel(fullName: string) {
   return { firstDisplay, last, firstBase };
 }
 
+function pxToIn(px: number): string {
+  return `${px / LABEL_DPI}in`;
+}
+
 function pageSizeCss(mediaSize: string): string {
+  const { width, height } = pageDimensions(mediaSize);
+  return `${width} ${height}`;
+}
+
+function pageDimensions(mediaSize: string): { width: string; height: string } {
   const normalized = mediaSize.trim().toLowerCase().replace(/\s/g, "");
-  if (normalized === "3x2" || normalized === "3x2in") return "3in 2in";
-  if (normalized === "2x3" || normalized === "2x3in") return "2in 3in";
-  if (normalized === "4x6" || normalized === "4x6in") return "4in 6in";
-  return "3in 2in";
+  if (normalized === "2x3" || normalized === "2x3in") {
+    return { width: "2in", height: "3in" };
+  }
+  if (normalized === "4x6" || normalized === "4x6in") {
+    return { width: "4in", height: "6in" };
+  }
+  return { width: "3in", height: "2in" };
 }
 
 export function buildLabelPrintHtml(payload: PrintJobPayload): string {
   const { firstDisplay, last } = normalizeNameForLabel(payload.name);
-  const extraFont = Math.max(40, Math.floor(payload.fontSmall / 2));
+  const extraFontPx = Math.max(40, Math.floor(payload.fontSmall / 2));
+  const { width, height } = pageDimensions(payload.mediaSize);
   const pageSize = pageSizeCss(payload.mediaSize);
   const workshop = (payload.workshopLabel || "").trim();
   const email = (payload.email || "").trim();
@@ -29,12 +45,12 @@ export function buildLabelPrintHtml(payload: PrintJobPayload): string {
   const extras: string[] = [];
   if (payload.showWorkshop && workshop) {
     extras.push(
-      `<div class="extra" style="font-size:${extraFont}px">${escapeHtml(workshop)}</div>`
+      `<div class="extra" style="font-size:${pxToIn(extraFontPx)}">${escapeHtml(workshop)}</div>`
     );
   }
   if (payload.showEmail && email) {
     extras.push(
-      `<div class="extra" style="font-size:${extraFont}px">${escapeHtml(email)}</div>`
+      `<div class="extra" style="font-size:${pxToIn(extraFontPx)}">${escapeHtml(email)}</div>`
     );
   }
 
@@ -44,42 +60,61 @@ export function buildLabelPrintHtml(payload: PrintJobPayload): string {
 <meta charset="utf-8" />
 <style>
   @page { size: ${pageSize}; margin: 0; }
-  html, body { margin: 0; padding: 0; width: 100%; height: 100%; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: ${width};
+    height: ${height};
+  }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
     color: #000;
     background: #fff;
   }
   .label {
-    width: 900px;
-    height: 600px;
+    width: ${width};
+    height: ${height};
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    padding-top: 160px;
+    padding-top: ${pxToIn(160)};
     overflow: hidden;
   }
   .first {
-    font-size: ${payload.fontLarge}px;
+    font-size: ${pxToIn(payload.fontLarge)};
     font-weight: 700;
     line-height: 1;
     text-align: center;
     margin: 0;
   }
   .last {
-    font-size: ${payload.fontSmall}px;
+    font-size: ${pxToIn(payload.fontSmall)};
     font-weight: 600;
     line-height: 1.1;
     text-align: center;
-    margin: 40px 0 0;
+    margin: ${pxToIn(40)} 0 0;
   }
   .extra {
     color: #444;
     text-align: center;
-    margin-top: 30px;
+    margin-top: ${pxToIn(30)};
     line-height: 1.2;
+  }
+  @media print {
+    html, body, .label {
+      width: ${width};
+      height: ${height};
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+    .label {
+      padding-top: ${pxToIn(160)};
+      page-break-after: avoid;
+      page-break-inside: avoid;
+    }
   }
 </style>
 </head>
