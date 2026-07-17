@@ -14,21 +14,39 @@ import json
 import os
 import subprocess
 import tempfile
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 PORT = int(os.environ.get("ROLLO_PRINT_PORT", "3927"))
+PRINTER_CACHE_TTL_SEC = 45
+
+_printer_cache = ""
+_printer_cache_at = 0.0
 
 
-def default_printer() -> str:
+def default_printer(force_refresh: bool = False) -> str:
+    global _printer_cache, _printer_cache_at
+    now = time.monotonic()
+    if (
+        not force_refresh
+        and _printer_cache
+        and now - _printer_cache_at < PRINTER_CACHE_TTL_SEC
+    ):
+        return _printer_cache
+
     try:
         out = subprocess.check_output(["lpstat", "-d"], text=True)
         marker = "system default destination:"
         idx = out.lower().find(marker)
         if idx >= 0:
-            return out[idx + len(marker) :].strip()
-        return out.strip()
+            _printer_cache = out[idx + len(marker) :].strip()
+        else:
+            _printer_cache = out.strip()
     except Exception:
-        return ""
+        _printer_cache = ""
+
+    _printer_cache_at = now
+    return _printer_cache
 
 
 def cups_media_args(media: str | None) -> list[str]:
@@ -42,6 +60,8 @@ def print_png_file(file_path: str, media_size: str) -> None:
     printer = default_printer()
     args = [
         *cups_media_args(media_size),
+        "-n",
+        "1",
         "-o",
         "fit-to-page=false",
         "-o",
@@ -82,7 +102,7 @@ class RolloHandler(BaseHTTPRequestHandler):
             self._json(404, {"ok": False, "error": "Not found"})
             return
 
-        printer = default_printer()
+        printer = default_printer(force_refresh=True)
         self._json(
             200,
             {

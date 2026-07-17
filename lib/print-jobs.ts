@@ -187,6 +187,21 @@ export async function createManualReprintJob(
 }
 
 const STALE_PROCESSING_MS = 2 * 60 * 1000;
+const STALE_RELEASE_INTERVAL_MS = 60_000;
+let lastStaleReleaseAt = 0;
+
+function isValidPrintPayload(payload: unknown): payload is PrintJobPayload {
+  if (!payload || typeof payload !== "object") return false;
+  const p = payload as Record<string, unknown>;
+  return (
+    typeof p.name === "string" &&
+    typeof p.fontLarge === "number" &&
+    typeof p.fontSmall === "number" &&
+    typeof p.mediaSize === "string" &&
+    typeof p.showEmail === "boolean" &&
+    typeof p.showWorkshop === "boolean"
+  );
+}
 
 /** Jobs en PROCESSING sin confirmar (Mac apagada o crash) vuelven a PENDING. */
 export async function releaseStaleProcessingPrintJobs(organizationId?: string) {
@@ -201,8 +216,16 @@ export async function releaseStaleProcessingPrintJobs(organizationId?: string) {
   });
 }
 
-export async function claimNextPrintJob(organizationId: string) {
+/** Throttled stale release for high-frequency print-station polls. */
+export async function releaseStaleProcessingPrintJobsThrottled(organizationId: string) {
+  const now = Date.now();
+  if (now - lastStaleReleaseAt < STALE_RELEASE_INTERVAL_MS) return;
+  lastStaleReleaseAt = now;
   await releaseStaleProcessingPrintJobs(organizationId);
+}
+
+export async function claimNextPrintJob(organizationId: string) {
+  await releaseStaleProcessingPrintJobsThrottled(organizationId);
 
   const job = await prisma.printJob.findFirst({
     where: { organizationId, status: PrintJobStatus.PENDING },
@@ -225,6 +248,13 @@ export async function claimNextPrintJob(organizationId: string) {
 
   const claimed = await prisma.printJob.findUnique({ where: { id: job.id } });
   if (!claimed) return null;
+
+  if (
+    claimed.trigger !== "test_station" &&
+    isValidPrintPayload(claimed.payload)
+  ) {
+    return claimed;
+  }
 
   return refreshPrintJobPayloadFromTemplate(claimed);
 }

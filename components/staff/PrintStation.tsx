@@ -20,7 +20,7 @@ type PrintJobResponse = {
 
 type StationStatus = "idle" | "printing" | "error";
 
-const POLL_MS = 900;
+const POLL_MS = 300;
 
 function isTransientFetchError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
@@ -114,6 +114,21 @@ export function PrintStation() {
     []
   );
 
+  const completeJobAsync = useCallback(
+    (jobId: string, success: boolean, message?: string) => {
+      void completeJob(jobId, success, message).catch((e) => {
+        const detail = e instanceof Error ? e.message : "Error al confirmar";
+        setError(
+          success
+            ? `Label impreso pero no se confirmó en el servidor (${detail}).`
+            : detail
+        );
+        if (!success) setStatus("error");
+      });
+    },
+    [completeJob]
+  );
+
   const processJob = useCallback(
     async (job: PrintJobResponse) => {
       if (printedJobIdsRef.current.has(job.id)) return;
@@ -126,24 +141,20 @@ export function PrintStation() {
 
       try {
         await printLabelPayload(job.payload);
-        await completeJob(job.id, true);
         setPrintedCount((n) => n + 1);
         setLastPrintedAt(new Date().toLocaleTimeString("es-PR"));
         setStatus("idle");
+        busyRef.current = false;
+        completeJobAsync(job.id, true);
       } catch (e) {
         const message = e instanceof Error ? e.message : "Error de impresión";
-        try {
-          await completeJob(job.id, false, message);
-        } catch {
-          // keep local error visible
-        }
+        completeJobAsync(job.id, false, message);
         setError(message);
         setStatus("error");
-      } finally {
         busyRef.current = false;
       }
     },
-    [completeJob]
+    [completeJobAsync]
   );
 
   const pollQueue = useCallback(async () => {
@@ -230,19 +241,17 @@ export function PrintStation() {
       setStatus("printing");
       try {
         await printLabelPayload(data.payload);
-        await completeJob(data.jobId, true);
         setPrintedCount((n) => n + 1);
         setLastPrintedAt(new Date().toLocaleTimeString("es-PR"));
         setStatus("idle");
         setReconnecting(false);
+        busyRef.current = false;
+        completeJobAsync(data.jobId, true);
       } catch (printErr) {
         const message =
           printErr instanceof Error ? printErr.message : "Error de impresión";
-        try {
-          await completeJob(data.jobId, false, message);
-        } catch {
-          // keep local error visible
-        }
+        completeJobAsync(data.jobId, false, message);
+        busyRef.current = false;
         throw printErr;
       }
     } catch (e) {

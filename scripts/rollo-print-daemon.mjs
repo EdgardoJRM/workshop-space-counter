@@ -17,6 +17,10 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 const PORT = Number.parseInt(process.env.ROLLO_PRINT_PORT ?? "3927", 10);
+const PRINTER_CACHE_TTL_MS = 45_000;
+
+let printerCache = "";
+let printerCacheAt = 0;
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -35,24 +39,35 @@ function cupsMediaArgs(media) {
   return ["-o", "media=Custom.3x2in", "-o", "PageSize=Custom.3x2in"];
 }
 
-async function defaultPrinter() {
+async function defaultPrinter(forceRefresh = false) {
+  const now = Date.now();
+  if (!forceRefresh && printerCache && now - printerCacheAt < PRINTER_CACHE_TTL_MS) {
+    return printerCache;
+  }
+
   try {
     const { stdout } = await execFileAsync("lpstat", ["-d"]);
     const marker = "system default destination:";
     const idx = stdout.toLowerCase().indexOf(marker);
     if (idx >= 0) {
-      return stdout.slice(idx + marker.length).trim();
+      printerCache = stdout.slice(idx + marker.length).trim();
+    } else {
+      printerCache = stdout.trim();
     }
-    return stdout.trim();
   } catch {
-    return "";
+    printerCache = "";
   }
+
+  printerCacheAt = now;
+  return printerCache;
 }
 
 async function printPngFile(filePath, mediaSize) {
   const printer = await defaultPrinter();
   const args = [
     ...cupsMediaArgs(mediaSize),
+    "-n",
+    "1",
     "-o",
     "fit-to-page=false",
     "-o",
@@ -84,7 +99,7 @@ const server = http.createServer(async (req, res) => {
   const url = req.url?.split("?")[0] ?? "/";
 
   if (req.method === "GET" && (url === "/" || url === "/health")) {
-    const printer = await defaultPrinter();
+    const printer = await defaultPrinter(true);
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(
       JSON.stringify({
