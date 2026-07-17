@@ -18,6 +18,7 @@
     "verify:ses:send": "node scripts/verify-ses.mjs --send-test",
     "test": "node --import tsx --test lib/**/*.test.ts",
     "typecheck": "tsc --noEmit --incremental false",
+    "rollo-print": "node scripts/rollo-print-daemon.mjs",
     "sync:webhook-secret": "node scripts/sync-webhook-secret.mjs"
   },
   "prisma": {

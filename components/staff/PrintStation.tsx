@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PrintJobPayload } from "@/lib/print-jobs";
 import { ChromePrintNote } from "@/components/admin/ChromePrintNote";
 import { isChromiumBrowser, printLabelPayload } from "@/lib/label-print-html";
+import { probeLocalPrintPath, type LocalPrintProbe } from "@/lib/local-rollo-print";
 import { CHROME_KIOSK_OPEN_COMMAND, PRINT_STATION_PRODUCTION_URL } from "@/lib/print-station-url";
 
 type PrintJobResponse = {
@@ -38,6 +39,10 @@ export function PrintStation() {
   const [testBusy, setTestBusy] = useState(false);
   const [printedCount, setPrintedCount] = useState(0);
   const [macAgentActive, setMacAgentActive] = useState(false);
+  const [localPrint, setLocalPrint] = useState<LocalPrintProbe>({
+    path: null,
+    printer: null,
+  });
 
   const armedRef = useRef(armed);
   const busyRef = useRef(false);
@@ -61,6 +66,20 @@ export function PrintStation() {
     };
     void pollAgent();
     const id = window.setInterval(() => void pollAgent(), 15_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const pollLocal = async () => {
+      const probe = await probeLocalPrintPath();
+      if (!cancelled) setLocalPrint(probe);
+    };
+    void pollLocal();
+    const id = window.setInterval(() => void pollLocal(), 5000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
@@ -240,6 +259,20 @@ export function PrintStation() {
             Deja esta pestaña abierta en Chrome. Los check-ins imprimen solos.
           </p>
           <ChromePrintNote className="mt-4" showKioskCommand />
+
+          {localPrint.path === "rollo-daemon" || localPrint.path === "impresora-auto" ? (
+            <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+              Impresión local activa ({localPrint.path === "rollo-daemon" ? "lp" : "Impresora Auto"}
+              {localPrint.printer ? ` → ${localPrint.printer}` : ""}). 1 job = 1 label 3×2″.
+            </p>
+          ) : (
+            <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">
+              <strong>Falta el relay local.</strong> En esta Mac abre Terminal y corre{" "}
+              <code className="text-[10px]">npm run rollo-print</code> (o doble clic en{" "}
+              <code className="text-[10px]">scripts/Iniciar-Rollo.command</code>). Sin eso,
+              Chrome puede avanzar 3 labels.
+            </p>
+          )}
         </header>
 
         {!chromium && (
@@ -326,6 +359,11 @@ export function PrintStation() {
             Si ves el diálogo de macOS o sale Letter, Chrome no arrancó con kiosk.
           </p>
           <ol className="mt-3 list-decimal space-y-2 pl-5">
+            <li>
+              En Terminal (deja abierta):{" "}
+              <code className="text-[11px]">npm run rollo-print</code> — envía a la Rollo vía{" "}
+              <code className="text-[11px]">lp</code> con tamaño 3×2″ correcto.
+            </li>
             <li>Cierra Chrome por completo (Cmd+Q).</li>
             <li>Rollo = impresora predeterminada en macOS (3×2″).</li>
             <li>

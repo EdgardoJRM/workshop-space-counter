@@ -1,5 +1,6 @@
 import type { PrintJobPayload } from "@/lib/print-jobs";
 import { embedPngDpiFromDataUrl } from "@/lib/png-dpi";
+import { printLabelWithBestPath } from "@/lib/local-rollo-print";
 
 /** Design canvas matches Impresora Auto: 900×600 px at 300 DPI = 3×2″. */
 export const LABEL_CANVAS_WIDTH = 900;
@@ -177,14 +178,25 @@ export function buildLabelPrintHtml(payload: PrintJobPayload, imageDataUrl: stri
 }
 
 export function printLabelPayload(payload: PrintJobPayload): Promise<void> {
+  let imageDataUrl: string;
+  try {
+    imageDataUrl = renderLabelToDataUrl(payload);
+  } catch (e) {
+    return Promise.reject(
+      e instanceof Error ? e : new Error("No se pudo renderizar el label")
+    );
+  }
+
+  return printLabelWithBestPath(imageDataUrl, payload, () =>
+    printLabelViaChrome(payload, imageDataUrl)
+  ).then(() => undefined);
+}
+
+function printLabelViaChrome(
+  payload: PrintJobPayload,
+  imageDataUrl: string
+): Promise<void> {
   return new Promise((resolve, reject) => {
-    let imageDataUrl: string;
-    try {
-      imageDataUrl = renderLabelToDataUrl(payload);
-    } catch (e) {
-      reject(e instanceof Error ? e : new Error("No se pudo renderizar el label"));
-      return;
-    }
 
     const { width, height } = pageDimensions(payload.mediaSize);
 
