@@ -20,7 +20,7 @@ type PrintJobResponse = {
 
 type StationStatus = "idle" | "printing" | "error";
 
-const POLL_MS = 300;
+const POLL_MS = 150;
 
 function isTransientFetchError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
@@ -60,6 +60,7 @@ export function PrintStation() {
   const armedRef = useRef(armed);
   const busyRef = useRef(false);
   const printedJobIdsRef = useRef(new Set<string>());
+  const pollQueueRef = useRef<(() => Promise<void>) | null>(null);
 
   useEffect(() => {
     armedRef.current = armed;
@@ -152,6 +153,10 @@ export function PrintStation() {
         setError(message);
         setStatus("error");
         busyRef.current = false;
+      } finally {
+        if (armedRef.current) {
+          void pollQueueRef.current?.();
+        }
       }
     },
     [completeJobAsync]
@@ -192,6 +197,8 @@ export function PrintStation() {
     }
   }, [processJob]);
 
+  pollQueueRef.current = pollQueue;
+
   useEffect(() => {
     if (!isChromiumBrowser()) return;
 
@@ -221,15 +228,18 @@ export function PrintStation() {
       setError("La impresión de prueba requiere Google Chrome en la Mac del evento.");
       return;
     }
+    if (testBusy || busyRef.current) return;
 
     setTestBusy(true);
     setError(null);
     busyRef.current = true;
+
     try {
       const res = await fetch("/api/staff/print-jobs/test", { method: "POST" });
       const data = (await res.json()) as {
         error?: string;
         jobId?: string;
+        registrationId?: string;
         payload?: PrintJobPayload;
       };
       if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
@@ -237,24 +247,15 @@ export function PrintStation() {
         throw new Error("Respuesta de prueba incompleta");
       }
 
-      setLastName(data.payload.name);
-      setStatus("printing");
-      try {
-        await printLabelPayload(data.payload);
-        setPrintedCount((n) => n + 1);
-        setLastPrintedAt(new Date().toLocaleTimeString("es-PR"));
-        setStatus("idle");
-        setReconnecting(false);
-        busyRef.current = false;
-        completeJobAsync(data.jobId, true);
-      } catch (printErr) {
-        const message =
-          printErr instanceof Error ? printErr.message : "Error de impresión";
-        completeJobAsync(data.jobId, false, message);
-        busyRef.current = false;
-        throw printErr;
-      }
+      await processJob({
+        id: data.jobId,
+        registrationId: data.registrationId ?? "",
+        trigger: "test_station",
+        payload: data.payload,
+        attempts: 1,
+      });
     } catch (e) {
+      busyRef.current = false;
       if (isTransientFetchError(e)) {
         setReconnecting(true);
       } else {
@@ -262,7 +263,6 @@ export function PrintStation() {
         setStatus("error");
       }
     } finally {
-      busyRef.current = false;
       setTestBusy(false);
     }
   }

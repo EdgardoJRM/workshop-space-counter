@@ -30,6 +30,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     jobId: result.jobId,
+    registrationId: result.registrationId,
     payload: result.payload,
   });
 }

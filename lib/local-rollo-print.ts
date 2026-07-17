@@ -10,7 +10,7 @@ export type LocalPrintProbe = {
   printer: string | null;
 };
 
-const PROBE_CACHE_TTL_MS = 5_000;
+const PROBE_CACHE_TTL_MS = 30_000;
 
 let cachedProbe: LocalPrintProbe = { path: null, printer: null };
 let cachedProbeAt = 0;
@@ -94,7 +94,7 @@ export async function printPngViaLocalDaemon(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pngBase64, mediaSize }),
       },
-      20_000
+      8_000
     );
     const data = (await res.json().catch(() => ({}))) as { error?: string };
     if (!res.ok) {
@@ -129,7 +129,7 @@ export async function printPayloadViaImpresoraAuto(
           workshopLabel: payload.workshopLabel,
         }),
       },
-      20_000
+      8_000
     );
     const data = (await res.json().catch(() => ({}))) as { error?: string };
     if (!res.ok) {

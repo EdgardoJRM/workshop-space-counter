@@ -292,7 +292,7 @@ export async function refreshPrintJobPayloadFromTemplate(
 export async function createTestPrintJob(
   organizationId: string
 ): Promise<
-  | { ok: true; jobId: string; payload: PrintJobPayload }
+  | { ok: true; jobId: string; registrationId: string; payload: PrintJobPayload }
   | { ok: false; error: string }
 > {
   const reg = await prisma.registration.findFirst({
@@ -324,12 +324,13 @@ export async function createTestPrintJob(
       registrationId: reg.id,
       checkinId: null,
       trigger: "test_station",
-      status: PrintJobStatus.PENDING,
+      status: PrintJobStatus.PROCESSING,
+      attempts: 1,
       payload: payload as unknown as Prisma.InputJsonValue,
     },
   });
 
-  return { ok: true, jobId: job.id, payload };
+  return { ok: true, jobId: job.id, registrationId: reg.id, payload };
 }
 
 export async function completePrintJobForOrganization(
