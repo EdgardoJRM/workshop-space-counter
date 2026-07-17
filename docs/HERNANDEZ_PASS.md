@@ -97,7 +97,7 @@ Checklist imprimible: [`docs/EVENT_DAY_CHECKLIST.md`](EVENT_DAY_CHECKLIST.md).
 
 1. Abre `/login` (o `?intent=staff` / `?intent=admin`).
 2. Correo en `ADMIN_EMAILS` o `STAFF_EMAILS`.
-3. Enlace por SES (15 min); sesión 7 días.
+3. Enlace por SES (15 min); sesión 30 días.
 
 ## Flujo del día del evento (checklist)
 

@@ -25,7 +25,7 @@ export type SessionPayload = {
 };
 
 const SESSION_COOKIE = "hp_session";
-const SESSION_MAX_AGE_SEC = 60 * 60 * 24 * 7;
+const SESSION_MAX_AGE_SEC = 60 * 60 * 24 * 30;
 const MAGIC_MAX_AGE_SEC = 60 * 15;
 
 export { assertJwtSecretConfigured };

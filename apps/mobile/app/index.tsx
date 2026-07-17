@@ -19,6 +19,7 @@ import {
   bootstrap,
   fetchOrgBranding,
   isDemoLoginEnabled,
+  isAuthSessionError,
   loginWithDemoCredentials,
   requestMagicLink,
 } from "@/lib/api";
@@ -53,8 +54,14 @@ export default function LoginScreen() {
             router.replace("/(main)");
             return;
           }
-        } catch {
-          /* expired */
+        } catch (error) {
+          if (isAuthSessionError(error)) {
+            /* token cleared in apiFetch */
+          } else {
+            // Network blip on cold start: enter with stored token.
+            router.replace("/(main)");
+            return;
+          }
         }
       }
       try {

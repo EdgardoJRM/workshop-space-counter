@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { bootstrap } from "./api";
+import { bootstrap, isAuthSessionError } from "./api";
+import { getAccessToken } from "./storage";
 import type { WorkshopSlug } from "./workshops";
 import { WORKSHOP_SLUGS } from "./workshops";
 
@@ -25,15 +26,27 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [workshop, setWorkshopState] = useState<WorkshopSlug>("duplica-ventas");
 
   const refreshSession = useCallback(async () => {
+    const token = await getAccessToken();
+    if (!token) {
+      setIsAdmin(false);
+      setIsStaff(false);
+      setEmail(null);
+      setLoaded(true);
+      return;
+    }
+
     try {
       const data = await bootstrap();
       setIsAdmin(Boolean(data.permissions?.admin));
       setIsStaff(Boolean(data.permissions?.staff));
       setEmail(data.email ?? null);
-    } catch {
-      setIsAdmin(false);
-      setIsStaff(false);
-      setEmail(null);
+    } catch (error) {
+      if (isAuthSessionError(error)) {
+        setIsAdmin(false);
+        setIsStaff(false);
+        setEmail(null);
+      }
+      // Transient errors: keep prior session flags until next refresh.
     } finally {
       setLoaded(true);
     }

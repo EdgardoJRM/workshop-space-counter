@@ -11,18 +11,31 @@ async function setSecureItem(key: string, value: string): Promise<void> {
     await AsyncStorage.setItem(key, value);
     return;
   }
-  await SecureStore.setItemAsync(key, value);
+
+  // AsyncStorage backup survives SecureStore edge cases on cold start.
+  await AsyncStorage.setItem(key, value);
+  try {
+    await SecureStore.setItemAsync(key, value, {
+      keychainAccessible: SecureStore.WHEN_UNLOCKED,
+    });
+  } catch {
+    // Token remains in AsyncStorage.
+  }
 }
 
 async function getSecureItem(key: string): Promise<string | null> {
   if (Platform.OS === "web") {
     return AsyncStorage.getItem(key);
   }
+
   try {
-    return await SecureStore.getItemAsync(key);
+    const secure = await SecureStore.getItemAsync(key);
+    if (secure) return secure;
   } catch {
-    return AsyncStorage.getItem(key);
+    // fall through to AsyncStorage
   }
+
+  return AsyncStorage.getItem(key);
 }
 
 async function removeSecureItem(key: string): Promise<void> {
@@ -30,10 +43,12 @@ async function removeSecureItem(key: string): Promise<void> {
     await AsyncStorage.removeItem(key);
     return;
   }
+
+  await AsyncStorage.removeItem(key);
   try {
     await SecureStore.deleteItemAsync(key);
   } catch {
-    await AsyncStorage.removeItem(key);
+    // ignore
   }
 }
 
@@ -48,22 +63,17 @@ export async function saveSession(
 }
 
 export async function getAccessToken(): Promise<string | null> {
-  const secure = await getSecureItem(TOKEN_KEY);
-  if (secure) return secure;
-  return AsyncStorage.getItem(TOKEN_KEY);
+  return getSecureItem(TOKEN_KEY);
 }
 
 export async function getOrgSlug(): Promise<string | null> {
-  const secure = await getSecureItem(ORG_KEY);
-  if (secure) return secure;
-  return AsyncStorage.getItem(ORG_KEY);
+  return getSecureItem(ORG_KEY);
 }
 
 export async function clearSession(): Promise<void> {
   await Promise.all([
     removeSecureItem(TOKEN_KEY),
     removeSecureItem(ORG_KEY),
-    AsyncStorage.multiRemove([TOKEN_KEY, ORG_KEY]),
   ]);
 }
 

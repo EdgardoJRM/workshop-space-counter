@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { router } from "expo-router";
-import { bootstrap } from "@/lib/api";
+import { bootstrap, isAuthSessionError } from "@/lib/api";
 import { clearSession, getAccessToken } from "@/lib/storage";
 
 export function SessionGuard({ children }: { children: React.ReactNode }) {
@@ -14,6 +14,7 @@ export function SessionGuard({ children }: { children: React.ReactNode }) {
         router.replace("/");
         return;
       }
+
       try {
         const data = await bootstrap();
         if (!data.authenticated) {
@@ -22,9 +23,13 @@ export function SessionGuard({ children }: { children: React.ReactNode }) {
           return;
         }
         setReady(true);
-      } catch {
-        await clearSession();
-        router.replace("/");
+      } catch (error) {
+        if (isAuthSessionError(error)) {
+          router.replace("/");
+          return;
+        }
+        // Offline or transient server error: keep stored session.
+        setReady(true);
       }
     })();
   }, []);

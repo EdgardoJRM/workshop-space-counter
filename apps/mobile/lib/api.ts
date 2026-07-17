@@ -7,6 +7,17 @@ import type {
   RegistrationRow,
 } from "./types";
 
+export class AuthSessionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AuthSessionError";
+  }
+}
+
+export function isAuthSessionError(error: unknown): boolean {
+  return error instanceof AuthSessionError;
+}
+
 async function parseJsonResponse<T>(res: Response): Promise<T & { error?: string }> {
   const text = await res.text();
   try {
@@ -41,7 +52,7 @@ async function apiFetch<T>(
   const data = await parseJsonResponse<T>(res);
   if (res.status === 401) {
     await clearSession();
-    throw new Error("Sesión expirada. Vuelve a iniciar sesión.");
+    throw new AuthSessionError("Sesión expirada. Vuelve a iniciar sesión.");
   }
   if (!res.ok) {
     throw new Error(
