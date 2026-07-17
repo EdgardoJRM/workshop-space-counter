@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { EventDatePicker } from "@/components/EventDatePicker";
 import { IconCircle } from "@/components/IconCircle";
 import { ProgressBar } from "@/components/ProgressBar";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -28,18 +29,11 @@ function formatEventDate(iso: string): string {
   }
 }
 
-function FeaturedEventCard({
-  item,
-  onSelect,
-}: {
-  item: MobileEvent;
-  onSelect: () => void;
-}) {
+function FeaturedEventCard({ item }: { item: MobileEvent }) {
   const { colors, styles } = useAppTheme();
 
   return (
-    <Pressable
-      onPress={onSelect}
+    <View
       style={[
         styles.rowCard,
         styles.rowCardActive,
@@ -77,64 +71,7 @@ function FeaturedEventCard({
           <Text style={styles.rowMeta}>{formatEventDate(item.startsAt)}</Text>
         </View>
       </View>
-
-      <View
-        style={{
-          borderTopWidth: 1,
-          borderTopColor: colors.border,
-          marginTop: 14,
-          paddingTop: 12,
-          flexDirection: "row",
-          justifyContent: "flex-end",
-          alignItems: "center",
-          gap: 4,
-        }}
-      >
-        <Text style={styles.link}>Ver detalles</Text>
-        <Ionicons name="chevron-forward" size={16} color={colors.link} />
-      </View>
-    </Pressable>
-  );
-}
-
-function OtherEventRow({
-  item,
-  onSelect,
-}: {
-  item: MobileEvent;
-  onSelect: () => void;
-}) {
-  const { colors, styles } = useAppTheme();
-
-  return (
-    <Pressable
-      onPress={onSelect}
-      style={[
-        styles.rowCard,
-        {
-          borderWidth: 1,
-          borderColor: colors.border,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 12,
-        },
-      ]}
-    >
-      <IconCircle name="calendar-outline" variant="blue" size={40} />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.rowTitle}>{item.label}</Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
-          <Ionicons name="calendar-outline" size={14} color={colors.textSubtle} />
-          <Text style={styles.rowMeta}>{formatEventDate(item.startsAt)}</Text>
-        </View>
-      </View>
-      <View style={{ alignItems: "flex-end" }}>
-        <Text style={{ fontSize: 15, fontWeight: "700", color: colors.link }}>
-          {item.checkedInCount}/{item.registrationCount}
-        </Text>
-        <Ionicons name="chevron-forward" size={18} color={colors.textSubtle} />
-      </View>
-    </Pressable>
+    </View>
   );
 }
 
@@ -163,8 +100,6 @@ export default function EventsScreen() {
     await clearSession();
     router.replace("/");
   }
-
-  const others = events.filter((e) => e.workshopDateId !== selectedEventId);
 
   if (!loaded) {
     return (
@@ -204,11 +139,16 @@ export default function EventsScreen() {
         </Text>
       </Pressable>
 
-      {selectedEvent ? (
-        <FeaturedEventCard
-          item={selectedEvent}
-          onSelect={() => void selectEvent(selectedEvent.workshopDateId)}
+      {events.length > 0 ? (
+        <EventDatePicker
+          events={events}
+          selectedEventId={selectedEventId}
+          onSelect={(id) => void selectEvent(id)}
         />
+      ) : null}
+
+      {selectedEvent ? (
+        <FeaturedEventCard item={selectedEvent} />
       ) : (
         <View style={styles.cardFlat}>
           <Text style={[styles.subtitle, { textAlign: "center" }]}>
@@ -216,24 +156,6 @@ export default function EventsScreen() {
           </Text>
         </View>
       )}
-
-      {others.length > 0 ? (
-        <>
-          <Text style={[styles.title, { fontSize: 18, marginTop: 24, marginBottom: 12 }]}>
-            Otras fechas
-          </Text>
-          <Text style={[styles.subtitle, { marginBottom: 12 }]}>
-            Toca una fecha para usarla en Escanear, Lista e Impresora.
-          </Text>
-          {others.map((item) => (
-            <OtherEventRow
-              key={item.workshopDateId}
-              item={item}
-              onSelect={() => void selectEvent(item.workshopDateId)}
-            />
-          ))}
-        </>
-      ) : null}
     </ScrollView>
   );
 }

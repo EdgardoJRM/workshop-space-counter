@@ -33,32 +33,23 @@ type SessionInfo = {
 function NavButton({
   active,
   label,
-  description,
   onClick,
 }: {
   active: boolean;
   label: string;
-  description: string;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`w-full rounded-xl px-3 py-2.5 text-left transition ${
+      className={`w-full rounded-lg px-3 py-2 text-left text-sm font-medium transition ${
         active
-          ? "bg-brand-slate text-white shadow-md"
-          : "bg-white/80 text-brand-charcoal hover:bg-white"
+          ? "bg-brand-slate text-white"
+          : "text-brand-charcoal hover:bg-white/80"
       }`}
     >
-      <span className="block text-sm font-semibold">{label}</span>
-      <span
-        className={`mt-0.5 block text-xs ${
-          active ? "text-white/80" : "text-brand-grey"
-        }`}
-      >
-        {description}
-      </span>
+      {label}
     </button>
   );
 }
@@ -119,10 +110,10 @@ export function AdminDashboard() {
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-5xl gap-6 px-4 py-6 lg:grid-cols-[240px_1fr]">
-        <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-          <nav className="space-y-1" aria-label="Navegación principal">
-            <p className="px-1 text-[10px] font-bold uppercase tracking-wider text-brand-grey">
+      <div className="mx-auto grid max-w-5xl gap-6 px-4 py-6 lg:grid-cols-[180px_1fr]">
+        <aside className="space-y-3 lg:sticky lg:top-6 lg:self-start">
+          <nav className="space-y-0.5" aria-label="Navegación principal">
+            <p className="px-1 pb-1 text-[10px] font-medium uppercase tracking-wider text-brand-grey/70">
               Taller
             </p>
             {workshopNav.map((item) => (
@@ -130,14 +121,13 @@ export function AdminDashboard() {
                 key={item.id}
                 active={view === item.id}
                 label={item.label}
-                description={item.description}
                 onClick={() => setView(item.id)}
               />
             ))}
           </nav>
 
-          <nav className="space-y-1" aria-label="Configuración del sistema">
-            <p className="px-1 text-[10px] font-bold uppercase tracking-wider text-brand-grey">
+          <nav className="space-y-0.5" aria-label="Configuración del sistema">
+            <p className="px-1 pb-1 text-[10px] font-medium uppercase tracking-wider text-brand-grey/70">
               Sistema
             </p>
             {systemNav.map((item) => (
@@ -145,7 +135,6 @@ export function AdminDashboard() {
                 key={item.id}
                 active={view === item.id}
                 label={item.label}
-                description={item.description}
                 onClick={() => setView(item.id)}
               />
             ))}
@@ -160,10 +149,7 @@ export function AdminDashboard() {
 
         <main className="min-w-0">
           {view !== "home" && (
-            <div className="mb-4 rounded-xl border border-brand-grey/20 bg-white/80 px-4 py-3">
-              <h2 className="text-lg font-semibold text-brand-slate">{meta.title}</h2>
-              <p className="text-sm text-brand-charcoal">{meta.description}</p>
-            </div>
+            <h2 className="mb-4 text-lg font-semibold text-brand-slate">{meta.title}</h2>
           )}
 
           {showWorkshopPicker && (

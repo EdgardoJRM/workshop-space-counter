@@ -82,9 +82,7 @@ export function AdminOverview({ onNavigate }: Props) {
       <div>
         <h2 className="text-lg font-semibold text-brand-slate">Inicio</h2>
         <p className="mt-1 text-sm text-brand-charcoal">
-          Configura fechas, webhook de ClickFunnels, cupos y emails desde el menú
-          lateral. Todo lo que antes solo estaba en variables de entorno ahora puedes
-          gestionarlo aquí.
+          Resumen del sistema y accesos rápidos por taller.
         </p>
       </div>
 
