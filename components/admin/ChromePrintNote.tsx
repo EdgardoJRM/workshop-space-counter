@@ -12,12 +12,13 @@ export function ChromePrintNote({ className = "" }: Props) {
     >
       <p>
         <span className="font-semibold text-brand-slate">Impresora:</span> la
-        predeterminada de macOS (Rollo 3×2). Chrome la muestra en el diálogo al
-        usar <strong>Probar label</strong> o en la estación web.
+        predeterminada de macOS (Rollo 3×2). <strong>Probar label</strong> imprime
+        ahí directo desde Chrome.
       </p>
       <p className="mt-1 text-[11px] text-brand-grey">
-        No hace falta instalar nada en la Mac — solo Chrome, la Rollo conectada y
-        esta pestaña abierta.
+        Para imprimir sin diálogo el día del evento, abre Chrome con{" "}
+        <code className="text-[10px]">--kiosk-printing</code>. Sin eso, macOS pide
+        confirmar una vez en Imprimir.
       </p>
     </div>
   );

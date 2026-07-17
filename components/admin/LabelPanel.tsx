@@ -100,9 +100,9 @@ export function LabelPanel({ slug }: LabelPanelProps) {
     return { fontLarge, fontSmall };
   }
 
-  async function handlePreviewPrint() {
+  async function handleTestPrint() {
     if (!isChromiumBrowser()) {
-      setError("La vista previa requiere Google Chrome en la Mac del evento.");
+      setError("La impresión de prueba requiere Google Chrome en la Mac del evento.");
       return;
     }
 
@@ -121,8 +121,11 @@ export function LabelPanel({ slug }: LabelPanelProps) {
         showEmail: form.showEmail,
         showWorkshop: form.showWorkshop,
       });
+      setSuccess(
+        "Label enviado a la Rollo predeterminada. Si ves un diálogo de macOS, confirma Imprimir."
+      );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo abrir la vista previa");
+      setError(e instanceof Error ? e.message : "No se pudo imprimir la prueba");
     } finally {
       setPreviewBusy(false);
     }
@@ -163,9 +166,8 @@ export function LabelPanel({ slug }: LabelPanelProps) {
       <h3 className="text-sm font-semibold text-brand-ink">Etiqueta de impresión (Rollo)</h3>
       <p className="mt-1 text-xs text-brand-grey">
         En la Mac del evento usa <strong>Chrome</strong> (no Safari).{" "}
-        <strong>Probar label</strong> abre el diálogo de impresión de macOS con vista
-        previa PDF — ahí ves la impresora y confirmas fuentes antes de guardar. El
-        día del evento deja la{" "}
+        <strong>Probar label</strong> imprime en la Rollo predeterminada con los
+        valores del formulario. El día del evento deja la{" "}
         <a
           href="/staff/print-station"
           className="font-medium text-brand-slate underline"
@@ -264,10 +266,10 @@ export function LabelPanel({ slug }: LabelPanelProps) {
             <button
               type="button"
               disabled={previewBusy}
-              onClick={() => void handlePreviewPrint()}
+              onClick={() => void handleTestPrint()}
               className="rounded-lg border border-brand-grey/30 px-4 py-2 text-sm font-semibold text-brand-charcoal disabled:opacity-50"
             >
-              {previewBusy ? "Abriendo vista previa…" : "Probar label"}
+              {previewBusy ? "Imprimiendo…" : "Probar label"}
             </button>
             <button
               type="submit"

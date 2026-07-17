@@ -173,20 +173,54 @@ export function PrintStation() {
   }, [pollQueue]);
 
   async function handleTestPrint() {
+    if (!isChromiumBrowser()) {
+      setError("La impresión de prueba requiere Google Chrome en la Mac del evento.");
+      return;
+    }
+
     setTestBusy(true);
     setError(null);
+    busyRef.current = true;
     try {
       const res = await fetch("/api/staff/print-jobs/test", { method: "POST" });
-      const data = (await res.json()) as { error?: string };
+      const data = (await res.json()) as {
+        error?: string;
+        jobId?: string;
+        payload?: PrintJobPayload;
+      };
       if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
-      setReconnecting(false);
+      if (!data.jobId || !data.payload) {
+        throw new Error("Respuesta de prueba incompleta");
+      }
+
+      setLastName(data.payload.name);
+      setStatus("printing");
+      try {
+        await printLabelPayload(data.payload);
+        await completeJob(data.jobId, true);
+        setPrintedCount((n) => n + 1);
+        setLastPrintedAt(new Date().toLocaleTimeString("es-PR"));
+        setStatus("idle");
+        setReconnecting(false);
+      } catch (printErr) {
+        const message =
+          printErr instanceof Error ? printErr.message : "Error de impresión";
+        try {
+          await completeJob(data.jobId, false, message);
+        } catch {
+          // keep local error visible
+        }
+        throw printErr;
+      }
     } catch (e) {
       if (isTransientFetchError(e)) {
         setReconnecting(true);
       } else {
-        setError(e instanceof Error ? e.message : "No se pudo encolar prueba");
+        setError(e instanceof Error ? e.message : "No se pudo imprimir la prueba");
+        setStatus("error");
       }
     } finally {
+      busyRef.current = false;
       setTestBusy(false);
     }
   }
@@ -280,7 +314,7 @@ export function PrintStation() {
             onClick={() => void handleTestPrint()}
             className="mt-5 w-full rounded-lg border border-brand-grey/30 px-4 py-2.5 text-sm font-medium disabled:opacity-50"
           >
-            {testBusy ? "Encolando…" : "Probar label"}
+            {testBusy ? "Imprimiendo…" : "Probar label"}
           </button>
         </section>
 

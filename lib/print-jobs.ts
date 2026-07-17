@@ -261,7 +261,10 @@ export async function refreshPrintJobPayloadFromTemplate(
 
 export async function createTestPrintJob(
   organizationId: string
-): Promise<{ ok: true; jobId: string } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; jobId: string; payload: PrintJobPayload }
+  | { ok: false; error: string }
+> {
   const reg = await prisma.registration.findFirst({
     where: { workshopDate: { workshop: { organizationId } } },
     include: {
@@ -296,7 +299,7 @@ export async function createTestPrintJob(
     },
   });
 
-  return { ok: true, jobId: job.id };
+  return { ok: true, jobId: job.id, payload };
 }
 
 export async function completePrintJobForOrganization(
