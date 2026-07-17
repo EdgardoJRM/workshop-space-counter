@@ -5,6 +5,7 @@ import {
   type AuthRole,
 } from "@/lib/auth";
 import { sendMagicLinkEmail } from "@/lib/auth-email";
+import { checkRateLimit, clientIp, rateLimitResponse } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,9 @@ function safeNextPath(raw: unknown, intent: AuthRole): string {
 }
 
 export async function POST(request: Request) {
+  const rl = checkRateLimit(`magic:${clientIp(request)}`, 8, 15 * 60 * 1000);
+  if (!rl.ok) return rateLimitResponse(rl.retryAfterSec);
+
   let body: Body;
   try {
     body = (await request.json()) as Body;

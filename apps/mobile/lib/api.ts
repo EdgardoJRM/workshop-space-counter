@@ -1,11 +1,24 @@
 import { API_BASE_URL, DEFAULT_ORG_SLUG } from "@/constants/config";
-import { getAccessToken } from "./storage";
+import { clearSession, getAccessToken } from "./storage";
 import type {
   BootstrapResponse,
   MobileEvent,
   OrganizationBranding,
   RegistrationRow,
 } from "./types";
+
+async function parseJsonResponse<T>(res: Response): Promise<T & { error?: string }> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text) as T & { error?: string };
+  } catch {
+    throw new Error(
+      text.startsWith("<")
+        ? `Error del servidor (${res.status}). Revisa la conexión.`
+        : text.slice(0, 200) || `HTTP ${res.status}`
+    );
+  }
+}
 
 async function apiFetch<T>(
   path: string,
@@ -25,7 +38,11 @@ async function apiFetch<T>(
     headers,
   });
 
-  const data = (await res.json()) as T & { error?: string };
+  const data = await parseJsonResponse<T>(res);
+  if (res.status === 401) {
+    await clearSession();
+    throw new Error("Sesión expirada. Vuelve a iniciar sesión.");
+  }
   if (!res.ok) {
     throw new Error(
       (data as { error?: string }).error ?? `HTTP ${res.status}`

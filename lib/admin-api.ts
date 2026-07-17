@@ -2,6 +2,8 @@ import { hasRole, isAdminAuthorized } from "@/lib/auth";
 import { getSessionFromRequest } from "@/lib/mobile-auth";
 import { requireTenantAdmin } from "@/lib/tenant";
 
+let legacyTokenWarned = false;
+
 export async function assertAdminApiAccess(
   legacyToken?: string | null,
   request?: Request
@@ -19,6 +21,15 @@ export async function assertAdminApiAccess(
   const tenant = await requireTenantAdmin();
   if (!("error" in tenant)) {
     return { ok: true, organizationId: tenant.organization.id };
+  }
+
+  if (legacyToken?.trim()) {
+    if (!legacyTokenWarned) {
+      legacyTokenWarned = true;
+      console.warn(
+        "[admin-api] Legacy ?token= admin auth is deprecated; use /login session."
+      );
+    }
   }
 
   const allowed = await isAdminAuthorized(legacyToken ?? undefined);

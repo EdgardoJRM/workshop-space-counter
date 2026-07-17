@@ -38,8 +38,8 @@ export const ADMIN_NAV: NavItem[] = [
   },
   {
     id: "registrations",
-    label: "Registros",
-    description: "Lista, registro manual, CSV y reenvío de pase",
+    label: "Personas",
+    description: "Lista por fecha, registro manual, CSV y reenvío",
     group: "workshop",
   },
   {

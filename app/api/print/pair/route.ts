@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isDatabaseConfigured } from "@/lib/prisma";
 import { redeemPairingCode } from "@/lib/printer-pairing";
+import { checkRateLimit, clientIp, rateLimitResponse } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,9 @@ type Body = {
 };
 
 export async function POST(request: Request) {
+  const rl = checkRateLimit(`print-pair:${clientIp(request)}`, 12, 15 * 60 * 1000);
+  if (!rl.ok) return rateLimitResponse(rl.retryAfterSec);
+
   if (!isDatabaseConfigured()) {
     return NextResponse.json(
       { error: "DATABASE_URL is not configured" },

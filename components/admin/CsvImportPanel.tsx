@@ -21,6 +21,7 @@ type ImportResult = {
 
 export type CsvImportPanelProps = {
   slug: WorkshopSlug;
+  workshopDateId: string;
   onImported: () => void;
 };
 
@@ -28,7 +29,7 @@ const SAMPLE_CSV = `nombre,email,telefono
 María García,maria@ejemplo.com,7875551234
 Juan Pérez,juan@ejemplo.com,9395559876`;
 
-export function CsvImportPanel({ slug, onImported }: CsvImportPanelProps) {
+export function CsvImportPanel({ slug, workshopDateId, onImported }: CsvImportPanelProps) {
   const [file, setFile] = useState<File | null>(null);
   const [sendEmail, setSendEmail] = useState(true);
   const [importing, setImporting] = useState(false);
@@ -43,6 +44,11 @@ export function CsvImportPanel({ slug, onImported }: CsvImportPanelProps) {
       return;
     }
 
+    if (!workshopDateId) {
+      setError("Elige una fecha del evento antes de importar.");
+      return;
+    }
+
     setImporting(true);
     setError(null);
     setResult(null);
@@ -51,6 +57,7 @@ export function CsvImportPanel({ slug, onImported }: CsvImportPanelProps) {
       const form = new FormData();
       form.append("file", file);
       form.append("workshop", slug);
+      form.append("workshopDateId", workshopDateId);
       form.append("sendPassEmail", sendEmail ? "true" : "false");
 
       const res = await fetch("/api/admin/import-registrations", {
@@ -90,7 +97,7 @@ export function CsvImportPanel({ slug, onImported }: CsvImportPanelProps) {
       <h3 className="text-sm font-semibold text-brand-slate">Importar desde CSV</h3>
       <p className="mt-1 text-xs text-brand-charcoal">
         Columnas: <strong>nombre</strong>, <strong>email</strong>, <strong>telefono</strong>{" "}
-        (primera fila = encabezados). Se usa la fecha <strong>activa</strong> del taller.
+        (primera fila = encabezados). Se importa a la <strong>fecha seleccionada</strong> arriba.
         Máximo 500 filas.
       </p>
 

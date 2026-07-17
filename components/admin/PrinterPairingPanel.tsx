@@ -61,10 +61,30 @@ export function PrinterPairingPanel() {
 
   return (
     <div className="space-y-6 rounded-2xl border border-brand-grey/20 bg-white p-6">
-      <div>
-        <h2 className="text-lg font-semibold">Impresora Mac (emparejamiento)</h2>
+      <div className="rounded-xl border border-brand-slate/20 bg-brand-off/50 p-4">
+        <h2 className="text-lg font-semibold">Estación web (recomendado)</h2>
         <p className="mt-1 text-sm text-brand-grey">
-          Genera un código de 8 caracteres. En la Mac del evento corre{" "}
+          En la Mac del evento abre Chrome con la estación de impresión. No requiere
+          Instalar Impresora Auto.
+        </p>
+        <a
+          href="/staff/print-station"
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 inline-block rounded-lg bg-brand-slate px-4 py-2 text-sm font-medium text-white"
+        >
+          Abrir estación de impresión
+        </a>
+        <p className="mt-3 text-xs text-brand-grey">
+          Chrome con{" "}
+          <code className="text-[11px]">--kiosk-printing</code> para imprimir sin diálogo.
+        </p>
+      </div>
+
+      <div>
+        <h2 className="text-lg font-semibold">Impresora Mac (agente legacy)</h2>
+        <p className="mt-1 text-sm text-brand-grey">
+          Solo si la estación web falla. Genera un código de 8 caracteres. En la Mac corre{" "}
           <code className="text-xs">zsh emparejar.sh</code> y pégalo.
         </p>
       </div>

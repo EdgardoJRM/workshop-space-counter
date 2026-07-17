@@ -54,6 +54,34 @@ export async function POST(request: Request) {
   }
 
   const sendPassEmail = formData.get("sendPassEmail") !== "false";
+  const workshopDateIdRaw = formData.get("workshopDateId");
+  const workshopDateId =
+    typeof workshopDateIdRaw === "string" ? workshopDateIdRaw.trim() : "";
+
+  if (!workshopDateId) {
+    return NextResponse.json(
+      { error: "workshopDateId is required — elige la fecha del evento" },
+      { status: 400 }
+    );
+  }
+
+  const { prisma } = await import("@/lib/prisma");
+  const dateRow = await prisma.workshopDate.findFirst({
+    where: {
+      id: workshopDateId,
+      workshop: {
+        slug: workshop,
+        organizationId: auth.organizationId,
+      },
+    },
+  });
+  if (!dateRow) {
+    return NextResponse.json(
+      { error: "La fecha no pertenece a este taller" },
+      { status: 400 }
+    );
+  }
+
   const text = await file.text();
 
   const { rows, errors: parseErrors } = parseRegistrationsCsv(text);
@@ -77,6 +105,7 @@ export async function POST(request: Request) {
   const importResult = await importRegistrationsFromCsv(rows, workshop, {
     sendPassEmail,
     importBatchId: `admin-${Date.now()}`,
+    workshopDateId,
   });
 
   return NextResponse.json({

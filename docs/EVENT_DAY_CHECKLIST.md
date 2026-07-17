@@ -18,15 +18,17 @@ Imprime o revisa cada mañana. Detalle en [`HERNANDEZ_PASS.md`](HERNANDEZ_PASS.m
 
 - [ ] Admin → **Fechas** → **Marcar evento de hoy** por taller del día.
 - [ ] App móvil → pestaña **Evento** → elegir la fecha correcta (taller en el nombre).
-- [ ] Mac: Impresora Auto activa, Rollo conectada, `PRINT_AGENT_TOKEN` = Vercel.
-- [ ] Prueba: 1 scan → label **Imprimiendo…** → sale de impresora.
+- [ ] Mac: Rollo = impresora predeterminada (3×2″).
+- [ ] Chrome: estación web armada → `/staff/print-station` (con `--kiosk-printing`).
+- [ ] **Solo una impresora:** estación Chrome **o** Impresora Auto — no ambas.
+- [ ] Prueba: **Probar label** en la estación o 1 scan → sale de impresora.
 - [ ] Duplica: verificar acceso La Bóveda si aplica.
 
 ## Durante el evento
 
 - [ ] 1 QR = 1 check-in = 1 label.
 - [ ] Rescan = “Ya registrado” (no reimprime solo).
-- [ ] Si no imprime: **Lista** → **Reimprimir** (o Admin → Personas).
+- [ ] Si no imprime: **Lista** → **Reimprimir** (o Admin web → **Personas** de esa fecha).
 - [ ] Invitado sin QR = falta formulario de boletos extra → **Invitados pendientes**.
 
 ## Accesos rápidos
@@ -35,4 +37,5 @@ Imprime o revisa cada mañana. Detalle en [`HERNANDEZ_PASS.md`](HERNANDEZ_PASS.m
 |-----|-----|
 | Admin web | https://pass.edgardohernandez.com/login?intent=admin&next=/admin |
 | Staff web | https://pass.edgardohernandez.com/login?intent=staff&next=/staff/scan |
-| App móvil | Magic link → Evento / Escanear / Admin |
+| Estación impresión | https://pass.edgardohernandez.com/login?intent=staff&next=/staff/print-station |
+| App móvil | Magic link → Evento / Escanear / Lista / Impresora (sin Admin) |

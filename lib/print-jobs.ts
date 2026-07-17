@@ -223,7 +223,93 @@ export async function claimNextPrintJob(organizationId: string) {
   });
   if (updated.count === 0) return claimNextPrintJob(organizationId);
 
-  return prisma.printJob.findUnique({ where: { id: job.id } });
+  const claimed = await prisma.printJob.findUnique({ where: { id: job.id } });
+  if (!claimed) return null;
+
+  return refreshPrintJobPayloadFromTemplate(claimed);
+}
+
+/** Applies the latest label template while keeping attendee fields from registration. */
+export async function refreshPrintJobPayloadFromTemplate(
+  job: NonNullable<Awaited<ReturnType<typeof prisma.printJob.findUnique>>>
+) {
+  if (!job.registrationId) return job;
+
+  const reg = await prisma.registration.findUnique({
+    where: { id: job.registrationId },
+    include: {
+      attendee: true,
+      workshopDate: { include: { workshop: true } },
+    },
+  });
+  if (!reg) return job;
+
+  const template = await getLabelTemplateForWorkshop(
+    reg.workshopDate.workshop.slug,
+    job.organizationId
+  );
+  const payload = buildPrintPayload(reg, template);
+  if (job.trigger === "test_station") {
+    payload.name = "Prueba Impresora";
+  }
+
+  return prisma.printJob.update({
+    where: { id: job.id },
+    data: { payload: payload as unknown as Prisma.InputJsonValue },
+  });
+}
+
+export async function createTestPrintJob(
+  organizationId: string
+): Promise<{ ok: true; jobId: string } | { ok: false; error: string }> {
+  const reg = await prisma.registration.findFirst({
+    where: { workshopDate: { workshop: { organizationId } } },
+    include: {
+      attendee: true,
+      workshopDate: { include: { workshop: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!reg) {
+    return { ok: false, error: "No hay registros; crea al menos uno para probar." };
+  }
+
+  const template = await getLabelTemplateForWorkshop(
+    reg.workshopDate.workshop.slug,
+    organizationId
+  );
+
+  const payload: PrintJobPayload = {
+    ...buildPrintPayload(reg, template),
+    name: "Prueba Impresora",
+  };
+
+  const job = await prisma.printJob.create({
+    data: {
+      organizationId,
+      registrationId: reg.id,
+      checkinId: null,
+      trigger: "test_station",
+      status: PrintJobStatus.PENDING,
+      payload: payload as unknown as Prisma.InputJsonValue,
+    },
+  });
+
+  return { ok: true, jobId: job.id };
+}
+
+export async function completePrintJobForOrganization(
+  jobId: string,
+  organizationId: string,
+  success: boolean,
+  errorMessage?: string
+) {
+  const job = await prisma.printJob.findFirst({
+    where: { id: jobId, organizationId },
+  });
+  if (!job) return null;
+  return completePrintJobWithRetry(jobId, success, errorMessage);
 }
 
 export async function completePrintJobWithRetry(

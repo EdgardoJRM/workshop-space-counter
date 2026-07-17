@@ -265,15 +265,15 @@ export default function LoginScreen() {
               disabled={sending}
             >
               <Text style={styles.btnStaffText}>
-                {sending ? "Enviando…" : "Entrar como Staff"}
+                {sending ? "Enviando…" : "Enviar enlace de acceso"}
               </Text>
             </Pressable>
             <Pressable
               style={[styles.btnSecondary, sending && { opacity: 0.7 }]}
-              onPress={() => void onSendLink("admin")}
+              onPress={() => void Linking.openURL("https://pass.edgardohernandez.com/login?intent=admin&next=/admin")}
               disabled={sending}
             >
-              <Text style={styles.btnSecondaryText}>Entrar como Admin</Text>
+              <Text style={styles.btnSecondaryText}>Admin en la web</Text>
             </Pressable>
             <View
               style={{

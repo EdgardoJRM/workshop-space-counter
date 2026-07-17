@@ -212,7 +212,7 @@ export default function EventsScreen() {
       ) : (
         <View style={styles.cardFlat}>
           <Text style={[styles.subtitle, { textAlign: "center" }]}>
-            No hay eventos para check-in hoy. Marca un evento de hoy en Admin → Fechas.
+            No hay eventos para check-in hoy. Configura fechas en pass.edgardohernandez.com/admin
           </Text>
         </View>
       )}

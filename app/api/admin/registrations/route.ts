@@ -27,35 +27,78 @@ export async function GET(request: Request) {
   const workshopRaw = url.searchParams.get("w");
   const workshopSlug =
     workshopRaw && isWorkshopSlug(workshopRaw) ? workshopRaw : null;
+  const workshopDateId = url.searchParams.get("workshopDateId")?.trim() ?? "";
 
-  const where = {
-    workshopDate: {
+  if (!workshopDateId) {
+    return NextResponse.json(
+      { error: "workshopDateId is required — elige una fecha de taller" },
+      { status: 400 }
+    );
+  }
+
+  const dateRow = await prisma.workshopDate.findFirst({
+    where: {
+      id: workshopDateId,
       workshop: {
         organizationId: auth.organizationId,
         ...(workshopSlug ? { slug: workshopSlug as WorkshopSlug } : {}),
       },
     },
+  });
+
+  if (!dateRow) {
+    return NextResponse.json(
+      { error: "Fecha de taller no encontrada" },
+      { status: 404 }
+    );
+  }
+
+  const where = {
+    workshopDateId: dateRow.id,
+  };
+
+  const limit = Math.min(
+    500,
+    Math.max(1, Number.parseInt(url.searchParams.get("limit") ?? "100", 10) || 100)
+  );
+  const cursor = url.searchParams.get("cursor")?.trim() ?? "";
+
+  const include = {
+    attendee: true,
+    pass: true,
+    workshopDate: { include: { workshop: true } },
+    checkins: { take: 1, orderBy: { createdAt: "desc" as const } },
+    certificate: true,
+    printJobs: { orderBy: { createdAt: "desc" as const }, take: 1 },
   };
 
   try {
-    const registrations = await prisma.registration.findMany({
-      where,
-      orderBy: { registeredAt: "desc" },
-      take: 100,
-      include: {
-        attendee: true,
-        pass: true,
-        workshopDate: { include: { workshop: true } },
-        checkins: { take: 1, orderBy: { createdAt: "desc" } },
-        certificate: true,
-        printJobs: { orderBy: { createdAt: "desc" }, take: 1 },
-      },
-    });
+    const registrations =
+      cursor.length > 0
+        ? await prisma.registration.findMany({
+            where,
+            orderBy: { registeredAt: "desc" },
+            take: limit,
+            skip: 1,
+            cursor: { id: cursor },
+            include,
+          })
+        : await prisma.registration.findMany({
+            where,
+            orderBy: { registeredAt: "desc" },
+            take: limit,
+            include,
+          });
 
     return NextResponse.json({
       certificatesEnabled: isCertificatesEnabled(),
       certificatesSendMode: getCertificateSendMode(),
       registrations: registrations.map((r) => mapRegistrationRow(r)),
+      nextCursor:
+        registrations.length === limit
+          ? registrations[registrations.length - 1]?.id ?? null
+          : null,
+      limit,
     });
   } catch (err) {
     const code =
@@ -365,31 +408,32 @@ export async function POST(request: Request) {
       : null;
 
   const workshopDateId =
-    typeof body.workshopDateId === "string" && body.workshopDateId.trim()
-      ? body.workshopDateId.trim()
-      : null;
+    typeof body.workshopDateId === "string" ? body.workshopDateId.trim() : "";
+  if (!workshopDateId) {
+    return NextResponse.json(
+      { error: "workshopDateId is required — elige la fecha del evento" },
+      { status: 400 }
+    );
+  }
 
-  if (workshopDateId) {
-    const dateRow = await prisma.workshopDate.findFirst({
-      where: {
-        id: workshopDateId,
-        workshop: {
-          slug: workshopSlug as WorkshopSlug,
-          organizationId: auth.organizationId,
-        },
+  const dateRow = await prisma.workshopDate.findFirst({
+    where: {
+      id: workshopDateId,
+      workshop: {
+        slug: workshopSlug as WorkshopSlug,
+        organizationId: auth.organizationId,
       },
-    });
-    if (!dateRow) {
-      return NextResponse.json(
-        { error: "La fecha no pertenece a este taller" },
-        { status: 400 }
-      );
-    }
+    },
+  });
+  if (!dateRow) {
+    return NextResponse.json(
+      { error: "La fecha no pertenece a este taller" },
+      { status: 400 }
+    );
   }
 
   const sendPassEmail = body.sendPassEmail !== false;
-  const orderKey = workshopDateId ?? "active";
-  const externalOrderId = `manual:${orderKey}:${email}`;
+  const externalOrderId = `manual:${workshopDateId}:${email}`;
 
   const result = await registerAttendee({
     email,

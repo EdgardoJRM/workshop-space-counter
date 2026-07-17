@@ -6,7 +6,7 @@ import { HeaderLogoButton } from "@/components/HeaderLogoButton";
 import { TabBarIcon, tabBarActiveColor, type TabIconName } from "@/components/TabBarIcon";
 import { PushNotificationRegistrar } from "@/components/PushNotificationRegistrar";
 import { EventProvider } from "@/lib/event-context";
-import { useSession } from "@/lib/session-context";
+import { SessionGuard } from "@/components/SessionGuard";
 import { useAppTheme } from "@/lib/useAppTheme";
 import { webBrand } from "@/lib/ui";
 
@@ -20,7 +20,6 @@ function tabIcon(name: TabIconName) {
 
 function MainTabs() {
   const { colors, brand } = useAppTheme();
-  const { isAdmin, loaded } = useSession();
 
   const headerHelp = {
     headerRight: () => <HeaderHelpButton />,
@@ -46,7 +45,7 @@ function MainTabs() {
             fontWeight: "700",
             fontSize: 17,
           },
-          headerShown: route.name !== "admin",
+          headerShown: true,
           tabBarStyle: {
             backgroundColor: isScan ? "#000000" : webBrand.white,
             borderTopColor: isScan ? "#222" : colors.border,
@@ -121,24 +120,17 @@ function MainTabs() {
           ...headerHelp,
         }}
       />
-      <Tabs.Screen
-        name="admin"
-        options={{
-          tabBarLabel: "Admin",
-          tabBarIcon: tabIcon("admin"),
-          headerShown: false,
-          href: loaded && isAdmin ? undefined : null,
-        }}
-      />
     </Tabs>
   );
 }
 
 export default function MainLayout() {
   return (
-    <EventProvider>
-      <PushNotificationRegistrar />
-      <MainTabs />
-    </EventProvider>
+    <SessionGuard>
+      <EventProvider>
+        <PushNotificationRegistrar />
+        <MainTabs />
+      </EventProvider>
+    </SessionGuard>
   );
 }

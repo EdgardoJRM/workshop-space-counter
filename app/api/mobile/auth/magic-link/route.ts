@@ -8,6 +8,7 @@ import { sendMagicLinkEmail } from "@/lib/auth-email";
 import { getDefaultOrganization } from "@/lib/organization";
 import { getOrganizationBrandingBySlug } from "@/lib/organization-branding";
 import { isDatabaseConfigured } from "@/lib/prisma";
+import { checkRateLimit, clientIp, rateLimitResponse } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,9 @@ function parseIntent(raw: unknown): AuthRole {
 }
 
 export async function POST(request: Request) {
+  const rl = checkRateLimit(`mobile-magic:${clientIp(request)}`, 8, 15 * 60 * 1000);
+  if (!rl.ok) return rateLimitResponse(rl.retryAfterSec);
+
   if (!isDatabaseConfigured()) {
     return NextResponse.json(
       { error: "DATABASE_URL is not configured" },

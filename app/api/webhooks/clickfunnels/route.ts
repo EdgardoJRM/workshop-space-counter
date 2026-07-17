@@ -27,10 +27,14 @@ import {
   markWebhookEventProcessed,
   trackIncomingWebhookEvent,
 } from "@/lib/webhook-events";
+import { checkRateLimit, clientIp, rateLimitResponse } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const rl = checkRateLimit(`cf-webhook:${clientIp(request)}`, 120, 60 * 1000);
+  if (!rl.ok) return rateLimitResponse(rl.retryAfterSec);
+
   try {
     if (!isDatabaseConfigured()) {
       return NextResponse.json(

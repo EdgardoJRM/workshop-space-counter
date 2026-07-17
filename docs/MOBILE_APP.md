@@ -72,28 +72,19 @@ La URL de API en producción ya está en `eas.json` (`EXPO_PUBLIC_API_BASE_URL`)
 
 ## Login en la app
 
-1. **Código del negocio:** `hernandez` (slug de la org en Supabase).
-2. **Email:** el que registraste en `OrganizationMember`.
-3. **Entrar como Staff** (check-in) o **Entrar como Admin** (configuración completa).
-4. **Enlace mágico** por correo → abre la app con `hernandezpass://auth?token=...`.
+1. **Email:** el que registraste en `OrganizationMember` o en `STAFF_EMAILS`.
+2. **Enviar enlace de acceso** (staff) → magic link abre la app con `hernandezpass://auth?token=...`.
+3. **Admin en la web:** botón en login o pass.edgardohernandez.com/admin.
 
 Si el correo abre Safari primero, la página en `pass.edgardohernandez.com` redirige a la app automáticamente.
 
 ---
 
-## Admin en la app (pestaña Admin)
+## App móvil (solo scanner)
 
-Misma funcionalidad que el admin web:
+Pestañas: **Evento** · **Escanear** · **Lista** · **Impresora** (estado de cola). Sin admin en la app.
 
-- Cupos (widget ClickFunnels)
-- Fechas del taller
-- Registros (manual, CSV, reenviar pase, reimprimir label)
-- Plantilla de labels Rollo
-- Emparejar impresora Mac
-- Webhook ClickFunnels (copiar URL)
-- Emails / automatizaciones post-evento
-- Marca / white-label
-- Push notifications (check-in, registros, errores de impresión)
+Configuración (cupos, fechas, personas, labels, webhook) → **admin web**.
 
 ### Push notifications (producción)
 

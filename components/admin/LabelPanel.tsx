@@ -126,9 +126,17 @@ export function LabelPanel({ slug }: LabelPanelProps) {
     <section className="mb-6 rounded-xl border border-brand-grey/20 bg-white p-4">
       <h3 className="text-sm font-semibold text-brand-ink">Etiqueta de impresión (Rollo)</h3>
       <p className="mt-1 text-xs text-brand-grey">
-        Se imprime automáticamente en el primer check-in. La Mac con Impresora Auto
-        debe tener <code className="text-[11px]">PRINT_AGENT_TOKEN</code> y{" "}
-        <code className="text-[11px]">APP_BASE_URL</code> configurados.
+        Se imprime automáticamente en el primer check-in. En la Mac del evento abre la{" "}
+        <a
+          href="/staff/print-station"
+          className="font-medium text-brand-slate underline"
+          target="_blank"
+          rel="noreferrer"
+        >
+          estación web en Chrome
+        </a>
+        . Los cambios aquí aplican al <strong>siguiente</strong> label en cola (la estación
+        refresca la plantilla al imprimir).
       </p>
 
       {loading && (

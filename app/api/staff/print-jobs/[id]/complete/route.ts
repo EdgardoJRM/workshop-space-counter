@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isDatabaseConfigured } from "@/lib/prisma";
-import { isPrintAgentAuthorized } from "@/lib/print-agent-auth";
+import { getSessionFromRequest } from "@/lib/mobile-auth";
+import { canAccessStaff } from "@/lib/auth";
 import { completePrintJobForOrganization } from "@/lib/print-jobs";
 
 export const dynamic = "force-dynamic";
@@ -20,8 +21,8 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
-  const agent = await isPrintAgentAuthorized(request);
-  if (!agent) {
+  const session = await getSessionFromRequest(request);
+  if (!session || !canAccessStaff(session)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -38,7 +39,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   const updated = await completePrintJobForOrganization(
     context.params.id,
-    agent.organizationId,
+    session.organizationId,
     success,
     errorMessage
   );

@@ -9,6 +9,10 @@ import {
   getOrganizationsForEmail,
   orgRoleToAuthRoles,
 } from "@/lib/organization";
+import {
+  assertJwtSecretConfigured,
+  getJwtSecret,
+} from "@/lib/session-token";
 
 export type AuthRole = "admin" | "staff";
 
@@ -24,14 +28,7 @@ const SESSION_COOKIE = "hp_session";
 const SESSION_MAX_AGE_SEC = 60 * 60 * 24 * 7;
 const MAGIC_MAX_AGE_SEC = 60 * 15;
 
-function getSecret(): Uint8Array | null {
-  const s =
-    process.env.AUTH_JWT_SECRET?.trim() ??
-    process.env.STAFF_JWT_SECRET?.trim() ??
-    process.env.ADMIN_TOKEN?.trim();
-  if (!s) return null;
-  return new TextEncoder().encode(s);
-}
+export { assertJwtSecretConfigured };
 
 export function parseEmailList(raw: string | undefined): string[] {
   return (raw ?? "")
@@ -152,7 +149,7 @@ export async function createMagicLinkToken(
   nextPath: string,
   organizationSlug?: string
 ): Promise<string | null> {
-  const secret = getSecret();
+  const secret = getJwtSecret();
   if (!secret) return null;
 
   return new SignJWT({
@@ -174,7 +171,7 @@ export async function verifyMagicLinkToken(token: string): Promise<{
   next: string;
   organizationSlug?: string;
 } | null> {
-  const secret = getSecret();
+  const secret = getJwtSecret();
   if (!secret) return null;
   try {
     const { payload } = await jwtVerify(token, secret);
@@ -201,7 +198,7 @@ export async function verifyMagicLinkToken(token: string): Promise<{
 export async function createSessionToken(
   payload: SessionPayload
 ): Promise<string | null> {
-  const secret = getSecret();
+  const secret = getJwtSecret();
   if (!secret || payload.roles.length === 0) return null;
 
   return new SignJWT({
@@ -221,7 +218,7 @@ export async function createSessionToken(
 export async function verifySessionToken(
   token: string
 ): Promise<SessionPayload | null> {
-  const secret = getSecret();
+  const secret = getJwtSecret();
   if (!secret) return null;
   try {
     const { payload } = await jwtVerify(token, secret);

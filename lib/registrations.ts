@@ -395,7 +395,7 @@ export type CsvImportRowResult = {
 export async function importRegistrationsFromCsv(
   rows: { row: number; email: string; name: string | null; phone: string | null }[],
   workshopSlug: WorkshopSlug,
-  options?: { sendPassEmail?: boolean; importBatchId?: string }
+  options?: { sendPassEmail?: boolean; importBatchId?: string; workshopDateId?: string }
 ): Promise<{
   created: number;
   duplicates: number;
@@ -408,18 +408,34 @@ export async function importRegistrationsFromCsv(
   let duplicates = 0;
   let failed = 0;
 
-  const workshopDateId = await resolveWorkshopDateIdForSlug(workshopSlug, null);
+  const workshopDateId =
+    options?.workshopDateId ??
+    (await resolveWorkshopDateIdForSlug(workshopSlug, null));
+
+  if (!workshopDateId) {
+    return {
+      created: 0,
+      duplicates: 0,
+      failed: rows.length,
+      results: rows.map((r) => ({
+        row: r.row,
+        email: r.email,
+        ok: false,
+        error: "No hay fecha en venta para este taller",
+        code: "NO_DATE",
+      })),
+    };
+  }
 
   for (const r of rows) {
-    const externalOrderId = workshopDateId
-      ? `csv:${workshopDateId}:${r.email}`
-      : `csv:${workshopSlug}:${r.email}`;
+    const externalOrderId = `csv:${workshopDateId}:${r.email}`;
 
     const outcome = await registerAttendee({
       email: r.email,
       name: r.name,
       phone: r.phone,
       workshopSlug,
+      workshopDateId,
       externalOrderId,
       source: "csv",
       metadata: { source: "csv-import", batchId, csvRow: r.row },

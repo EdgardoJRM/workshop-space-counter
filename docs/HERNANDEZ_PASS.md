@@ -103,7 +103,7 @@ Checklist imprimible: [`docs/EVENT_DAY_CHECKLIST.md`](EVENT_DAY_CHECKLIST.md).
 
 1. **Antes:** una fecha **en venta** por taller; webhooks cableados en CF (URL con `?workshop=`).
 2. **Mañana del evento:** marca **evento de hoy** en Admin → Fechas (por taller).
-3. **Mac del evento:** Impresora Auto activa, Rollo conectada, mismo `PRINT_AGENT_TOKEN` que Vercel.
+3. **Mac del evento:** Rollo = impresora predeterminada; Chrome con **estación web** (`/staff/print-station`) armada.
 4. **Staff:** app móvil o `/staff/scan` → elige **evento** (taller incluido en el nombre) → escanea QR.
 5. **1 scan = 1 label** (rescan = ya registrado, sin reimpresión automática). Si falla: botón **Reimprimir** (no duplica si ya hay job pendiente).
 6. **Duplica Ventas:** check-in dispara webhook a La Bóveda (no bloquea el scan si falla).
@@ -116,27 +116,47 @@ Checklist imprimible: [`docs/EVENT_DAY_CHECKLIST.md`](EVENT_DAY_CHECKLIST.md).
 | **Inicio** | Resumen: webhook, emails, en venta / evento de hoy por taller |
 | **Cupos** | Contador público (Redis) por taller |
 | **Fechas** | Crear fechas; **en venta** (webhook) y **evento de hoy** (check-in) |
-| **Registros** | Lista, CSV, reenvío de pase, reimprimir label |
+| **Personas** | Lista **por fecha** (elige fecha del evento), CSV, alta manual, reenvío de pase, reimprimir label |
 | **Compras sin asignar** | Asignar taller a compras CF sin URL fija |
 | **Invitados pendientes** | Boletos extra sin datos del invitado |
 | **Webhook** | Tres URLs por taller + secreto |
-| **Impresora** | Emparejar Mac con código SaaS |
+| **Impresora** | Estación web Chrome + emparejamiento legacy (agente) |
 | **Emails** | Plantillas post-evento |
 
 Variables solo en Vercel: `CLICKFUNNELS_WEBHOOK_SECRET`, `CRON_SECRET`, AWS/SES, listas de correo.
 
 ## App móvil (staff)
 
-1. Pestaña **Evento** → elige la fecha del día (muestra taller + hora).
-2. **Escanear** / **Lista** usan solo ese evento — sin selector global de taller.
-3. Admin en la app: hub simplificado (Cupos, Fechas, Personas, Impresora, pendientes, Avanzado).
+La app es **solo para el día del evento** (scanner + lista + impresora). Toda la configuración (cupos, fechas, webhook, personas, CSV) es en **pass.edgardohernandez.com/admin**.
+
+1. Pestaña **Evento** → elige la **fecha** del día (muestra taller + hora).
+2. **Escanear** / **Lista** usan **solo esa fecha** — cada registro pertenece a una fecha, no a un listado general del taller.
+3. **Impresora** → estado y emparejamiento mínimo con la Mac.
+4. Sin pestaña Admin en la app; si no hay eventos, configura fechas en la web.
 
 ## Labels Rollo
 
+### Estación web (recomendado)
+
+1. Rollo instalada en macOS como impresora predeterminada (3×2″).
+2. Abre Chrome con impresión silenciosa:
+   ```bash
+   open -a "Google Chrome" --args --kiosk-printing https://pass.edgardohernandez.com/staff/print-station
+   ```
+3. Login staff → deja la pestaña **Armada**.
+
+**Regla crítica:** solo **un** consumidor de la cola de print por evento — estación Chrome **o** Impresora Auto (Mac), **nunca ambos**. Si ambos están activos, los labels se pierden o se duplican.
+
+4. Check-in encola label → la estación imprime sola.
+5. Admin → **Labels**: personaliza fuentes/campos; aplica al siguiente job en cola.
+
+### Agente legacy (fallback)
+
 1. `PRINT_AGENT_TOKEN` en Vercel y en la Mac.
 2. Instalar **Impresora Auto** ([`impresora-auto/README.md`](../impresora-auto/README.md)).
-3. Check-in encola label → Mac imprime.
-4. Admin → Labels: fuentes y papel. Registros → Reimprimir si hace falta.
+3. Usar solo si la estación web falla.
+
+Admin → Labels: fuentes y papel. Personas (por fecha) → Reimprimir si hace falta.
 
 SQL alternativo: [`docs/PRINT_QUEUE_SQL.md`](PRINT_QUEUE_SQL.md).
 

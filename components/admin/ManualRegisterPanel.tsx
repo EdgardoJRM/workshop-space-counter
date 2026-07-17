@@ -1,17 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { AdminFeedbackBanner, type AdminFeedback } from "@/components/admin/AdminFeedbackBanner";
 import type { WorkshopSlug } from "@/lib/workshop-keys";
-import { formatWorkshopDateTime } from "@/lib/workshop-datetime";
-
-type DateOption = {
-  id: string;
-  title: string;
-  startsAt: string;
-  isActive: boolean;
-  isSelling: boolean;
-};
 
 export type ManualRegisterResult = {
   registrationId?: string;
@@ -23,48 +14,24 @@ export type ManualRegisterResult = {
 
 export type ManualRegisterPanelProps = {
   slug: WorkshopSlug;
+  workshopDateId: string;
+  selectedDateLabel?: string;
   onRegistered: (result: ManualRegisterResult) => void;
 };
 
-export function ManualRegisterPanel({ slug, onRegistered }: ManualRegisterPanelProps) {
-  const [dates, setDates] = useState<DateOption[]>([]);
-  const [loadingDates, setLoadingDates] = useState(true);
+export function ManualRegisterPanel({
+  slug,
+  workshopDateId,
+  selectedDateLabel,
+  onRegistered,
+}: ManualRegisterPanelProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [workshopDateId, setWorkshopDateId] = useState("");
   const [sendEmail, setSendEmail] = useState(true);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<AdminFeedback | null>(null);
   const [open, setOpen] = useState(false);
-
-  const loadDates = useCallback(async () => {
-    setLoadingDates(true);
-    try {
-      const params = new URLSearchParams({ w: slug });
-      const res = await fetch(`/api/admin/dates?${params}`);
-      const data = (await res.json()) as {
-        error?: string;
-        dates?: DateOption[];
-      };
-      if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
-      const list = data.dates ?? [];
-      setDates(list);
-      const selling =
-        list.find((d) => d.isSelling) ??
-        list.find((d) => d.isActive) ??
-        list[0];
-      setWorkshopDateId((prev) => prev || selling?.id || "");
-    } catch {
-      setDates([]);
-    } finally {
-      setLoadingDates(false);
-    }
-  }, [slug]);
-
-  useEffect(() => {
-    if (open) void loadDates();
-  }, [open, loadDates]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -83,7 +50,7 @@ export function ManualRegisterPanel({ slug, onRegistered }: ManualRegisterPanelP
           name: trimmedName,
           email: trimmedEmail,
           phone: phone.trim() || null,
-          workshopDateId: workshopDateId || null,
+          workshopDateId,
           sendPassEmail: sendEmail,
         }),
       });
@@ -150,31 +117,9 @@ export function ManualRegisterPanel({ slug, onRegistered }: ManualRegisterPanelP
           />
 
           <p className="text-xs text-brand-grey">
-            Crea un registro y pase como si hubiera comprado en ClickFunnels. Por defecto
-            usa la fecha marcada como en venta.
+            Se registrará en la fecha seleccionada arriba
+            {selectedDateLabel ? `: ${selectedDateLabel}` : ""}.
           </p>
-
-          <label className="block text-xs font-medium text-brand-charcoal">
-            Fecha del evento
-            <select
-              value={workshopDateId}
-              onChange={(e) => setWorkshopDateId(e.target.value)}
-              disabled={loadingDates || !dates.length}
-              className="mt-1 w-full rounded-lg border border-brand-grey/30 bg-white px-3 py-2 text-sm"
-              required
-            >
-              {loadingDates && <option value="">Cargando fechas…</option>}
-              {!loadingDates && !dates.length && (
-                <option value="">Sin fechas — créala en Fechas</option>
-              )}
-              {dates.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.title} — {formatWorkshopDateTime(new Date(d.startsAt))}
-                  {d.isSelling ? " · en venta" : d.isActive ? " · activa" : ""}
-                </option>
-              ))}
-            </select>
-          </label>
 
           <label className="block text-xs font-medium text-brand-charcoal">
             Nombre
@@ -222,7 +167,7 @@ export function ManualRegisterPanel({ slug, onRegistered }: ManualRegisterPanelP
 
           <button
             type="submit"
-            disabled={saving || loadingDates || !dates.length || !email.trim()}
+            disabled={saving || !workshopDateId || !email.trim()}
             className="w-full rounded-lg bg-brand-blue px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
           >
             {saving ? "Registrando…" : "Registrar persona"}

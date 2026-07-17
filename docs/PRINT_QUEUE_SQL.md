@@ -1,6 +1,8 @@
 # Cola de impresión (Supabase SQL Editor)
 
-Ejecuta si `db:push` no está disponible:
+> **Obsoleto para el schema SaaS actual.** Usa `npm run db:push` o el schema en `prisma/schema.prisma`. Este SQL no incluye `organizationId` ni tablas de agente/pairing.
+
+Ejecuta solo si `db:push` no está disponible y entiendes el riesgo:
 
 ```sql
 CREATE TYPE "PrintJobStatus" AS ENUM ('PENDING', 'PROCESSING', 'PRINTED', 'FAILED');

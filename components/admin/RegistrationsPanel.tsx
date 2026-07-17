@@ -9,6 +9,7 @@ import {
 } from "@/components/admin/ManualRegisterPanel";
 import { RegistrationListCard } from "@/components/admin/RegistrationListCard";
 import type { WorkshopSlug } from "@/lib/workshop-keys";
+import { formatWorkshopDateTime } from "@/lib/workshop-datetime";
 
 type RegistrationRow = {
   id: string;
@@ -30,15 +31,35 @@ type RegistrationRow = {
   printPrintedAt: string | null;
 };
 
+type DateOption = {
+  id: string;
+  title: string;
+  startsAt: string;
+  isActive: boolean;
+  isSelling: boolean;
+};
+
 export type RegistrationsPanelProps = {
   slug: WorkshopSlug;
 };
 
+function defaultDateId(dates: DateOption[]): string {
+  return (
+    dates.find((d) => d.isSelling)?.id ??
+    dates.find((d) => d.isActive)?.id ??
+    dates[0]?.id ??
+    ""
+  );
+}
+
 export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
+  const [dates, setDates] = useState<DateOption[]>([]);
+  const [workshopDateId, setWorkshopDateId] = useState("");
   const [rows, setRows] = useState<RegistrationRow[]>([]);
   const [filtered, setFiltered] = useState<RegistrationRow[]>([]);
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loadingDates, setLoadingDates] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<AdminFeedback | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
@@ -52,11 +73,38 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
   const listRef = useRef<HTMLUListElement>(null);
   const cardRefs = useRef<Record<string, HTMLLIElement | null>>({});
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const loadDates = useCallback(async () => {
+    setLoadingDates(true);
     setError(null);
     try {
       const params = new URLSearchParams({ w: slug });
+      const res = await fetch(`/api/admin/dates?${params}`);
+      const data = (await res.json()) as { error?: string; dates?: DateOption[] };
+      if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
+      const list = data.dates ?? [];
+      setDates(list);
+      setWorkshopDateId((prev) => {
+        if (prev && list.some((d) => d.id === prev)) return prev;
+        return defaultDateId(list);
+      });
+    } catch (e) {
+      setDates([]);
+      setWorkshopDateId("");
+      setError(e instanceof Error ? e.message : "Error al cargar fechas");
+    } finally {
+      setLoadingDates(false);
+    }
+  }, [slug]);
+
+  const load = useCallback(async () => {
+    if (!workshopDateId) {
+      setRows([]);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ w: slug, workshopDateId });
       const res = await fetch(`/api/admin/registrations?${params}`);
       const data = (await res.json()) as {
         error?: string;
@@ -78,7 +126,11 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
     } finally {
       setLoading(false);
     }
-  }, [slug]);
+  }, [slug, workshopDateId]);
+
+  useEffect(() => {
+    void loadDates();
+  }, [loadDates]);
 
   useEffect(() => {
     void load();
@@ -110,6 +162,8 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
     return () => window.clearTimeout(timer);
   }, [highlightId, filtered]);
 
+  const selectedDate = dates.find((d) => d.id === workshopDateId) ?? null;
+
   function handleManualRegistered(result: ManualRegisterResult) {
     if (result.duplicate) {
       const existing = rows.find(
@@ -121,7 +175,7 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
       setFeedback({
         type: "success",
         title: "Registro confirmado",
-        message: `${result.name ?? result.email} aparece en la lista de abajo.`,
+        message: `${result.name ?? result.email} aparece en la lista de esta fecha.`,
       });
     }
     void load();
@@ -218,18 +272,66 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
         onDismiss={() => setFeedback(null)}
       />
 
-      <ManualRegisterPanel slug={slug} onRegistered={handleManualRegistered} />
-      <CsvImportPanel
-        slug={slug}
-        onImported={() => {
-          setFeedback({
-            type: "success",
-            title: "Importación completada",
-            message: "Los registros nuevos ya están en la lista.",
-          });
-          void load();
-        }}
-      />
+      <div className="mb-4 rounded-xl border border-brand-grey/20 bg-white p-4 shadow-sm">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-brand-blue">
+          Fecha del evento
+        </label>
+        <p className="mt-1 text-sm text-brand-charcoal">
+          La lista muestra solo personas registradas en esta fecha (no todas las fechas del
+          taller).
+        </p>
+        <select
+          value={workshopDateId}
+          onChange={(e) => setWorkshopDateId(e.target.value)}
+          disabled={loadingDates || !dates.length}
+          className="mt-3 w-full rounded-lg border border-brand-grey/30 bg-white px-3 py-2.5 text-sm"
+        >
+          {loadingDates && <option value="">Cargando fechas…</option>}
+          {!loadingDates && !dates.length && (
+            <option value="">Sin fechas — créala en Fechas</option>
+          )}
+          {dates.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.title} — {formatWorkshopDateTime(new Date(d.startsAt))}
+              {d.isSelling ? " · en venta" : ""}
+              {d.isActive ? " · evento de hoy" : ""}
+            </option>
+          ))}
+        </select>
+        {selectedDate ? (
+          <p className="mt-2 text-xs text-brand-grey">
+            {filtered.length} persona(s) en esta fecha
+            {loading ? " · actualizando…" : ""}
+          </p>
+        ) : null}
+      </div>
+
+      {workshopDateId ? (
+        <>
+          <ManualRegisterPanel
+            slug={slug}
+            workshopDateId={workshopDateId}
+            selectedDateLabel={
+              selectedDate
+                ? `${selectedDate.title} — ${formatWorkshopDateTime(new Date(selectedDate.startsAt))}`
+                : undefined
+            }
+            onRegistered={handleManualRegistered}
+          />
+          <CsvImportPanel
+            slug={slug}
+            workshopDateId={workshopDateId}
+            onImported={() => {
+              setFeedback({
+                type: "success",
+                title: "Importación completada",
+                message: "Los registros nuevos ya están en la lista de esta fecha.",
+              });
+              void load();
+            }}
+          />
+        </>
+      ) : null}
 
       {certificatesEnabled ? (
         <p className="mb-3 text-xs text-brand-grey">
@@ -241,17 +343,21 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
       ) : null}
 
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-sm font-semibold text-brand-slate">Registros recientes</h2>
+        <h2 className="text-sm font-semibold text-brand-slate">Personas de esta fecha</h2>
         <input
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar por nombre o email…"
-          className="w-full rounded-lg border border-brand-grey/30 bg-white px-3 py-2 text-sm sm:max-w-xs"
+          disabled={!workshopDateId}
+          className="w-full rounded-lg border border-brand-grey/30 bg-white px-3 py-2 text-sm sm:max-w-xs disabled:opacity-50"
         />
       </div>
 
-      {loading && (
+      {loadingDates && (
+        <p className="text-sm text-brand-grey">Cargando fechas…</p>
+      )}
+      {loading && workshopDateId && (
         <p className="text-sm text-brand-grey">Cargando registros…</p>
       )}
       {error && (
@@ -259,9 +365,9 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
           {error}
         </p>
       )}
-      {!loading && !error && !filtered.length && (
+      {!loading && workshopDateId && !error && !filtered.length && (
         <p className="text-sm text-brand-grey">
-          {search.trim() ? "Sin resultados para esa búsqueda." : "Sin registros aún."}
+          {search.trim() ? "Sin resultados para esa búsqueda." : "Sin registros en esta fecha."}
         </p>
       )}
 

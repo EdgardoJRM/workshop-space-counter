@@ -27,6 +27,7 @@ export function SelectedEventBanner() {
       <Text style={{ flex: 1, fontSize: 13, fontWeight: "600", color: colors.text }}>
         {selectedEvent.label}
       </Text>
+      <Text style={{ fontSize: 11, color: colors.textMuted }}>Esta fecha</Text>
     </View>
   );
 }
