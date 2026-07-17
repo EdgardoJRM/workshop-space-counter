@@ -6,6 +6,18 @@ import {
   LABEL_CANVAS_WIDTH,
   normalizeNameForLabel,
 } from "./label-print-html";
+import {
+  embedPngDpi,
+  pngHasPhysChunk,
+  pngPhysPixelsPerMeter,
+} from "./png-dpi";
+
+/** Minimal valid 1×1 PNG (IHDR + IDAT + IEND) without pHYs. */
+function minimalPngBytes(): Uint8Array {
+  const base64 =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+  return Uint8Array.from(Buffer.from(base64, "base64"));
+}
 
 describe("normalizeNameForLabel", () => {
   it("splits first and last name", () => {
@@ -18,6 +30,23 @@ describe("normalizeNameForLabel", () => {
     const r = normalizeNameForLabel("Juan* Pérez");
     assert.equal(r.firstDisplay, "Juan *");
     assert.equal(r.last, "Pérez");
+  });
+});
+
+describe("embedPngDpi", () => {
+  it("inserts pHYs chunk at 300 DPI (11811 px/m)", () => {
+    const input = minimalPngBytes();
+    assert.equal(pngHasPhysChunk(input), false);
+
+    const output = embedPngDpi(input, 300);
+    assert.equal(pngHasPhysChunk(output), true);
+    assert.equal(pngPhysPixelsPerMeter(output), 11811);
+  });
+
+  it("replaces an existing pHYs chunk", () => {
+    const withDpi = embedPngDpi(minimalPngBytes(), 300);
+    const again = embedPngDpi(withDpi, 200);
+    assert.equal(pngPhysPixelsPerMeter(again), Math.round(200 / 0.0254));
   });
 });
 
@@ -37,8 +66,9 @@ describe("buildLabelPrintHtml", () => {
     assert.match(html, /size: 3in 2in/);
     assert.match(html, /width: 3in/);
     assert.match(html, /height: 2in/);
+    assert.match(html, /object-fit: fill/);
     assert.match(html, /data:image\/png;base64,TEST/);
-    assert.match(html, /<img /);
+    assert.equal((html.match(/<img /g) ?? []).length, 1);
   });
 
   it("supports 2x3 media size", () => {

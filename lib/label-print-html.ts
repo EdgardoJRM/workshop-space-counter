@@ -1,9 +1,11 @@
 import type { PrintJobPayload } from "@/lib/print-jobs";
+import { embedPngDpiFromDataUrl } from "@/lib/png-dpi";
 
 /** Design canvas matches Impresora Auto: 900×600 px at 300 DPI = 3×2″. */
 export const LABEL_CANVAS_WIDTH = 900;
 export const LABEL_CANVAS_HEIGHT = 600;
 const LABEL_DPI = 300;
+const VERTICAL_MARGIN_RATIO = 0.09;
 
 export function normalizeNameForLabel(fullName: string) {
   let s = (fullName || "").replace(/\n/g, " ").trim().replace(/\s+/g, " ");
@@ -27,6 +29,13 @@ function pageDimensions(mediaSize: string): { width: string; height: string; pag
   return { width: "3in", height: "2in", pageSize: "3in 2in" };
 }
 
+type LabelLine = {
+  text: string;
+  font: string;
+  color: string;
+  gapAfter: number;
+};
+
 function measureTextHeight(ctx: CanvasRenderingContext2D, text: string): number {
   if (!text) return 0;
   const metrics = ctx.measureText(text);
@@ -35,7 +44,53 @@ function measureTextHeight(ctx: CanvasRenderingContext2D, text: string): number 
   );
 }
 
-/** Renders the label bitmap exactly like impresora-auto/print_core.py (900×600 @ 300 DPI). */
+function buildLabelLines(payload: PrintJobPayload, family: string): LabelLine[] {
+  const { firstDisplay, last } = normalizeNameForLabel(payload.name);
+  const workshop = (payload.workshopLabel || "").trim();
+  const email = (payload.email || "").trim();
+  const fontLarge = payload.fontLarge;
+  const fontSmall = payload.fontSmall;
+  const fontExtra = Math.max(40, Math.floor(fontSmall / 2));
+
+  const lines: LabelLine[] = [];
+
+  if (firstDisplay) {
+    lines.push({
+      text: firstDisplay,
+      font: `bold ${fontLarge}px ${family}`,
+      color: "#000000",
+      gapAfter: last ? 40 : 30,
+    });
+  }
+  if (last) {
+    lines.push({
+      text: last,
+      font: `600 ${fontSmall}px ${family}`,
+      color: "#000000",
+      gapAfter: 30,
+    });
+  }
+  if (payload.showWorkshop && workshop) {
+    lines.push({
+      text: workshop,
+      font: `${fontExtra}px ${family}`,
+      color: "#444444",
+      gapAfter: payload.showEmail && email ? 20 : 0,
+    });
+  }
+  if (payload.showEmail && email) {
+    lines.push({
+      text: email,
+      font: `${fontExtra}px ${family}`,
+      color: "#444444",
+      gapAfter: 0,
+    });
+  }
+
+  return lines;
+}
+
+/** Renders a centered 900×600 label bitmap with embedded 300 DPI metadata. */
 export function renderLabelToDataUrl(payload: PrintJobPayload): string {
   const canvas = document.createElement("canvas");
   canvas.width = LABEL_CANVAS_WIDTH;
@@ -45,65 +100,33 @@ export function renderLabelToDataUrl(payload: PrintJobPayload): string {
     throw new Error("Canvas no disponible");
   }
 
-  const { firstDisplay, last, firstBase } = normalizeNameForLabel(payload.name);
-  const workshop = (payload.workshopLabel || "").trim();
-  const email = (payload.email || "").trim();
-  const fontLarge = payload.fontLarge;
-  const fontSmall = payload.fontSmall;
-  const fontExtra = Math.max(40, Math.floor(fontSmall / 2));
   const family = '-apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif';
+  const lines = buildLabelLines(payload, family);
 
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, LABEL_CANVAS_WIDTH, LABEL_CANVAS_HEIGHT);
-  ctx.fillStyle = "#000000";
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
 
-  let y1 = 160;
-  let y2 = y1;
+  const blockHeight = lines.reduce((sum, line, index) => {
+    ctx.font = line.font;
+    const h = measureTextHeight(ctx, line.text);
+    const gap = index < lines.length - 1 ? line.gapAfter : 0;
+    return sum + h + gap;
+  }, 0);
 
-  if (firstDisplay) {
-    ctx.font = `bold ${fontLarge}px ${family}`;
-    const w1Base = ctx.measureText(firstBase || firstDisplay).width;
-    const x1 = (LABEL_CANVAS_WIDTH - w1Base) / 2;
-    ctx.fillText(firstDisplay, x1 + w1Base / 2, y1);
-    const h1 = measureTextHeight(ctx, firstDisplay);
-    y2 = y1 + h1 + 40;
+  const marginY = LABEL_CANVAS_HEIGHT * VERTICAL_MARGIN_RATIO;
+  let y = Math.max(marginY, (LABEL_CANVAS_HEIGHT - blockHeight) / 2);
+
+  for (const line of lines) {
+    ctx.font = line.font;
+    ctx.fillStyle = line.color;
+    ctx.fillText(line.text, LABEL_CANVAS_WIDTH / 2, y);
+    y += measureTextHeight(ctx, line.text) + line.gapAfter;
   }
 
-  if (last) {
-    ctx.font = `600 ${fontSmall}px ${family}`;
-    ctx.fillText(last, LABEL_CANVAS_WIDTH / 2, y2);
-    const h2 = measureTextHeight(ctx, last);
-    let extraY = y2 + h2 + 30;
-
-    if (payload.showWorkshop && workshop) {
-      ctx.font = `${fontExtra}px ${family}`;
-      ctx.fillStyle = "#444444";
-      ctx.fillText(workshop, LABEL_CANVAS_WIDTH / 2, extraY);
-      extraY += 50;
-    }
-    if (payload.showEmail && email) {
-      ctx.font = `${fontExtra}px ${family}`;
-      ctx.fillStyle = "#444444";
-      ctx.fillText(email, LABEL_CANVAS_WIDTH / 2, extraY);
-    }
-  } else {
-    let extraY = y1 + measureTextHeight(ctx, firstDisplay) + 30;
-    if (payload.showWorkshop && workshop) {
-      ctx.font = `${fontExtra}px ${family}`;
-      ctx.fillStyle = "#444444";
-      ctx.fillText(workshop, LABEL_CANVAS_WIDTH / 2, extraY);
-      extraY += 50;
-    }
-    if (payload.showEmail && email) {
-      ctx.font = `${fontExtra}px ${family}`;
-      ctx.fillStyle = "#444444";
-      ctx.fillText(email, LABEL_CANVAS_WIDTH / 2, extraY);
-    }
-  }
-
-  return canvas.toDataURL("image/png");
+  const rawDataUrl = canvas.toDataURL("image/png");
+  return embedPngDpiFromDataUrl(rawDataUrl, LABEL_DPI);
 }
 
 export function buildLabelPrintHtml(payload: PrintJobPayload, imageDataUrl: string): string {
@@ -115,14 +138,14 @@ export function buildLabelPrintHtml(payload: PrintJobPayload, imageDataUrl: stri
 <meta charset="utf-8" />
 <style>
   @page { size: ${pageSize}; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
-    margin: 0;
-    padding: 0;
     width: ${width};
     height: ${height};
     max-width: ${width};
     max-height: ${height};
     overflow: hidden;
+    background: #fff;
   }
   img {
     display: block;
@@ -130,13 +153,14 @@ export function buildLabelPrintHtml(payload: PrintJobPayload, imageDataUrl: stri
     height: ${height};
     max-width: ${width};
     max-height: ${height};
-    margin: 0;
-    padding: 0;
+    object-fit: fill;
+    image-rendering: crisp-edges;
+    page-break-before: avoid;
     page-break-after: avoid;
     page-break-inside: avoid;
   }
   @media print {
-    html, body {
+    html, body, img {
       width: ${width};
       height: ${height};
       margin: 0;
@@ -162,10 +186,20 @@ export function printLabelPayload(payload: PrintJobPayload): Promise<void> {
       return;
     }
 
+    const { width, height } = pageDimensions(payload.mediaSize);
+
     const iframe = document.createElement("iframe");
     iframe.setAttribute("aria-hidden", "true");
-    iframe.style.cssText =
-      "position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;";
+    iframe.style.cssText = [
+      "position:fixed",
+      "left:-10000px",
+      "top:0",
+      `width:${width}`,
+      `height:${height}`,
+      "border:0",
+      "opacity:0",
+      "pointer-events:none",
+    ].join(";");
     document.body.appendChild(iframe);
 
     const doc = iframe.contentDocument;
