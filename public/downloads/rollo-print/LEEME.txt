@@ -1,0 +1,11 @@
+Hernandez Pass — Relay Rollo (Mac)
+================================
+
+1. Descomprime esta carpeta en el Escritorio.
+2. Doble clic en "Iniciar-Rollo.command"
+   (si macOS lo bloquea: clic derecho → Abrir).
+3. Deja la ventana de Terminal abierta todo el evento.
+4. En Chrome, abre la estación de impresión y pulsa "Probar label".
+
+La Rollo debe ser la impresora predeterminada (3×2″).
+Cuando funciona, la estación muestra: "Impresión local activa (lp)".

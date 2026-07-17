@@ -17,12 +17,12 @@ export function ChromePrintNote({
       className={`rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2.5 text-xs text-amber-950 ${className}`}
     >
       <p className="font-semibold text-amber-900">
-        En la Mac de la Rollo corre primero{" "}
-        <code className="text-[10px]">npm run rollo-print</code>
+        En la Mac de la Rollo descarga e instala el relay desde la estación de impresión
       </p>
       <p className="mt-1">
-        Eso manda el label a CUPS con tamaño <strong>3×2″</strong> (1 label por job).
-        Solo con Chrome, la Rollo suele avanzar 3 labels o imprimir Letter.
+        En <strong>/staff/print-station</strong> hay un zip para Mac (sin npm). Eso manda el
+        label a CUPS con tamaño <strong>3×2″</strong> (1 label por job). Solo con Chrome, la
+        Rollo suele avanzar 3 labels o imprimir Letter.
       </p>
       <p className="mt-1 text-[11px] text-amber-900/90">
         Luego abre Chrome con kiosk, login staff, estación <strong>Armada</strong>, Probar

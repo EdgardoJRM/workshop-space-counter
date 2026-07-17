@@ -19,6 +19,7 @@
     "test": "node --import tsx --test lib/**/*.test.ts",
     "typecheck": "tsc --noEmit --incremental false",
     "rollo-print": "node scripts/rollo-print-daemon.mjs",
+    "rollo-print:pack": "node scripts/pack-rollo-print.mjs",
     "sync:webhook-secret": "node scripts/sync-webhook-secret.mjs"
   },
   "prisma": {

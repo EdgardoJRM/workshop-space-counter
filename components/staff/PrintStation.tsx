@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PrintJobPayload } from "@/lib/print-jobs";
 import { ChromePrintNote } from "@/components/admin/ChromePrintNote";
+import { RolloPrintDownloadBlock } from "@/components/staff/RolloPrintDownloadBlock";
 import { isChromiumBrowser, printLabelPayload } from "@/lib/label-print-html";
 import { probeLocalPrintPath, type LocalPrintProbe } from "@/lib/local-rollo-print";
 import { CHROME_KIOSK_OPEN_COMMAND, PRINT_STATION_PRODUCTION_URL } from "@/lib/print-station-url";
@@ -266,12 +267,14 @@ export function PrintStation() {
               {localPrint.printer ? ` → ${localPrint.printer}` : ""}). 1 job = 1 label 3×2″.
             </p>
           ) : (
-            <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">
-              <strong>Falta el relay local.</strong> En esta Mac abre Terminal y corre{" "}
-              <code className="text-[10px]">npm run rollo-print</code> (o doble clic en{" "}
-              <code className="text-[10px]">scripts/Iniciar-Rollo.command</code>). Sin eso,
-              Chrome puede avanzar 3 labels.
-            </p>
+            <div className="mt-3 space-y-3">
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">
+                <strong>Falta el relay local.</strong> Descarga el zip abajo, abre{" "}
+                <code className="text-[10px]">Iniciar-Rollo.command</code> y deja Terminal
+                abierta. Sin eso, Chrome puede avanzar 3 labels.
+              </p>
+              <RolloPrintDownloadBlock variant="inline" />
+            </div>
           )}
         </header>
 
@@ -352,6 +355,8 @@ export function PrintStation() {
           </button>
         </section>
 
+        <RolloPrintDownloadBlock className="mt-6" />
+
         <section className="mt-6 rounded-2xl border border-brand-grey/20 bg-white/80 p-5 text-sm text-brand-grey">
           <h2 className="font-semibold text-brand-ink">Setup (una vez)</h2>
           <p className="mt-2 text-xs text-amber-800">
@@ -360,9 +365,8 @@ export function PrintStation() {
           </p>
           <ol className="mt-3 list-decimal space-y-2 pl-5">
             <li>
-              En Terminal (deja abierta):{" "}
-              <code className="text-[11px]">npm run rollo-print</code> — envía a la Rollo vía{" "}
-              <code className="text-[11px]">lp</code> con tamaño 3×2″ correcto.
+              Descarga e instala el relay arriba (<strong>Iniciar-Rollo.command</strong>) — envía
+              a la Rollo vía <code className="text-[11px]">lp</code> con tamaño 3×2″ correcto.
             </li>
             <li>Cierra Chrome por completo (Cmd+Q).</li>
             <li>Rollo = impresora predeterminada en macOS (3×2″).</li>

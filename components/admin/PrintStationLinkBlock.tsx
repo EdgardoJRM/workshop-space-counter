@@ -6,6 +6,10 @@ import {
   PRINT_STATION_PRODUCTION_URL,
   printStationUrl,
 } from "@/lib/print-station-url";
+import {
+  ROLLO_PRINT_RELAY_ZIP_NAME,
+  ROLLO_PRINT_RELAY_ZIP_PATH,
+} from "@/lib/rollo-print-download";
 
 type Props = {
   className?: string;
@@ -36,6 +40,13 @@ export function PrintStationLinkBlock({ className = "" }: Props) {
         className="inline-block rounded-lg bg-brand-slate px-4 py-2 text-sm font-medium text-white"
       >
         Abrir estación de impresión
+      </a>
+      <a
+        href={ROLLO_PRINT_RELAY_ZIP_PATH}
+        download={ROLLO_PRINT_RELAY_ZIP_NAME}
+        className="ml-2 inline-block rounded-lg border border-brand-slate/30 px-4 py-2 text-sm font-medium text-brand-slate"
+      >
+        Descargar relay Rollo (Mac)
       </a>
       <p className="mt-3 text-xs text-brand-grey">
         Si el comando de Terminal no abre la URL, pégala en Chrome:
