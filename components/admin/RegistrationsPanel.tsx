@@ -167,7 +167,7 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
 
   const duplicateCount = useMemo(() => {
     let n = 0;
-    for (const c of duplicateEmailCounts.values()) {
+    for (const c of Array.from(duplicateEmailCounts.values())) {
       if (c > 1) n += c;
     }
     return n;
