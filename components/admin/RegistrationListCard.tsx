@@ -63,6 +63,7 @@ function avatarClass(status: string, checkedIn: boolean): string {
 type Props = {
   row: RegistrationListCardRow;
   highlighted?: boolean;
+  duplicateEmail?: boolean;
   certificatesEnabled?: boolean;
   resending?: boolean;
   resendingCertificate?: boolean;
@@ -79,6 +80,7 @@ export const RegistrationListCard = forwardRef<HTMLLIElement, Props>(function Re
   {
   row,
   highlighted,
+  duplicateEmail,
   certificatesEnabled,
   resending,
   resendingCertificate,
@@ -118,7 +120,14 @@ export const RegistrationListCard = forwardRef<HTMLLIElement, Props>(function Re
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="truncate font-semibold text-brand-ink">{displayName}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="truncate font-semibold text-brand-ink">{displayName}</p>
+                {duplicateEmail ? (
+                  <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-800">
+                    Duplicado
+                  </span>
+                ) : null}
+              </div>
               <p className="truncate text-sm text-brand-grey">{row.attendeeEmail}</p>
               {row.attendeePhone ? (
                 <p className="text-xs text-brand-grey">{row.attendeePhone}</p>

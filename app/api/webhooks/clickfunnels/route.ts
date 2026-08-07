@@ -166,6 +166,19 @@ export async function POST(request: Request) {
 
     const result = await processClickFunnelsPurchase(purchase, org.id);
 
+    if (result.ok && "skipped" in result && result.skipped) {
+      if (webhookEventId) {
+        await markWebhookEventProcessed(webhookEventId, false);
+      }
+      return NextResponse.json({
+        ok: true,
+        skipped: true,
+        reason: result.code,
+        externalOrderId: purchase.externalOrderId,
+        ticketQuantity: purchase.ticketQuantity,
+      });
+    }
+
     if (!result.ok) {
       console.warn("[clickfunnels webhook] registration failed", {
         org: org.slug,

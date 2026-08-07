@@ -26,6 +26,7 @@ export async function transferRegistrationOrderToWorkshopDate(
       workshopDate: { workshop: { organizationId } },
     },
     include: {
+      attendee: true,
       guestInfoRequestAsBuyer: true,
       workshopDate: { include: { workshop: true } },
     },
@@ -62,6 +63,36 @@ export async function transferRegistrationOrderToWorkshopDate(
       error: "La fecha no pertenece a este taller",
       code: "INVALID_DATE",
     };
+  }
+
+  const buyerEmail = (
+    buyer.attendeeEmail ??
+    buyer.attendee?.email ??
+    ""
+  )
+    .trim()
+    .toLowerCase();
+  if (buyerEmail) {
+    const existingOnTarget = await prisma.registration.findFirst({
+      where: {
+        workshopDateId: targetWorkshopDateId,
+        status: RegistrationStatus.CONFIRMED,
+        id: { notIn: [buyer.id] },
+        OR: [
+          { attendeeEmail: buyerEmail },
+          { attendee: { email: buyerEmail } },
+        ],
+      },
+      select: { id: true },
+    });
+    if (existingOnTarget) {
+      return {
+        ok: false,
+        error:
+          "Ya hay un registro confirmado con ese email en la fecha destino",
+        code: "DUPLICATE_EMAIL",
+      };
+    }
   }
 
   const baseOrderId = buyer.externalOrderId?.trim();

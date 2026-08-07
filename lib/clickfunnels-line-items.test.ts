@@ -32,6 +32,34 @@ describe("parseWorkshopTicketQuantity", () => {
     );
   });
 
+  it("returns 0 when webhook only contains OTO products", () => {
+    assert.equal(
+      parseWorkshopTicketQuantity({
+        data: {
+          line_items: [
+            { quantity: 1, original_product: { name: "Libro ED Segmentación" } },
+            { quantity: 1, original_product: { name: "Persuasión Peligroso" } },
+          ],
+        },
+      }),
+      0
+    );
+  });
+
+  it("excludes Persuasión Peligroso when bundled with workshop ticket", () => {
+    assert.equal(
+      parseWorkshopTicketQuantity({
+        data: {
+          line_items: [
+            { quantity: 1, original_product: { name: "Duplica Tus Ventas" } },
+            { quantity: 1, original_product: { name: "Persuasión Peligroso" } },
+          ],
+        },
+      }),
+      1
+    );
+  });
+
   it("sums multiple workshop tickets", () => {
     assert.equal(
       parseWorkshopTicketQuantity({

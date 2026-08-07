@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminFeedbackBanner, type AdminFeedback } from "@/components/admin/AdminFeedbackBanner";
 import { CsvImportPanel } from "@/components/admin/CsvImportPanel";
 import {
@@ -154,6 +154,24 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
       )
     );
   }, [rows, search]);
+
+  const duplicateEmailCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of rows) {
+      if (r.status !== "CONFIRMED") continue;
+      const email = r.attendeeEmail.trim().toLowerCase();
+      counts.set(email, (counts.get(email) ?? 0) + 1);
+    }
+    return counts;
+  }, [rows]);
+
+  const duplicateCount = useMemo(() => {
+    let n = 0;
+    for (const c of duplicateEmailCounts.values()) {
+      if (c > 1) n += c;
+    }
+    return n;
+  }, [duplicateEmailCounts]);
 
   useEffect(() => {
     if (!highlightId) return;
@@ -335,6 +353,9 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
         {selectedDate ? (
           <p className="mt-2 text-xs text-brand-grey">
             {filtered.length} persona(s) en esta fecha
+            {duplicateCount > 0
+              ? ` · ${duplicateCount} registro(s) con email duplicado`
+              : ""}
             {loading ? " · actualizando…" : ""}
           </p>
         ) : null}
@@ -415,6 +436,10 @@ export function RegistrationsPanel({ slug }: RegistrationsPanelProps) {
               }}
               row={r}
               highlighted={highlightId === r.id}
+              duplicateEmail={
+                r.status === "CONFIRMED" &&
+                (duplicateEmailCounts.get(r.attendeeEmail.trim().toLowerCase()) ?? 0) > 1
+              }
               resending={resendingId === r.id}
               certificatesEnabled={certificatesEnabled}
               resendingCertificate={resendingCertificateId === r.id}

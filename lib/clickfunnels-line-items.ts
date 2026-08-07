@@ -17,6 +17,15 @@ const OTO_PRODUCT_PATTERNS = [
   "guía ",
   "digital download",
   "descarga digital",
+  "persuasion",
+  "persuasión",
+  "peligroso",
+  "titulo",
+  "título",
+  "titulos",
+  "títulos",
+  "procesador de pago",
+  "payment processor",
 ];
 
 function pickString(obj: Record<string, unknown>, keys: string[]): string | null {
@@ -88,6 +97,7 @@ export function parseWorkshopTicketQuantity(
   raw: Record<string, unknown>
 ): number {
   const lineItems = getClickFunnelsLineItems(raw);
+  // Payloads legacy sin line_items: asumir 1 boleto.
   if (lineItems.length === 0) return 1;
 
   let workshopQty = 0;
@@ -99,5 +109,6 @@ export function parseWorkshopTicketQuantity(
     workshopQty += qty;
   }
 
-  return workshopQty > 0 ? workshopQty : 1;
+  // Si el webhook trae solo OTOs (upsell en transacción aparte), no es boleto de taller.
+  return workshopQty;
 }

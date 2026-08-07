@@ -1,6 +1,20 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { normalizeRegistrationEmail } from "./registrations";
 import { validateWorkshopDateOrganization } from "./registrations-validation";
+
+describe("normalizeRegistrationEmail", () => {
+  it("lowercases, trims, and strips NBSP", () => {
+    assert.equal(
+      normalizeRegistrationEmail("  Test@Example.com  "),
+      "test@example.com"
+    );
+    assert.equal(
+      normalizeRegistrationEmail("\u00a0mchalas1@hotmail.com"),
+      "mchalas1@hotmail.com"
+    );
+  });
+});
 
 describe("validateWorkshopDateOrganization", () => {
   it("accepts when organization matches workshop date org", () => {

@@ -96,7 +96,14 @@ async function findOrCreateAttendee(input: {
 }
 
 export type ProcessPurchaseResult =
-  | { ok: true; registrationId: string; passToken: string; duplicate: boolean }
+  | {
+      ok: true;
+      registrationId: string;
+      passToken: string;
+      duplicate: boolean;
+      skipped?: boolean;
+      code?: string;
+    }
   | { ok: false; error: string; code: string };
 
 export type RegisterAttendeeInput = {
@@ -117,6 +124,31 @@ export type RegisterAttendeeInput = {
 
 function formatEventDate(d: Date): string {
   return formatWorkshopDateTime(d);
+}
+
+/** Same normalization as CSV import / dedupe scripts. */
+export function normalizeRegistrationEmail(email: string): string {
+  return email.trim().toLowerCase().replace(/\u00a0/g, "");
+}
+
+async function findConfirmedRegistrationForEmailOnDate(
+  workshopDateId: string,
+  email: string
+) {
+  const normalized = normalizeRegistrationEmail(email);
+  return prisma.registration.findFirst({
+    where: {
+      workshopDateId,
+      status: RegistrationStatus.CONFIRMED,
+      OR: [
+        { attendeeEmail: normalized },
+        { attendeeEmail: { equals: normalized, mode: "insensitive" } },
+        { attendee: { email: normalized } },
+      ],
+    },
+    include: { pass: true },
+    orderBy: { createdAt: "asc" },
+  });
 }
 
 async function resolveWorkshopDateIdForSlug(
@@ -160,12 +192,14 @@ export async function registerAttendee(
     return { ok: false, error: "DATABASE_URL not configured", code: "NO_DB" };
   }
 
+  const email = normalizeRegistrationEmail(input.email);
+
   const existingReg = await prisma.registration.findUnique({
     where: { externalOrderId: input.externalOrderId },
     include: { pass: true },
   });
 
-  if (existingReg?.pass) {
+  if (existingReg?.status === RegistrationStatus.CONFIRMED) {
     return {
       ok: true,
       registrationId: existingReg.id,
@@ -214,19 +248,12 @@ export async function registerAttendee(
     };
   }
 
-  const existingForDate = await prisma.registration.findFirst({
-    where: {
-      workshopDateId,
-      OR: [
-        { attendeeEmail: input.email },
-        { attendee: { email: input.email } },
-      ],
-      status: RegistrationStatus.CONFIRMED,
-    },
-    include: { pass: true },
-  });
+  const existingForDate = await findConfirmedRegistrationForEmailOnDate(
+    workshopDateId,
+    email
+  );
 
-  if (existingForDate?.pass) {
+  if (existingForDate) {
     return {
       ok: true,
       registrationId: existingForDate.id,
@@ -252,35 +279,65 @@ export async function registerAttendee(
 
   const attendee = await findOrCreateAttendee({
     organizationId,
-    email: input.email,
+    email,
     name: input.name,
     phone: input.phone,
     metadata,
   });
 
-  const registration = await prisma.registration.create({
-    data: {
-      attendeeId: attendee.id,
-      workshopDateId,
-      externalOrderId: input.externalOrderId,
-      attendeeName: input.name,
-      attendeeEmail: input.email,
-      attendeePhone: input.phone,
-      source: input.source,
-      metadata,
-      status: RegistrationStatus.CONFIRMED,
-      pass: {
-        create: {
-          tokenHash,
+  let registration;
+  try {
+    registration = await prisma.registration.create({
+      data: {
+        attendeeId: attendee.id,
+        workshopDateId,
+        externalOrderId: input.externalOrderId,
+        attendeeName: input.name,
+        attendeeEmail: email,
+        attendeePhone: input.phone,
+        source: input.source,
+        metadata,
+        status: RegistrationStatus.CONFIRMED,
+        pass: {
+          create: {
+            tokenHash,
+          },
         },
       },
-    },
-    include: {
-      pass: true,
-      workshopDate: { include: { workshop: true } },
-      attendee: true,
-    },
-  });
+      include: {
+        pass: true,
+        workshopDate: { include: { workshop: true } },
+        attendee: true,
+      },
+    });
+  } catch (err) {
+    if (isUniqueConstraintError(err)) {
+      const racedByOrder = await prisma.registration.findUnique({
+        where: { externalOrderId: input.externalOrderId },
+      });
+      if (racedByOrder) {
+        return {
+          ok: true,
+          registrationId: racedByOrder.id,
+          passToken: "",
+          duplicate: true,
+        };
+      }
+      const racedByEmail = await findConfirmedRegistrationForEmailOnDate(
+        workshopDateId,
+        email
+      );
+      if (racedByEmail) {
+        return {
+          ok: true,
+          registrationId: racedByEmail.id,
+          passToken: "",
+          duplicate: true,
+        };
+      }
+    }
+    throw err;
+  }
 
   if (!input.skipSoldCountIncrement) {
     await incrementSoldCount(workshopDateId);
@@ -327,11 +384,22 @@ export async function processClickFunnelsPurchase(
     return { ok: false, error: "Invalid workshop", code: "INVALID_WORKSHOP" };
   }
 
+  if (purchase.ticketQuantity <= 0) {
+    return {
+      ok: true,
+      registrationId: "",
+      passToken: "",
+      duplicate: false,
+      skipped: true,
+      code: "OTO_ONLY_ORDER",
+    };
+  }
+
   const existingReg = await prisma.registration.findUnique({
     where: { externalOrderId: purchase.externalOrderId },
     include: { pass: true },
   });
-  if (existingReg?.pass) {
+  if (existingReg?.status === RegistrationStatus.CONFIRMED) {
     return {
       ok: true,
       registrationId: existingReg.id,
@@ -428,10 +496,11 @@ export async function importRegistrationsFromCsv(
   }
 
   for (const r of rows) {
-    const externalOrderId = `csv:${workshopDateId}:${r.email}`;
+    const email = normalizeRegistrationEmail(r.email);
+    const externalOrderId = `csv:${workshopDateId}:${email}`;
 
     const outcome = await registerAttendee({
-      email: r.email,
+      email,
       name: r.name,
       phone: r.phone,
       workshopSlug,
